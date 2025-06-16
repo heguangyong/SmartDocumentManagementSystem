@@ -23,8 +23,8 @@ file:
 
 aws:
   credentials:
-    accessKey: AKIAWOAVSOTOHPHU4QPG
-    secretKey: 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
+    accessKey: accessKey****
+    secretKey: secretKey****
     region:
       static: us-east-1 # US East (N. Virginia)
     stack:
