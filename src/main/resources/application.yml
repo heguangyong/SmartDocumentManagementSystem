@@ -1,0 +1,39 @@
+spring:
+  application:
+    name: sdms-backend
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/sdms_DB
+    username: postgres
+    password: root
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+jwt:
+  secret: 63f4945d921d599f27ae4fdf5bada3f1
+
+file:
+  upload-dir: uploads/
+
+aws:
+  credentials:
+    accessKey: AKIAWOAVSOTOHPHU4QPG
+    secretKey: 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
+    region:
+      static: us-east-1 # US East (N. Virginia)
+    stack:
+      auto: false  # Prevents Spring Cloud from auto-configuring CloudFormation stack
+  s3:
+    bucket:
+      name: sdmsfilesmanager
+logging:
+  level:
+    org:
+      springframework:
+        security: DEBUG
