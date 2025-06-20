@@ -16,15 +16,15 @@ spring:
         dialect: org.hibernate.dialect.PostgreSQLDialect
 
 jwt:
-  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
+  secret: ${JWT_SECRET}
 
 file:
   upload-dir: uploads/
 
 aws:
   credentials:
-    accessKey: AKIAWOAVSOTOHPHU4QPG
-    secretKey: 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
+    accessKey: ${AWS_ACCESS_KEY}
+    secretKey: ${AWS_SECRET_KEY}
     region:
       static: us-east-1 # US East (N. Virginia)
     stack:
