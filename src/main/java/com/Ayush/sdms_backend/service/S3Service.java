@@ -1,7 +1,7 @@
 package com.Ayush.sdms_backend.service;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -20,13 +20,13 @@ import java.util.UUID;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class S3Service {
 
     @Value("${aws.s3.bucket.name}")
     private String bucketName;
 
-    @Autowired
-    private S3Client s3Client;
+    private final S3Client s3Client;
 
     public String uploadFile(MultipartFile file) throws IOException {
 

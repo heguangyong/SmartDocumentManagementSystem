@@ -3,9 +3,9 @@ package com.Ayush.sdms_backend.controller;
 
 //import com.Ayush.sdms_backend.components.JwtUtil;
 import com.Ayush.sdms_backend.dto.DocumentDTO;
+import com.Ayush.sdms_backend.dto.DocumentVersionDTO;
 import com.Ayush.sdms_backend.service.DocumentService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -20,8 +20,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DocumentController {
 
-    @Autowired
-    private DocumentService documentService;
+    private final DocumentService documentService;
 
     @PostMapping("/upload")
     public ResponseEntity<String> uploadFile(@RequestParam("file") MultipartFile file,@RequestParam("userId") Long userId) {
@@ -32,6 +31,11 @@ public class DocumentController {
         catch (Exception e){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error: " + e.getMessage());
         }
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<DocumentDTO> getDocumentById(@PathVariable Long id) {
+        return ResponseEntity.ok(documentService.getDocumentById(id));
     }
 
     @GetMapping
@@ -56,5 +60,39 @@ public class DocumentController {
     public ResponseEntity<String> deleteFile(@PathVariable Long id) throws IOException {
         documentService.deleteDocument(id);
         return ResponseEntity.ok("Deleted successfully");
+    }
+
+    @PostMapping("/{id}/versions")
+    public ResponseEntity<DocumentVersionDTO> uploadNewVersion(
+            @PathVariable Long id,
+            @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "notes", required = false) String versionNotes) {
+        try {
+            return ResponseEntity.ok(documentService.uploadNewVersion(file, id, versionNotes));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    @GetMapping("/{id}/versions")
+    public ResponseEntity<List<DocumentVersionDTO>> getVersions(@PathVariable Long id) {
+        return ResponseEntity.ok(documentService.getDocumentVersions(id));
+    }
+
+    @GetMapping("/{id}/versions/{versionId}")
+    public ResponseEntity<byte[]> downloadVersion(@PathVariable Long id, @PathVariable Long versionId) {
+        try {
+            byte[] data = documentService.downloadDocumentVersion(versionId);
+            return ResponseEntity.ok()
+                    .header("Content-Disposition", "attachment; filename=version_" + versionId)
+                    .body(data);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(null);
+        }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<DocumentDTO>> searchDocuments(@RequestParam String query) {
+        return ResponseEntity.ok(documentService.searchDocuments(query));
     }
 }

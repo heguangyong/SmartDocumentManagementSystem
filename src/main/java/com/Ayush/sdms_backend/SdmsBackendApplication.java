@@ -10,5 +10,4 @@ public class SdmsBackendApplication {
 		SpringApplication.run(SdmsBackendApplication.class, args);
 		System.out.println("Hello There");
 	}
-
 }

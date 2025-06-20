@@ -2,7 +2,9 @@ package com.Ayush.sdms_backend.mapper;
 
 import com.Ayush.sdms_backend.dto.CreateDTO;
 import com.Ayush.sdms_backend.dto.DocumentDTO;
+import com.Ayush.sdms_backend.dto.DocumentVersionDTO;
 import com.Ayush.sdms_backend.model.Document;
+import com.Ayush.sdms_backend.model.DocumentVersion;
 import com.Ayush.sdms_backend.model.User;
 
 import java.time.LocalDateTime;
@@ -26,6 +28,16 @@ public class DocumentMapper {
                 .path(dto.getPath())
                 .uploadTime(LocalDateTime.now())
                 .user(user)
+                .build();
+    }
+
+    public static DocumentVersionDTO toVersionDTO(DocumentVersion version) {
+        return DocumentVersionDTO.builder()
+                .id(version.getId())
+                .fileName(version.getFileName())
+                .notes(version.getNotes())
+                .versionNumber(version.getVersionNumber())
+                .uploadTime(version.getUploadTime())
                 .build();
     }
 }

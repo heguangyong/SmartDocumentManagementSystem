@@ -1,6 +1,5 @@
 package com.Ayush.sdms_backend.controller;
 
-
 import com.Ayush.sdms_backend.components.JwtUtil;
 import com.Ayush.sdms_backend.dto.RegisterRequest;
 import com.Ayush.sdms_backend.model.User;
@@ -14,13 +13,9 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Controller;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.*;
 
-@Controller
+@RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
 public class AuthController {
@@ -28,14 +23,38 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final CustomUserDetailsServices customUserDetailsServices;
     private final JwtUtil jwtUtil;
-
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
+    @GetMapping("/test")
+    public ResponseEntity<String> test() {
+        return ResponseEntity.ok("Auth endpoint is working!");
+    }
 
+    @PostMapping("/register")
+    public ResponseEntity<String> register(@RequestBody RegisterRequest request) {
+        try {
+            if (userRepository.existsByEmail(request.getEmail())) {
+                return ResponseEntity.badRequest().body("Email already exists");
+            }
+
+            User user = User.builder()
+                    .username(request.getUsername())
+                    .email(request.getEmail())
+                    .password(passwordEncoder.encode(request.getPassword()))
+                    .role("USER")
+                    .build();
+
+            userRepository.save(user);
+            return ResponseEntity.ok("User registered successfully");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Registration failed: " + e.getMessage());
+        }
+    }
 
     @PostMapping("/login")
-    public ResponseEntity<String> login(@RequestParam String email,@RequestParam String password ){
+    public ResponseEntity<String> login(@RequestParam String email, @RequestParam String password) {
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, password)
@@ -46,10 +65,8 @@ public class AuthController {
 
             return ResponseEntity.ok("Successfully Logged In ✅ \n jwt = " + jwt);
         } catch (Exception e) {
-            e.printStackTrace(); // log to terminal
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Login failed ❌: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body("Login failed ❌: " + e.getMessage());
         }
     }
-
-
 }
