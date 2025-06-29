@@ -341,7 +341,7 @@ We welcome contributions! Please follow these steps:
 - **LinkedIn**: [Connect with me](https://www.linkedin.com/in/ayush-nandi-583231230/)
 - **Portfolio**: [View my work](https://ayushnandiportfolio.netlify.app/)
 - **Email**: ayushnandi.work24@gmail.com
-- **GitHub**: [@yourusername](https://github.com/ayushnandi)
+- **GitHub**: [@ayushnandi](https://github.com/ayushnandi)
 
 ### **Let's Connect!**
 I'm passionate about building scalable, secure, and user-friendly applications. If you're interested in collaborating on exciting projects or have questions about this implementation, feel free to reach out!
