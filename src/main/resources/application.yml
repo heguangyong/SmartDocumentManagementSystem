@@ -3,9 +3,9 @@ spring:
     name: sdms-backend
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/sdms_DB
-    username: postgres
-    password: root
+    url: jdbc:postgresql://pg-3d6c2daf-sendbox827-1d5a.c.aivencloud.com:28679/defaultdb?sslmode=require
+    username: avnadmin
+    password: AVNS_BUGHgY7tT_Dwohis5sa
     driver-class-name: org.postgresql.Driver
 
   jpa:
