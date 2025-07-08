@@ -2,7 +2,7 @@ package com.Ayush.sdms_backend.controller;
 
 import com.Ayush.sdms_backend.components.JwtUtil;
 import com.Ayush.sdms_backend.dto.RegisterRequest;
-import com.Ayush.sdms_backend.model.User;
+import com.Ayush.sdms_backend.model.AppUser;
 import com.Ayush.sdms_backend.repository.UserRepository;
 import com.Ayush.sdms_backend.service.CustomUserDetailsServices;
 import lombok.RequiredArgsConstructor;
@@ -38,7 +38,7 @@ public class AuthController {
                 return ResponseEntity.badRequest().body("Email already exists");
             }
 
-            User user = User.builder()
+            AppUser user = AppUser.builder()
                     .username(request.getUsername())
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))

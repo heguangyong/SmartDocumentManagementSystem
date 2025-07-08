@@ -5,7 +5,7 @@ import com.Ayush.sdms_backend.dto.DocumentDTO;
 import com.Ayush.sdms_backend.dto.DocumentVersionDTO;
 import com.Ayush.sdms_backend.model.Document;
 import com.Ayush.sdms_backend.model.DocumentVersion;
-import com.Ayush.sdms_backend.model.User;
+import com.Ayush.sdms_backend.model.AppUser;
 
 import java.time.LocalDateTime;
 
@@ -22,7 +22,7 @@ public class DocumentMapper {
                 .build();
     }
 
-    public static Document toEntity(CreateDTO dto, User user ){
+    public static Document toEntity(CreateDTO dto, AppUser user ){
         return Document.builder()
                 .name(dto.getName())
                 .path(dto.getPath())

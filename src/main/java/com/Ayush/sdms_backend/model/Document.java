@@ -30,7 +30,7 @@ public class Document {
     @ManyToOne(optional = false,fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnoreProperties({"documents"})
-    private User user;
+    private AppUser user;
 
     @OneToMany(mappedBy = "document", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<DocumentVersion> versions;

@@ -6,7 +6,7 @@ import com.Ayush.sdms_backend.exception.UserNotFoundException;
 import com.Ayush.sdms_backend.mapper.DocumentMapper;
 import com.Ayush.sdms_backend.model.Document;
 import com.Ayush.sdms_backend.model.DocumentVersion;
-import com.Ayush.sdms_backend.model.User;
+import com.Ayush.sdms_backend.model.AppUser;
 import com.Ayush.sdms_backend.repository.DocumentRepository;
 import com.Ayush.sdms_backend.repository.DocumentVersionRepository;
 import com.Ayush.sdms_backend.repository.UserRepository;
@@ -37,7 +37,7 @@ public class DocumentService {
         String s3Key = s3Service.uploadFile(file);
 
         // Document creation
-        User user = userRepository.findById(userId)
+        AppUser user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         Document document = Document.builder()

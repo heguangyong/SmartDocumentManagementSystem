@@ -1,6 +1,6 @@
 package com.Ayush.sdms_backend.controller;
 
-import com.Ayush.sdms_backend.model.User;
+import com.Ayush.sdms_backend.model.AppUser;
 import com.Ayush.sdms_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -20,14 +20,14 @@ public class UserController {
     private final PasswordEncoder passwordEncoder;
 
     @PostMapping("/create")
-    public ResponseEntity<User> createUser(@RequestBody User user){
+    public ResponseEntity<AppUser> createUser(@RequestBody AppUser user){
         // Encode password before saving
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return ResponseEntity.ok(userRepository.save(user));
     }
 
     @GetMapping
-    public ResponseEntity<List<User>> getAllUser(){
+    public ResponseEntity<List<AppUser>> getAllUser(){
         return ResponseEntity.of(Optional.of(userRepository.findAll()));
     }
 

@@ -1,6 +1,6 @@
 package com.Ayush.sdms_backend.wrapper;
 
-import com.Ayush.sdms_backend.model.User;
+import com.Ayush.sdms_backend.model.AppUser;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -10,9 +10,9 @@ import java.util.List;
 
 public class CustomerUserDetails implements UserDetails {
 
-    private final User user;
+    private final AppUser user;
 
-    public CustomerUserDetails(User user) {
+    public CustomerUserDetails(AppUser user) {
         this.user = user;
     }
 
