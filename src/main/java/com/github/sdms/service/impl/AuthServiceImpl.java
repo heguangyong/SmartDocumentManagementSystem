@@ -3,8 +3,9 @@ package com.github.sdms.service.impl;
 import cn.hutool.core.util.URLUtil;
 import com.github.sdms.components.JwtUtil;
 import com.github.sdms.model.AppUser;
+import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
-import com.github.sdms.storage.minio.MinioClientService;
+import com.github.sdms.service.MinioClientService;
 import com.github.sdms.thirdparty.oauth.OAuthClient;
 import com.alibaba.fastjson2.JSONObject;
 import com.github.sdms.dto.UUserReq;
@@ -20,9 +21,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 @Service
@@ -60,8 +58,18 @@ public class AuthServiceImpl implements AuthService {
     public String handleCallback(String code, String state, String baseRedirectUrl) {
         String accessToken = oAuthClient.getOauthToken(code);
         JSONObject userInfo = oAuthClient.userinfoByAccessToken(accessToken, state.equals("2") ? "v5" : "v3");
+
         String uid = userInfo.getString("x-oauth-unionid");
         String username = userInfo.getString("nameCn");
+        String roleFromFolio = "READER"; // 默认角色
+
+        // 获取角色字段（你需确认返回字段名，假设为 roles）
+        if (userInfo.containsKey("roles")) {
+            var roles = userInfo.getJSONArray("roles");
+            if (roles.contains("admin")) roleFromFolio = "ADMIN";
+            else if (roles.contains("librarian")) roleFromFolio = "LIBRARIAN";
+            else roleFromFolio = "READER";
+        }
 
         AppUser user = userRepository.findByUid(uid).orElse(null);
         if (user == null) {
@@ -70,18 +78,21 @@ public class AuthServiceImpl implements AuthService {
             user.setUsername(username != null ? username : "");
             user.setUserinfo(null);
             user.setIp(ServletUtils.getClientIP());
-            userRepository.save(user);
+            user.setRole(Role.valueOf(roleFromFolio)); // ✅ 首次设置角色
+        } else {
+            user.setRole(Role.valueOf(roleFromFolio)); // ✅ 每次同步角色，保持一致
         }
+        userRepository.save(user);
 
-        // ✅ 使用 JwtUtil 生成标准 JWT（带 username/role）
-        String jwt = jwtUtil.generateToken(uid, "USER");
+        // ✅ 使用 JwtUtil 生成 JWT，带角色
+        String jwt = jwtUtil.generateToken(uid, roleFromFolio);
 
         // 可选：缓存 accessToken
         stringRedisTemplate.opsForValue().set("accessToken_" + uid, accessToken);
 
-        // ✅ code 实际就是 JWT
         return baseRedirectUrl + "?code=" + jwt;
     }
+
 
     @Override
     public String getUserInfoByCode(UUserReq req, HttpServletResponse response) throws IOException {

@@ -1,4 +1,4 @@
-package com.github.sdms.common.response;
+package com.github.sdms.dto;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;

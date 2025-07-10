@@ -1,7 +1,7 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.common.response.ApiResponse;
-import com.github.sdms.storage.minio.MinioClientService;
+import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.service.MinioClientService;
 import com.github.sdms.wrapper.CustomerUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -9,14 +9,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-
-import java.util.HashMap;
-import java.util.Map;
 
 @Slf4j
 @RestController
@@ -63,39 +58,26 @@ public class FileController {
 
     @Operation(summary = "下载链接生成，含权限校验")
     @GetMapping("/download")
-    public ResponseEntity<ApiResponse<String>> generateDownloadUrl(
-            @RequestParam String filename,
-            @RequestParam String uid,
+    public ResponseEntity<ApiResponse<String>> downloadFile(
+            @RequestParam("filename") String objectName,
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
             HttpServletRequest request
     ) {
-        // 1. 获取登录用户身份（uid/role）
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String currentUsername = auth.getName();
-        boolean isAdmin = auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+        String uid = userDetails.getUid();
+        String path = request.getRequestURI();
 
-        if (!isAdmin && !currentUsername.equals(uid)) {
-            return ResponseEntity.status(403).body(ApiResponse.failure("您无权限下载该用户的文件"));
+        String check = minioClientService.logintimecheck(uid, path);
+        if (!"timein".equals(check)) {
+            return ResponseEntity.badRequest().body(ApiResponse.failure("会话已过期，请重新登录"));
         }
 
-        // 2. 构造验签参数（可扩展）
-        Map<String, Object> params = new HashMap<>();
-        params.put("uid", uid);
-        params.put("filename", filename);
-
-        String tokenCheck = minioClientService.urltoken(params);
-        if (!"ok!".equals(tokenCheck)) {
-            return ResponseEntity.badRequest().body(ApiResponse.failure("URL 验签失败"));
+        try {
+            String downloadUrl = minioClientService.generatePresignedDownloadUrl(uid, objectName);
+            return ResponseEntity.ok(ApiResponse.success(downloadUrl));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(ApiResponse.failure("生成下载链接失败: " + e.getMessage()));
         }
-
-        // 3. 登录有效性判断
-        String sessionCheck = minioClientService.logintimecheck(uid, request.getRequestURI());
-        if (!"timein".equals(sessionCheck)) {
-            return ResponseEntity.status(403).body(ApiResponse.failure("登录已过期，请重新登录"));
-        }
-
-        // 4. 模拟生成下载链接（后续接入 MinIO 签名下载）
-        String downloadUrl = String.format("https://mock-download-url/%s/%s", uid, filename);
-        return ResponseEntity.ok(ApiResponse.success(downloadUrl));
     }
+
 
 }

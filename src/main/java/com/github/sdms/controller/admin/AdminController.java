@@ -1,7 +1,7 @@
 package com.github.sdms.controller.admin;
 
-import com.github.sdms.common.response.ApiResponse;
-import com.github.sdms.storage.minio.MinioClientService;
+import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.service.MinioClientService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
 import org.springframework.http.ResponseEntity;

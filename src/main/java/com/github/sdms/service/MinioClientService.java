@@ -1,7 +1,8 @@
-package com.github.sdms.storage.minio;
+package com.github.sdms.service;
 
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -13,4 +14,9 @@ public interface MinioClientService {
     List<String> getUserFiles(String username);
     // 新增上传方法
     String uploadFile(String uid, MultipartFile file) throws Exception;
+    String generatePresignedDownloadUrl(String uid, String objectName) throws Exception;
+    String getPresignedUrl(String bucket, String objectName);
+    InputStream getObject(String bucket, String objectName);
+    void deleteObject(String bucketName, String objectName);
+
 }

@@ -44,14 +44,9 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             }
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                // 可选：使用数据库或直接构造 UserDetails
-                UserDetails userDetails;
-                try {
-                    userDetails = userDetailsService.loadUserByUsername(username);
-                } catch (Exception e) {
-                    // 对于非注册用户或 OAuth 临时用户，构造空权限用户
-                    userDetails = new User(username, "", Collections.emptyList());
-                }
+                String role = jwtUtil.extractRole(jwt); // 提取角色，例如 ROLE_ADMIN、ROLE_USER
+                UserDetails userDetails = new User(username, "",
+                        Collections.singleton(() -> "ROLE_" + role.toUpperCase().replace("ROLE_", "")));
 
                 if (jwtUtil.validateToken(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken =

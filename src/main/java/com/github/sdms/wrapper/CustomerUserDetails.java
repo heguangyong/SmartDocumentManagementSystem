@@ -2,6 +2,7 @@ package com.github.sdms.wrapper;
 
 import com.github.sdms.model.AppUser;
 import lombok.AllArgsConstructor;
+import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -9,6 +10,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import java.util.Collection;
 import java.util.Collections;
 
+@Getter
 @AllArgsConstructor
 public class CustomerUserDetails implements UserDetails {
 
@@ -48,10 +50,6 @@ public class CustomerUserDetails implements UserDetails {
     @Override
     public boolean isEnabled() {
         return true;
-    }
-
-    public AppUser getUser() {
-        return user;
     }
 
     public String getUid() {

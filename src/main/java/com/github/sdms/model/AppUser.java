@@ -134,8 +134,8 @@ public class AppUser {
     private String ip;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role;
+    @Column(name = "role",nullable = false)
+    private Role role;// READER, LIBRARIAN, ADMIN
 
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)

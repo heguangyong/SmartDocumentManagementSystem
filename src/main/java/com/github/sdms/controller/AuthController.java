@@ -1,6 +1,6 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.common.response.ApiResponse;
+import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.components.JwtUtil;
 import com.github.sdms.dto.RegisterRequest;
 import com.github.sdms.model.AppUser;

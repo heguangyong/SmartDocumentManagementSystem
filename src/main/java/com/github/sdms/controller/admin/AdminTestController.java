@@ -1,6 +1,6 @@
 package com.github.sdms.controller.admin;
 
-import com.github.sdms.common.response.ApiResponse;
+import com.github.sdms.dto.ApiResponse;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 

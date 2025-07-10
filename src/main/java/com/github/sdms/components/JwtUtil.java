@@ -3,6 +3,9 @@ package com.github.sdms.components;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
@@ -115,4 +118,34 @@ public class JwtUtil {
                 username.equals(userDetails.getUsername()) &&
                 !isTokenExpired(token);
     }
+
+    // ✅ 获取当前登录用户的角色（去除 "ROLE_" 前缀）
+    public String getCurrentRole() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            return authentication.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .filter(role -> role.startsWith("ROLE_"))
+                    .map(role -> role.substring(5)) // 去掉 "ROLE_"
+                    .findFirst()
+                    .orElse(null);
+        }
+        return null;
+    }
+
+    // ✅ 判断当前用户是否为管理员
+    public boolean isAdmin() {
+        String role = getCurrentRole();
+        return "ADMIN".equals(role);
+    }
+
+    // ✅ 获取当前登录用户的 UID（即 JWT 的 subject）
+    public String getCurrentUsername() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            return authentication.getName();
+        }
+        return null;
+    }
+
 }

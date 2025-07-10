@@ -1,11 +1,10 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.common.response.ApiResponse;
+import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.repository.UserRepository;
-import com.github.sdms.storage.minio.MinioClientService;
+import com.github.sdms.service.MinioClientService;
 import io.swagger.v3.oas.annotations.Operation;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
