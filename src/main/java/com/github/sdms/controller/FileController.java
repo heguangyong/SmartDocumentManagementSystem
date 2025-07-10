@@ -21,7 +21,8 @@ public class FileController {
 
     private final MinioClientService minioClientService;
 
-    @Operation(summary = "上传文件（当前用户）")
+    @Operation(summary = "上传文件（当前用户）【权限：馆员及管理员】")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")  // 读者无上传权限
     @PostMapping("/upload")
     public ResponseEntity<ApiResponse<String>> uploadFile(
             @RequestParam("file") MultipartFile file,
@@ -44,7 +45,7 @@ public class FileController {
         }
     }
 
-    @Operation(summary = "管理员上传文件（指定 uid）")
+    @Operation(summary = "管理员上传文件（指定 uid）【权限：仅管理员】")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/upload/admin")
     public ResponseEntity<ApiResponse<String>> uploadFileAsAdmin(
@@ -56,7 +57,8 @@ public class FileController {
         return ResponseEntity.ok(ApiResponse.success(msg));
     }
 
-    @Operation(summary = "下载链接生成，含权限校验")
+    @Operation(summary = "下载链接生成，含权限校验【权限：读者及以上】")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")  // 所有登录用户可下载
     @GetMapping("/download")
     public ResponseEntity<ApiResponse<String>> downloadFile(
             @RequestParam("filename") String objectName,
@@ -78,6 +80,5 @@ public class FileController {
             return ResponseEntity.status(500).body(ApiResponse.failure("生成下载链接失败: " + e.getMessage()));
         }
     }
-
 
 }

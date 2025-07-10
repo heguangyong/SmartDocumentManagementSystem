@@ -7,6 +7,7 @@ import com.github.sdms.model.AppUser;
 import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.CustomUserDetailsServices;
+import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,15 +33,22 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    // 多角色（如管理员或用户都可访问）
-    @PreAuthorize("hasAnyRole('ADMIN', 'USER')")
+    /**
+     * 任何已登录用户都可以访问此接口，用于测试权限
+     * 允许所有角色访问：READER、LIBRARIAN、ADMIN
+     */
+    @Operation(summary = "测试权限接口【权限：读者及以上】")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @GetMapping("/test")
     public ResponseEntity<String> test() {
         return ResponseEntity.ok("Auth endpoint is working!");
     }
 
-    // 用户权限
-    @PreAuthorize("hasRole('USER')")
+    /**
+     * 注册接口
+     * 一般允许匿名访问或仅ADMIN访问（这里开放匿名，若需可加 @PreAuthorize("hasRole('ADMIN')")）
+     */
+    @Operation(summary = "用户注册接口【权限：匿名访问】")
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<String>> register(@RequestBody RegisterRequest request) {
         try {
@@ -48,11 +56,19 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("Email already exists"));
             }
 
+            // 校验传入角色是否有效（READER, LIBRARIAN, ADMIN）
+            Role role;
+            try {
+                role = Role.valueOf(request.getRole().toUpperCase());
+            } catch (IllegalArgumentException ex) {
+                return ResponseEntity.badRequest().body(ApiResponse.failure("Invalid role: " + request.getRole()));
+            }
+
             AppUser user = AppUser.builder()
                     .username(request.getUsername())
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))
-                    .role(Role.valueOf(request.getRole()))
+                    .role(role)
                     .build();
 
             userRepository.save(user);
@@ -63,7 +79,11 @@ public class AuthController {
         }
     }
 
-    @PreAuthorize("hasRole('ADMIN')")     // ✅ 正确方式
+    /**
+     * 登录接口
+     * 一般允许匿名访问，故去掉 @PreAuthorize 限制
+     */
+    @Operation(summary = "用户登录接口【权限：匿名访问】")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<String>> login(@RequestParam String email, @RequestParam String password) {
         try {
@@ -81,6 +101,11 @@ public class AuthController {
         }
     }
 
+    /**
+     * 管理员接口：获取所有角色列表
+     * 只允许 ADMIN 访问
+     */
+    @Operation(summary = "获取所有角色列表【权限：仅管理员】")
     @GetMapping("/admin/roles")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<String>>> getAllRoles() {
@@ -89,6 +114,5 @@ public class AuthController {
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(roles));
     }
-
 
 }

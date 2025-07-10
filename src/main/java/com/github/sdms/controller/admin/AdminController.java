@@ -15,11 +15,18 @@ public class AdminController {
     @Resource
     private MinioClientService minioClientService;
 
-    @Operation(summary = "清理上传缓存（仅管理员）")
+    @Operation(summary = "清理上传缓存（仅管理员权限）")
     @PostMapping("/clear-upload-cache")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> clearUploadCache() {
-        boolean result = minioClientService.clearUploadCache(); // 你可以自定义这个方法
+        boolean result = minioClientService.clearUploadCache();
         return ResponseEntity.ok(ApiResponse.success(result ? "清理成功 ✅" : "清理失败 ❌"));
+    }
+
+    @Operation(summary = "管理员权限测试接口（仅管理员权限）")
+    @GetMapping("/test/ping")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<String>> adminPing() {
+        return ResponseEntity.ok(ApiResponse.success("✅ ADMIN 权限验证成功！"));
     }
 }
