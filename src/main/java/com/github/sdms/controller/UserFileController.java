@@ -155,7 +155,7 @@ public class UserFileController {
         return ApiResponse.success("文件已重命名", null);
     }
 
-    @DeleteMapping("/{uid}/purge")
+    @DeleteMapping("/{uid}/purgeFile")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "彻底删除指定文件（馆员LIBRARIAN及管理员ADMIN）")
     public ApiResponse<Void> purgeFile(@PathVariable String uid, @RequestParam String filename) {
@@ -183,7 +183,7 @@ public class UserFileController {
         return ApiResponse.success(files);
     }
 
-    @DeleteMapping("/{uid}/purge")
+    @DeleteMapping("/{uid}/purgeFiles")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "批量物理删除用户文件（馆员LIBRARIAN及管理员ADMIN）")
     public ApiResponse<Void> purgeFiles(@PathVariable String uid, @RequestBody List<String> filenames) {

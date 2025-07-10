@@ -46,4 +46,8 @@ public class UserFile {
     private Integer uperr = 0; // 上传错误标志位
 
     private String ip; // 上传来源 IP（可选）
+
+    @Column(name = "folder_id")
+    private Long folderId; // 所属目录 ID，可为空，表示根目录
+
 }

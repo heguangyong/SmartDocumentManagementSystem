@@ -16,21 +16,24 @@ public class DataInitializer {
     private final PasswordEncoder passwordEncoder;
 
     @PostConstruct
-    public void initAdminUser() {
-        String email = "admin@example.com";
+    public void initUsers() {
+        createUserIfNotExists("admin", "admin@example.com", "admin123", Role.ADMIN);
+        createUserIfNotExists("librarian", "librarian@example.com", "librarian123", Role.LIBRARIAN);
+        createUserIfNotExists("reader", "reader@example.com", "reader123", Role.READER);
+    }
 
+    private void createUserIfNotExists(String username, String email, String rawPassword, Role role) {
         if (!userRepository.existsByEmail(email)) {
-            AppUser admin = AppUser.builder()
-                    .username("admin")
+            AppUser user = AppUser.builder()
+                    .username(username)
                     .email(email)
-                    .password(passwordEncoder.encode("admin123")) // 设定初始密码
-                    .role(Role.valueOf("ADMIN"))
+                    .password(passwordEncoder.encode(rawPassword))
+                    .role(role)
                     .build();
-
-            userRepository.save(admin);
-            System.out.println("✅ ADMIN 用户已创建: admin@example.com / admin123");
+            userRepository.save(user);
+            System.out.printf("✅ [%s] 用户已创建: %s / %s%n", role, email, rawPassword);
         } else {
-            System.out.println("ℹ️ ADMIN 用户已存在");
+            System.out.printf("ℹ️ [%s] 用户已存在: %s%n", role, email);
         }
     }
 }

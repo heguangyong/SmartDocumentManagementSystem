@@ -10,10 +10,9 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Component
 public class JwtUtil {
@@ -26,27 +25,28 @@ public class JwtUtil {
     }
 
     /**
-     * 生成 JWT - 本地登录用
+     * 生成 JWT - 本地登录用，支持多角色
      */
     public String generateToken(UserDetails userDetails) {
-        String subject = userDetails.getUsername(); // email 或 uid
+        String subject = userDetails.getUsername();
         Map<String, Object> claims = new HashMap<>();
         claims.put("username", subject);
-        claims.put("role", userDetails.getAuthorities().stream()
-                .findFirst()
+        // 收集所有角色为列表写入claims
+        List<String> roles = userDetails.getAuthorities().stream()
                 .map(Object::toString)
-                .orElse("USER"));
+                .collect(Collectors.toList());
+        claims.put("roles", roles);
 
         return buildToken(claims, subject);
     }
 
     /**
-     * 生成 JWT - OAuth 登录用
+     * 生成 JWT - OAuth 登录用，支持单角色（可扩展为多角色）
      */
-    public String generateToken(String uid, String role) {
+    public String generateToken(String uid, List<String> roles) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("username", uid);
-        claims.put("role", role);
+        claims.put("roles", roles);
 
         return buildToken(claims, uid);
     }
@@ -62,6 +62,19 @@ public class JwtUtil {
                 .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 2)) // 2 小时
                 .signWith(getSigningKey())
                 .compact();
+    }
+
+    // 解析 roles 列表
+    public List<String> extractRoles(String token) {
+        Claims claims = extractAllClaims(token);
+        Object roles = claims.get("roles");
+        if (roles instanceof List<?>) {
+            return ((List<?>) roles).stream()
+                    .filter(obj -> obj instanceof String)
+                    .map(obj -> (String) obj)
+                    .toList();
+        }
+        return Collections.emptyList();
     }
 
     /**

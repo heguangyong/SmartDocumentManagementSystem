@@ -2,6 +2,7 @@ package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.components.JwtUtil;
+import com.github.sdms.dto.LoginResponse;
 import com.github.sdms.dto.RegisterRequest;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.model.enums.Role;
@@ -85,7 +86,7 @@ public class AuthController {
      */
     @Operation(summary = "用户登录接口【权限：匿名访问】")
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<String>> login(@RequestParam String email, @RequestParam String password) {
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestParam String email, @RequestParam String password) {
         try {
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, password)
@@ -94,12 +95,20 @@ public class AuthController {
             UserDetails userDetails = customUserDetailsServices.loadUserByUsername(email);
             String jwt = jwtUtil.generateToken(userDetails);
 
-            return ResponseEntity.ok(ApiResponse.success(jwt));
+            // 获取所有角色字符串列表
+            List<String> roles = userDetails.getAuthorities().stream()
+                    .map(auth -> auth.getAuthority())  // 例如 ROLE_ADMIN
+                    .toList();
+
+            LoginResponse response = new LoginResponse(jwt, "Bearer", roles);
+
+            return ResponseEntity.ok(ApiResponse.success(response));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.failure("Login failed ❌: " + e.getMessage()));
         }
     }
+
 
     /**
      * 管理员接口：获取所有角色列表

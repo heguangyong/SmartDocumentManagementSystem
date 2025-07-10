@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 @Service
@@ -61,14 +63,21 @@ public class AuthServiceImpl implements AuthService {
 
         String uid = userInfo.getString("x-oauth-unionid");
         String username = userInfo.getString("nameCn");
-        String roleFromFolio = "READER"; // 默认角色
 
-        // 获取角色字段（你需确认返回字段名，假设为 roles）
+        // 解析角色列表
+        List<String> rolesFromFolio = new ArrayList<>();
         if (userInfo.containsKey("roles")) {
             var roles = userInfo.getJSONArray("roles");
-            if (roles.contains("admin")) roleFromFolio = "ADMIN";
-            else if (roles.contains("librarian")) roleFromFolio = "LIBRARIAN";
-            else roleFromFolio = "READER";
+            for (Object r : roles) {
+                String role = r.toString().toUpperCase();
+                // 过滤有效角色，默认reader
+                if (role.equals("ADMIN") || role.equals("LIBRARIAN") || role.equals("READER")) {
+                    rolesFromFolio.add(role);
+                }
+            }
+        }
+        if (rolesFromFolio.isEmpty()) {
+            rolesFromFolio.add("READER");
         }
 
         AppUser user = userRepository.findByUid(uid).orElse(null);
@@ -76,22 +85,20 @@ public class AuthServiceImpl implements AuthService {
             user = new AppUser();
             user.setUid(uid);
             user.setUsername(username != null ? username : "");
-            user.setUserinfo(null);
-            user.setIp(ServletUtils.getClientIP());
-            user.setRole(Role.valueOf(roleFromFolio)); // ✅ 首次设置角色
+            user.setRole(Role.valueOf(rolesFromFolio.get(0))); // 只保留主角色
         } else {
-            user.setRole(Role.valueOf(roleFromFolio)); // ✅ 每次同步角色，保持一致
+            user.setRole(Role.valueOf(rolesFromFolio.get(0)));
         }
         userRepository.save(user);
 
-        // ✅ 使用 JwtUtil 生成 JWT，带角色
-        String jwt = jwtUtil.generateToken(uid, roleFromFolio);
+        // 生成 JWT，传递角色列表
+        String jwt = jwtUtil.generateToken(uid, rolesFromFolio);
 
-        // 可选：缓存 accessToken
         stringRedisTemplate.opsForValue().set("accessToken_" + uid, accessToken);
 
         return baseRedirectUrl + "?code=" + jwt;
     }
+
 
 
     @Override
