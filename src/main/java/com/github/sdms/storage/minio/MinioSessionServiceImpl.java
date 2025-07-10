@@ -1,10 +1,15 @@
 package com.github.sdms.storage.minio;
 
+import io.minio.MinioClient;
+import io.minio.PutObjectArgs;
+import io.minio.errors.MinioException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -15,6 +20,11 @@ import java.util.*;
 public class MinioSessionServiceImpl implements MinioClientService {
 
     private static final String SECRET_KEY = "12345678"; // ✅ 如果需要，可迁移为配置项
+
+    @Autowired
+    private MinioClient minioClient;  // 你应该已经配置过 MinioClient Bean
+
+    private static final String BUCKET_NAME = "sdmsfilesmanager";
 
     @Autowired
     private StringRedisTemplate redisTemplate;
@@ -92,5 +102,43 @@ public class MinioSessionServiceImpl implements MinioClientService {
         return List.of("file1.pdf", "file2.docx");
     }
 
+    @Override
+    public String uploadFile(String uid, MultipartFile file) throws Exception {
+        String originalFilename = file.getOriginalFilename();
+        String objectName = uid + "/" + System.currentTimeMillis() + "_" + originalFilename;
+
+        try (InputStream inputStream = file.getInputStream()) {
+            // 检查桶是否存在，如果不存在则创建
+            boolean found = minioClient.bucketExists(
+                    io.minio.BucketExistsArgs.builder()
+                            .bucket(BUCKET_NAME)
+                            .build()
+            );
+
+            if (!found) {
+                minioClient.makeBucket(
+                        io.minio.MakeBucketArgs.builder()
+                                .bucket(BUCKET_NAME)
+                                .build()
+                );
+                log.info("Created bucket: {}", BUCKET_NAME);
+            }
+
+
+            // 上传文件
+            minioClient.putObject(PutObjectArgs.builder()
+                    .bucket(BUCKET_NAME)
+                    .object(objectName)
+                    .stream(inputStream, file.getSize(), -1)
+                    .contentType(file.getContentType())
+                    .build());
+
+            log.info("User {} uploaded file: {}", uid, objectName);
+            return objectName;
+        } catch (MinioException e) {
+            log.error("MinIO upload error: ", e);
+            throw new Exception("文件上传失败: " + e.getMessage());
+        }
+    }
 
 }

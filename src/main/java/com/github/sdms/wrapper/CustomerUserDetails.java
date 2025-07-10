@@ -53,4 +53,8 @@ public class CustomerUserDetails implements UserDetails {
     public AppUser getUser() {
         return user;
     }
+
+    public String getUid() {
+        return user.getUid();
+    }
 }
