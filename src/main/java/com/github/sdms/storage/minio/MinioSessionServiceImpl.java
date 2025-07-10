@@ -80,4 +80,17 @@ public class MinioSessionServiceImpl implements MinioClientService {
         long timestamp = System.currentTimeMillis() / 1000;
         redisTemplate.opsForValue().set(uid + "logintime", String.valueOf(timestamp));
     }
+
+    @Override
+    public boolean clearUploadCache() {
+        log.info("清理上传缓存");
+        return true;
+    }
+
+    @Override
+    public List<String> getUserFiles(String username) {
+        return List.of("file1.pdf", "file2.docx");
+    }
+
+
 }

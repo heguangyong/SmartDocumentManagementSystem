@@ -1,6 +1,7 @@
 package com.github.sdms.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.github.sdms.model.enums.Role;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
@@ -132,8 +133,10 @@ public class AppUser {
     @Schema(description = "来源IP")
     private String ip;
 
-    @Schema(description = "用户角色，如ROLE_USER, ROLE_ADMIN, ROLE_GUEST")
-    private String role;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role;
+
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
     @JsonIgnore

@@ -1,4 +1,4 @@
-package com.github.sdms.controller;
+package com.github.sdms.controller.admin;
 
 import com.github.sdms.common.response.ApiResponse;
 import org.springframework.security.access.prepost.PreAuthorize;

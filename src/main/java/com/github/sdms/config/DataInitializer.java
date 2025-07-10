@@ -1,6 +1,7 @@
 package com.github.sdms.config;
 
 import com.github.sdms.model.AppUser;
+import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +24,7 @@ public class DataInitializer {
                     .username("admin")
                     .email(email)
                     .password(passwordEncoder.encode("admin123")) // 设定初始密码
-                    .role("ADMIN")
+                    .role(Role.valueOf("ADMIN"))
                     .build();
 
             userRepository.save(admin);

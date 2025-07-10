@@ -1,6 +1,7 @@
 package com.github.sdms.service;
 
 import com.github.sdms.model.AppUser;
+import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.impl.UserServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +37,7 @@ public class UserServiceTest {
                 .username("testuser")
                 .email("test@example.com")
                 .password("encryptedPwd")
-                .role("USER")
+                .role(Role.valueOf("USER"))
                 .build();
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
@@ -60,7 +61,7 @@ public class UserServiceTest {
                 .username("newuser")
                 .email("newuser@example.com")
                 .password("pwd")
-                .role("ADMIN")
+                .role(Role.valueOf("ADMIN"))
                 .build();
 
         when(userRepository.save(user)).thenReturn(user);
