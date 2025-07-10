@@ -36,11 +36,22 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        // 🟢 分享目录入口：无需登录
+                        .requestMatchers("/public/**").permitAll()
+
+                        // 🟢 登录认证相关接口：本地+OAuth
                         .requestMatchers("/auth/**", "/auth/local/**").permitAll()
+
+                        // 🟢 跨域预检请求（CORS）
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // 🟢 Swagger UI & API 文档
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**").permitAll()
+
+                        // 🔒 其他接口必须认证
                         .anyRequest().authenticated()
                 )
+
                 .authenticationProvider(daoAuthenticationProvider())
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 

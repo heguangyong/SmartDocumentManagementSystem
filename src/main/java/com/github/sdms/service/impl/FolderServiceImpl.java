@@ -7,10 +7,7 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -121,7 +118,7 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public String generateShareToken(String uid, Long folderId) {
+    public String generateShareToken(String uid, Long folderId, Integer expireMinutes) {
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new RuntimeException("目录不存在"));
 
@@ -129,16 +126,28 @@ public class FolderServiceImpl implements FolderService {
             throw new SecurityException("无权限分享该目录");
         }
 
-        // 生成一个唯一分享Token（如 UUID）
         String token = UUID.randomUUID().toString().replaceAll("-", "");
 
         folder.setShared(true);
         folder.setShareToken(token);
+
+        // 设置过期时间
+        if (expireMinutes != null && expireMinutes > 0) {
+            Date now = new Date();
+            Calendar calendar = Calendar.getInstance();
+            calendar.setTime(now);
+            calendar.add(Calendar.MINUTE, expireMinutes);
+            folder.setShareExpireAt(calendar.getTime());
+        } else {
+            folder.setShareExpireAt(null); // 永不过期
+        }
+
         folder.setUpdatedAt(new Date());
         folderRepository.save(folder);
 
         return token;
     }
+
 
     @Override
     public void revokeShareToken(String uid, Long folderId) {

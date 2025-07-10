@@ -235,4 +235,19 @@ public class MinioClientServiceImpl implements MinioClientService {
         }
     }
 
+    public String getPresignedDownloadUrl(String bucket, String objectKey, String filename) {
+        try {
+            return minioClient.getPresignedObjectUrl(
+                    GetPresignedObjectUrlArgs.builder()
+                            .method(Method.GET)
+                            .bucket(bucket)
+                            .object(objectKey)
+                            .expiry(60 * 10) // 10分钟有效
+                            .build()
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("生成预签名地址失败", e);
+        }
+    }
+
 }

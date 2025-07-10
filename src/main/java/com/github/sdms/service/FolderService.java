@@ -20,7 +20,8 @@ public interface FolderService {
 
     void moveFolder(String uid, Long folderId, Long newParentId);
 
-    String generateShareToken(String uid, Long folderId);
+    String generateShareToken(String uid, Long folderId, Integer expireMinutes);
+
 
     void revokeShareToken(String uid, Long folderId);
 

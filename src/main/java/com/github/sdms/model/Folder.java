@@ -47,6 +47,11 @@ public class Folder {
     @Column(name = "share_token")
     private String shareToken;
 
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "share_expire_at")
+    private Date shareExpireAt; // 分享链接过期时间（可空 = 永不过期）
+
+
     public String getOwnerId() {
         return this.uid;
     }

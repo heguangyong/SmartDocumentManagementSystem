@@ -86,5 +86,16 @@ public class UserFileServiceImpl implements UserFileService {
                 .sum();
     }
 
+    @Override
+    public List<UserFile> listFilesByFolder(String ownerId, Long folderId) {
+        return userFileRepository.findByOwnerIdAndFolderIdAndDeletedFalse(ownerId, folderId);
+    }
+
+    @Override
+    public UserFile getFileById(Long fileId) {
+        return userFileRepository.findByIdAndDeleteFlagFalse(fileId)
+                .orElseThrow(() -> new RuntimeException("文件不存在或已被删除"));
+    }
+
 
 }

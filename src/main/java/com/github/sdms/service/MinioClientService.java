@@ -18,5 +18,6 @@ public interface MinioClientService {
     String getPresignedUrl(String bucket, String objectName);
     InputStream getObject(String bucket, String objectName);
     void deleteObject(String bucketName, String objectName);
+    String getPresignedDownloadUrl(String bucket, String objectKey, String filename);
 
 }
