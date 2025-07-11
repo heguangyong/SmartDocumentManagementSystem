@@ -1,6 +1,6 @@
 package com.github.sdms.dto;
 
-import com.github.sdms.common.util.MapUtils;
+import com.github.sdms.util.MapUtils;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

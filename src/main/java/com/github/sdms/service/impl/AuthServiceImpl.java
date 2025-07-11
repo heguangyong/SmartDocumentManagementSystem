@@ -1,16 +1,16 @@
 package com.github.sdms.service.impl;
 
 import cn.hutool.core.util.URLUtil;
-import com.github.sdms.components.JwtUtil;
+import com.github.sdms.util.JwtUtil;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.MinioClientService;
-import com.github.sdms.thirdparty.oauth.OAuthClient;
+import com.github.sdms.util.OAuthClient;
 import com.alibaba.fastjson2.JSONObject;
 import com.github.sdms.dto.UUserReq;
 import com.github.sdms.service.AuthService;
-import com.github.sdms.common.util.ServletUtils;
+import com.github.sdms.util.ServletUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;

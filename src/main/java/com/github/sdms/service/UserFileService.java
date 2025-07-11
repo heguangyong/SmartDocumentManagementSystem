@@ -41,7 +41,7 @@ public interface UserFileService {
     long getUserStorageUsage(String uid);
 
     /** ✅ 获取指定目录下的用户文件列表（只返回未删除的） */
-    List<UserFile> listFilesByFolder(String ownerId, Long folderId);
+    List<UserFile> listFilesByFolder(String uid, Long folderId);
 
     UserFile getFileById(Long fileId);
 

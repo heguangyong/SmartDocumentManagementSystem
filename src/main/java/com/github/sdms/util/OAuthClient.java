@@ -1,4 +1,4 @@
-package com.github.sdms.thirdparty.oauth;
+package com.github.sdms.util;
 
 import com.alibaba.fastjson2.JSONObject;
 import lombok.extern.log4j.Log4j2;

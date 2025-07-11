@@ -2,10 +2,8 @@ package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.model.Folder;
-import com.github.sdms.model.UserFile;
-import com.github.sdms.security.PermissionChecker;
+import com.github.sdms.util.PermissionChecker;
 import com.github.sdms.service.FolderService;
-import com.github.sdms.service.UserFileService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;

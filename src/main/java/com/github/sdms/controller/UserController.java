@@ -1,10 +1,10 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.components.JwtUtil;
+import com.github.sdms.util.JwtUtil;
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.repository.UserRepository;
-import com.github.sdms.security.PermissionChecker;
+import com.github.sdms.util.PermissionChecker;
 import com.github.sdms.service.MinioClientService;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;

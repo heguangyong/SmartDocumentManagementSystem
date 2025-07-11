@@ -87,8 +87,8 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public List<UserFile> listFilesByFolder(String ownerId, Long folderId) {
-        return userFileRepository.findByOwnerIdAndFolderIdAndDeletedFalse(ownerId, folderId);
+    public List<UserFile> listFilesByFolder(String uid, Long folderId) {
+        return userFileRepository.findByUidAndFolderIdAndDeleteFlagFalse(uid, folderId);
     }
 
     @Override

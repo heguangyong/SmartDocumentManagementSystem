@@ -2,7 +2,7 @@ package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.service.MinioClientService;
-import com.github.sdms.wrapper.CustomerUserDetails;
+import com.github.sdms.util.CustomerUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;

@@ -1,4 +1,4 @@
-package com.github.sdms.components;
+package com.github.sdms.util;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;

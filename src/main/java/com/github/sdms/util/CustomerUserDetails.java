@@ -1,4 +1,4 @@
-package com.github.sdms.wrapper;
+package com.github.sdms.util;
 
 import com.github.sdms.model.AppUser;
 import lombok.AllArgsConstructor;

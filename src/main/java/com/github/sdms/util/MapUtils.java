@@ -1,4 +1,4 @@
-package com.github.sdms.common.util;
+package com.github.sdms.util;
 
 import cn.hutool.core.util.ObjectUtil;
 

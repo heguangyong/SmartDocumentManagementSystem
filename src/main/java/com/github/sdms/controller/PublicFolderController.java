@@ -8,6 +8,7 @@ import com.github.sdms.service.FolderService;
 import com.github.sdms.service.MinioClientService;
 import com.github.sdms.service.ShareAccessLogService;
 import com.github.sdms.service.UserFileService;
+import com.github.sdms.util.ShareTokenValidator;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
@@ -33,11 +34,10 @@ public class PublicFolderController {
             @RequestParam String token
     ) {
         Folder folder = folderService.getFolderByShareToken(token);
-        if (folder == null || !Boolean.TRUE.equals(folder.getShared())) {
-            return ApiResponse.failure("分享链接无效或已失效");
-        }
-        if (folder.getShareExpireAt() != null && new Date().after(folder.getShareExpireAt())) {
-            return ApiResponse.failure("分享链接已过期");
+        try {
+            ShareTokenValidator.validateShareToken(folder);
+        } catch (IllegalStateException e) {
+            return ApiResponse.failure(e.getMessage());
         }
 
         // 可选扩展：返回该目录下的文件或子目录（只读）
@@ -53,11 +53,10 @@ public class PublicFolderController {
     @Operation(summary = "列出分享目录下的文件列表")
     public ApiResponse<List<UserFile>> listSharedFiles(@RequestParam String token) {
         Folder folder = folderService.getFolderByShareToken(token);
-        if (folder == null || !Boolean.TRUE.equals(folder.getShared())) {
-            return ApiResponse.failure("分享链接无效或已失效");
-        }
-        if (folder.getShareExpireAt() != null && new Date().after(folder.getShareExpireAt())) {
-            return ApiResponse.failure("分享链接已过期");
+        try {
+            ShareTokenValidator.validateShareToken(folder);
+        } catch (IllegalStateException e) {
+            return ApiResponse.failure(e.getMessage());
         }
 
         // 查询该目录下的文件列表（只读）
@@ -72,12 +71,10 @@ public class PublicFolderController {
             HttpServletRequest request
     ) {
         Folder folder = folderService.getFolderByShareToken(token);
-        if (folder == null || !Boolean.TRUE.equals(folder.getShared())) {
-            return ResponseEntity.status(403).body("无效分享链接");
-        }
-
-        if (folder.getShareExpireAt() != null && new Date().after(folder.getShareExpireAt())) {
-            return ResponseEntity.status(403).body("分享链接已过期");
+        try {
+            ShareTokenValidator.validateShareToken(folder);
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(403).body(e.getMessage());
         }
 
         UserFile file = userFileService.getFileById(fileId);

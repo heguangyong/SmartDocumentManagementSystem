@@ -2,7 +2,7 @@ package com.github.sdms.service;
 
 import com.github.sdms.model.AppUser;
 import com.github.sdms.repository.UserRepository;
-import com.github.sdms.wrapper.CustomerUserDetails;
+import com.github.sdms.util.CustomerUserDetails;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

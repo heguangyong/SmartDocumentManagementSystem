@@ -1,6 +1,5 @@
-package com.github.sdms.security;
+package com.github.sdms.util;
 
-import com.github.sdms.components.JwtUtil;
 import com.github.sdms.model.Folder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;

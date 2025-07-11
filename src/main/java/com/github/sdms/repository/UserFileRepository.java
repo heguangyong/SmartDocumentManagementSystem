@@ -20,7 +20,7 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
 
     List<UserFile> findByDeleteFlagTrueAndCreatedDateBefore(Date before);
 
-    List<UserFile> findByOwnerIdAndFolderIdAndDeletedFalse(String ownerId, Long folderId);
+    List<UserFile> findByUidAndFolderIdAndDeleteFlagFalse(String uid, Long folderId);
 
     Optional<UserFile> findByIdAndDeleteFlagFalse(Long fileId);
 

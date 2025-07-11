@@ -2,7 +2,7 @@ package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.model.UserFile;
-import com.github.sdms.security.PermissionChecker;
+import com.github.sdms.util.PermissionChecker;
 import com.github.sdms.service.MinioClientService;
 import com.github.sdms.service.StorageQuotaService;
 import com.github.sdms.service.UserFileService;
