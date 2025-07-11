@@ -1,7 +1,9 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
-import com.github.sdms.service.MinioClientService;
+import com.github.sdms.model.AppUser;
+import com.github.sdms.repository.UserRepository;
+import com.github.sdms.service.MinioService;
 import com.github.sdms.util.CustomerUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,8 +21,13 @@ import org.springframework.web.multipart.MultipartFile;
 @RequiredArgsConstructor
 public class FileController {
 
-    private final MinioClientService minioClientService;
+    private final MinioService minioService;
+    private final UserRepository userRepository;
 
+    /**
+     * 上传文件（当前用户）
+     * 权限：馆员及管理员
+     */
     @Operation(summary = "上传文件（当前用户）【权限：馆员及管理员】")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")  // 读者无上传权限
     @PostMapping("/upload")
@@ -30,33 +37,50 @@ public class FileController {
             HttpServletRequest request
     ) {
         String uid = userDetails.getUid();
+        String libraryCode = userDetails.getLibraryCode();  // 获取 libraryCode
         String path = request.getRequestURI();
 
-        String check = minioClientService.logintimecheck(uid, path);
+        // 使用 uid 和 libraryCode 验证会话
+        String check = minioService.logintimecheck(uid, libraryCode, path);
         if (!"timein".equals(check)) {
             return ResponseEntity.badRequest().body(ApiResponse.failure("会话已过期，请重新登录"));
         }
 
         try {
-            String objectName = minioClientService.uploadFile(uid, file);
+            String objectName = minioService.uploadFile(uid, file, libraryCode);
             return ResponseEntity.ok(ApiResponse.success("文件上传成功: " + objectName));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(ApiResponse.failure("上传失败: " + e.getMessage()));
         }
     }
 
+    /**
+     * 管理员上传文件（指定 uid）
+     * 权限：仅管理员
+     */
     @Operation(summary = "管理员上传文件（指定 uid）【权限：仅管理员】")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/upload/admin")
     public ResponseEntity<ApiResponse<String>> uploadFileAsAdmin(
             @RequestParam("file") MultipartFile file,
-            @RequestParam("uid") String targetUid
+            @RequestParam("uid") String targetUid,
+            @RequestParam("libraryCode") String libraryCode  // 确保管理员提供 libraryCode
     ) {
         String filename = file.getOriginalFilename();
+        // 校验目标用户是否属于该馆
+        AppUser targetUser = userRepository.findByUidAndLibraryCode(targetUid, libraryCode).orElse(null);
+        if (targetUser == null) {
+            return ResponseEntity.status(404).body(ApiResponse.failure("用户不存在或不属于指定馆"));
+        }
+
         String msg = "管理员上传文件成功，文件：" + filename + "，目标用户：" + targetUid;
         return ResponseEntity.ok(ApiResponse.success(msg));
     }
 
+    /**
+     * 下载文件并生成下载链接
+     * 权限：读者及以上
+     */
     @Operation(summary = "下载链接生成，含权限校验【权限：读者及以上】")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")  // 所有登录用户可下载
     @GetMapping("/download")
@@ -66,19 +90,20 @@ public class FileController {
             HttpServletRequest request
     ) {
         String uid = userDetails.getUid();
+        String libraryCode = userDetails.getLibraryCode();  // 获取 libraryCode
         String path = request.getRequestURI();
 
-        String check = minioClientService.logintimecheck(uid, path);
+        // 使用 uid 和 libraryCode 验证会话
+        String check = minioService.logintimecheck(uid, libraryCode, path);
         if (!"timein".equals(check)) {
             return ResponseEntity.badRequest().body(ApiResponse.failure("会话已过期，请重新登录"));
         }
 
         try {
-            String downloadUrl = minioClientService.generatePresignedDownloadUrl(uid, objectName);
+            String downloadUrl = minioService.generatePresignedDownloadUrl(uid, libraryCode, objectName);
             return ResponseEntity.ok(ApiResponse.success(downloadUrl));
         } catch (Exception e) {
             return ResponseEntity.status(500).body(ApiResponse.failure("生成下载链接失败: " + e.getMessage()));
         }
     }
-
 }

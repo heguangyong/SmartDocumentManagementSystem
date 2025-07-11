@@ -53,8 +53,9 @@ public class AuthController {
     @PostMapping("/register")
     public ResponseEntity<ApiResponse<String>> register(@RequestBody RegisterRequest request) {
         try {
-            if (userRepository.existsByEmail(request.getEmail())) {
-                return ResponseEntity.badRequest().body(ApiResponse.failure("Email already exists"));
+            // 验证 email 和 libraryCode 组合是否已存在
+            if (userRepository.existsByEmailAndLibraryCode(request.getEmail(), request.getLibraryCode())) {
+                return ResponseEntity.badRequest().body(ApiResponse.failure("Email already exists for this libraryCode"));
             }
 
             // 校验传入角色是否有效（READER, LIBRARIAN, ADMIN）
@@ -65,11 +66,19 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("Invalid role: " + request.getRole()));
             }
 
+            // 获取租户信息 libraryCode
+            String libraryCode = request.getLibraryCode();
+            if (libraryCode == null || libraryCode.trim().isEmpty()) {
+                return ResponseEntity.badRequest().body(ApiResponse.failure("libraryCode must not be empty"));
+            }
+
+            // 创建用户对象并保存到数据库
             AppUser user = AppUser.builder()
                     .username(request.getUsername())
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))
                     .role(role)
+                    .libraryCode(libraryCode)  // 保存 libraryCode 字段
                     .build();
 
             userRepository.save(user);
@@ -80,19 +89,24 @@ public class AuthController {
         }
     }
 
+
+
+
     /**
      * 登录接口
      * 一般允许匿名访问，故去掉 @PreAuthorize 限制
      */
     @Operation(summary = "用户登录接口【权限：匿名访问】")
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestParam String email, @RequestParam String password) {
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestParam String email, @RequestParam String password, @RequestParam String libraryCode) {
         try {
+            // 根据 email 和 libraryCode 认证用户
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, password)
             );
 
-            UserDetails userDetails = customUserDetailsServices.loadUserByUsername(email);
+            // 从数据库加载用户信息
+            UserDetails userDetails = customUserDetailsServices.loadUserByUsernameAndLibraryCode(email, libraryCode);
             String jwt = jwtUtil.generateToken(userDetails);
 
             // 获取所有角色字符串列表
@@ -109,7 +123,6 @@ public class AuthController {
         }
     }
 
-
     /**
      * 管理员接口：获取所有角色列表
      * 只允许 ADMIN 访问
@@ -123,5 +136,4 @@ public class AuthController {
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(roles));
     }
-
 }

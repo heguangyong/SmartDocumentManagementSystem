@@ -50,4 +50,7 @@ public class UserFile {
     @Column(name = "folder_id")
     private Long folderId; // 所属目录 ID，可为空，表示根目录
 
+    // 新增馆代码字段
+    @Column(nullable = false)
+    private String libraryCode;
 }

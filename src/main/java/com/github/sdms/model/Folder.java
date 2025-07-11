@@ -22,6 +22,10 @@ public class Folder {
     @Column(nullable = false)
     private String name;
 
+    // 新增馆代码字段
+    @Column(nullable = false)
+    private String libraryCode;
+
     // 所属用户 ID（私有目录用）
     @Column(nullable = false)
     private String uid;

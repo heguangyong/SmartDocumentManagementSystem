@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Map;
 
+
 @Service
 @RequiredArgsConstructor
 public class StorageQuotaServiceImpl implements StorageQuotaService {
@@ -24,30 +25,54 @@ public class StorageQuotaServiceImpl implements StorageQuotaService {
             "ADMIN", Long.MAX_VALUE // 无限
     );
 
+    /**
+     * 获取最大配额，根据用户的角色来返回不同的存储配额
+     * @param uid 用户ID
+     * @param libraryCode 租户标识
+     * @return 用户的最大存储配额
+     */
     @Override
-    public long getMaxQuota(String uid) {
-        Role role = userRepository.findByUid(uid)
+    public long getMaxQuota(String uid, String libraryCode) {
+        Role role = userRepository.findByUidAndLibraryCode(uid, libraryCode)
                 .map(AppUser::getRole)
                 .orElse(Role.READER); // 默认角色
 
         return ROLE_QUOTA.getOrDefault(role.toString().toUpperCase(), 0L);
     }
 
+    /**
+     * 获取用户已使用的存储配额
+     * @param uid 用户ID
+     * @param libraryCode 租户标识
+     * @return 用户已使用的存储配额
+     */
     @Override
-    public long getUsedQuota(String uid) {
-        return userFileService.getUserStorageUsage(uid);
+    public long getUsedQuota(String uid, String libraryCode) {
+        return userFileService.getUserStorageUsage(uid, libraryCode);
     }
 
+    /**
+     * 判断用户是否可以上传指定大小的文件
+     * @param uid 用户ID
+     * @param fileSize 文件大小（字节）
+     * @param libraryCode 租户标识
+     * @return 如果用户可以上传该文件，则返回true，否则返回false
+     */
     @Override
-    public boolean canUpload(String uid, long fileSize) {
-        long used = getUsedQuota(uid);
-        long max = getMaxQuota(uid);
+    public boolean canUpload(String uid, long fileSize, String libraryCode) {
+        long used = getUsedQuota(uid, libraryCode);
+        long max = getMaxQuota(uid, libraryCode);
         return (used + fileSize) <= max;
     }
 
+    /**
+     * 获取用户剩余的存储配额
+     * @param uid 用户ID
+     * @param libraryCode 租户标识
+     * @return 用户剩余的存储配额
+     */
     @Override
-    public long getRemainingQuota(String uid) {
-        return getMaxQuota(uid) - getUsedQuota(uid);
+    public long getRemainingQuota(String uid, String libraryCode) {
+        return getMaxQuota(uid, libraryCode) - getUsedQuota(uid, libraryCode);
     }
 }
-

@@ -1,7 +1,7 @@
 package com.github.sdms.service.impl;
 
 import com.github.sdms.model.UserFile;
-import com.github.sdms.service.MinioClientService;
+import com.github.sdms.service.MinioService;
 import com.github.sdms.service.StorageQuotaService;
 import com.github.sdms.service.UserFileService;
 import io.minio.*;
@@ -21,12 +21,12 @@ import java.util.*;
 
 @Slf4j
 @Service
-public class MinioClientServiceImpl implements MinioClientService {
+public class MinioServiceImpl implements MinioService {
 
-    private static final String SECRET_KEY = "12345678"; // ✅ 如果需要，可迁移为配置项
+    private static final String SECRET_KEY = "12345678"; // 如果需要，可迁移为配置项
 
     @Autowired
-    private MinioClient minioClient;  // 你应该已经配置过 MinioClient Bean
+    private MinioClient minioClient;
 
     private static final String BUCKET_NAME = "sdmsfilesmanager";
 
@@ -79,12 +79,12 @@ public class MinioClientServiceImpl implements MinioClientService {
     }
 
     @Override
-    public String logintimecheck(String uid, String path) {
+    public String logintimecheck(String uid, String libraryCode, String path) {
         // 白名单
         Set<String> whitelist = Set.of("/api/user/auth", "/api/userFile/downloadStatus");
         if (whitelist.contains(path)) return "timein";
 
-        String key = uid + "logintime";
+        String key = uid + libraryCode + "logintime";  // 使用 uid 和 libraryCode 作为 key
         String timeStr = redisTemplate.opsForValue().get(key);
         if (timeStr == null || !timeStr.matches("\\d+")) return "timeout";
 
@@ -95,9 +95,9 @@ public class MinioClientServiceImpl implements MinioClientService {
     }
 
     @Override
-    public void loginset(String uid) {
+    public void loginset(String uid, String libraryCode) {
         long timestamp = System.currentTimeMillis() / 1000;
-        redisTemplate.opsForValue().set(uid + "logintime", String.valueOf(timestamp));
+        redisTemplate.opsForValue().set(uid + libraryCode + "logintime", String.valueOf(timestamp));
     }
 
     @Override
@@ -112,9 +112,9 @@ public class MinioClientServiceImpl implements MinioClientService {
     }
 
     @Override
-    public String uploadFile(String uid, MultipartFile file) throws Exception {
+    public String uploadFile(String uid, MultipartFile file, String libraryCode) throws Exception {
         String originalFilename = file.getOriginalFilename();
-        String objectName = uid + "/" + System.currentTimeMillis() + "_" + originalFilename;
+        String objectName = uid + "/" + libraryCode + "/" + System.currentTimeMillis() + "_" + originalFilename;
 
         try (InputStream inputStream = file.getInputStream()) {
             // 检查桶是否存在，如果不存在则创建
@@ -133,7 +133,8 @@ public class MinioClientServiceImpl implements MinioClientService {
                 log.info("Created bucket: {}", BUCKET_NAME);
             }
 
-            if (!storageQuotaService.canUpload(uid, file.getSize())) {
+            // 校验上传配额
+            if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
                 throw new RuntimeException("上传失败：存储配额不足，请联系管理员或清理文件。");
             }
 
@@ -153,7 +154,7 @@ public class MinioClientServiceImpl implements MinioClientService {
                     .type(file.getContentType())
                     .size(file.getSize())
                     .url(objectName)
-                    .md5(null) // TODO: 可后续计算
+                    .md5(null) // 可后续计算
                     .bucket(BUCKET_NAME)
                     .deleteFlag(false)
                     .uperr(0)
@@ -170,9 +171,9 @@ public class MinioClientServiceImpl implements MinioClientService {
     }
 
     @Override
-    public String generatePresignedDownloadUrl(String uid, String objectName) throws Exception {
+    public String generatePresignedDownloadUrl(String uid, String objectName, String libraryCode) throws Exception {
         // 防止越权，确保用户只能下载自己文件夹下的文件
-        if (!objectName.startsWith(uid + "/")) {
+        if (!objectName.startsWith(uid + "/" + libraryCode + "/")) {
             throw new IllegalArgumentException("无权访问该文件");
         }
 
@@ -249,5 +250,4 @@ public class MinioClientServiceImpl implements MinioClientService {
             throw new RuntimeException("生成预签名地址失败", e);
         }
     }
-
 }

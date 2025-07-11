@@ -5,7 +5,7 @@ import com.github.sdms.util.JwtUtil;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
-import com.github.sdms.service.MinioClientService;
+import com.github.sdms.service.MinioService;
 import com.github.sdms.util.OAuthClient;
 import com.alibaba.fastjson2.JSONObject;
 import com.github.sdms.dto.UUserReq;
@@ -45,19 +45,19 @@ public class AuthServiceImpl implements AuthService {
     private StringRedisTemplate stringRedisTemplate;
 
     @Autowired
-    private MinioClientService minioClientService;
+    private MinioService minioService;
 
     @Autowired
     private JwtUtil jwtUtil;
 
 
     @Override
-    public String getOauthRedirectUri(String type) {
+    public String getOauthRedirectUri(String type, String libraryCode) {
         return oAuthClient.oauthRedirectUri(type);
     }
 
     @Override
-    public String handleCallback(String code, String state, String baseRedirectUrl) {
+    public String handleCallback(String code, String state, String baseRedirectUrl, String libraryCode) {
         String accessToken = oAuthClient.getOauthToken(code);
         JSONObject userInfo = oAuthClient.userinfoByAccessToken(accessToken, state.equals("2") ? "v5" : "v3");
 
@@ -80,7 +80,8 @@ public class AuthServiceImpl implements AuthService {
             rolesFromFolio.add("READER");
         }
 
-        AppUser user = userRepository.findByUid(uid).orElse(null);
+        // 修改为根据 libraryCode 查询
+        AppUser user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
         if (user == null) {
             user = new AppUser();
             user.setUid(uid);
@@ -99,12 +100,10 @@ public class AuthServiceImpl implements AuthService {
         return baseRedirectUrl + "?code=" + jwt;
     }
 
-
-
     @Override
-    public String getUserInfoByCode(UUserReq req, HttpServletResponse response) throws IOException {
+    public String getUserInfoByCode(UUserReq req, String libraryCode, HttpServletResponse response) throws IOException {
         Map<String, Object> params = req.getMap();
-        String urlCheck = minioClientService.urltoken(params);
+        String urlCheck = minioService.urltoken(params);
         if (!"ok!".equals(urlCheck)) {
             response.setContentType("text/html");
             PrintWriter out = response.getWriter();
@@ -121,13 +120,12 @@ public class AuthServiceImpl implements AuthService {
             return "Invalid token";
         }
 
-        // 可选：从数据库获取用户信息做返回
-        AppUser user = userRepository.findByUid(uid).orElse(null);
+        // 根据 libraryCode 查询用户
+        AppUser user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
         String username = user != null ? user.getUsername() : "";
 
         return uid + "===" + username + "===" + jwt;
     }
-
 
     @Override
     public String logout(String uid) {
@@ -140,23 +138,26 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public String checkSession(String uid, String path) {
-        return "timeout".equals(minioClientService.logintimecheck(uid, path)) ? "session timeout" : "session valid";
+    public String checkSession(String uid, String path, String libraryCode) {
+        // 使用 libraryCode 来进行会话验证，确保每个租户的用户会话是独立的
+        return "timeout".equals(minioService.logintimecheck(uid, path, libraryCode)) ? "session timeout" : "session valid";
     }
 
+
     @Override
-    public String setLogin(String uid) {
-        minioClientService.loginset(uid);
+    public String setLogin(String uid, String libraryCode) {
+        minioService.loginset(uid,libraryCode);
         return "loginset success";
     }
 
     @Override
-    public String getUserInfoByAccessToken(String accessToken) throws Exception {
+    public String getUserInfoByAccessToken(String accessToken, String libraryCode) throws Exception {
         JSONObject userInfo = oAuthClient.userinfoByAccessToken(accessToken, "v5");
         String uid = userInfo.getString("x-oauth-unionid");
         String username = userInfo.getString("nameCn");
 
-        AppUser user = userRepository.findByUid(uid).orElse(null);
+        // 根据 libraryCode 查询用户
+        AppUser user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
         if (user == null) {
             user = new AppUser();
             user.setUid(uid);

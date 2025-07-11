@@ -27,9 +27,14 @@ public class AppUser {
     @Schema(description = "上图统一用户UID，OAuth唯一标识")
     private String uid;
 
-    @Column(unique = true)
+    @Column(nullable = false)
     @Schema(description = "用户名，唯一")
     private String username;
+
+    // 新增馆代码字段
+    @Column(nullable = false)
+    @Schema(description = "馆代码")
+    private String libraryCode;
 
     @Schema(description = "昵称")
     private String nickname;

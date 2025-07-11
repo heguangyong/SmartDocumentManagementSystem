@@ -44,7 +44,7 @@ public class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.username").value("apiuser"));
 
 
-        Optional<AppUser> savedUser = userRepository.findByUsername("apiuser");
+        Optional<AppUser> savedUser = userRepository.findByUsernameAndLibraryCode("apiuser","G123");
         assertNotNull(savedUser);
     }
 }

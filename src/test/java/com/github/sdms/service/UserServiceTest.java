@@ -12,6 +12,8 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 
 import java.util.Optional;
 
@@ -24,14 +26,11 @@ import static org.mockito.Mockito.*;
 @Transactional
 public class UserServiceTest {
 
+    @MockBean
     private UserRepository userRepository;
-    private UserService userService;
 
-    @BeforeEach
-    void setUp() {
-        userRepository = Mockito.mock(UserRepository.class);
-        userService = new UserServiceImpl(userRepository);
-    }
+    @Autowired
+    private UserService userService;
 
     @Test
     void testFindByEmail() {
@@ -41,20 +40,25 @@ public class UserServiceTest {
                 .email("test@example.com")
                 .password("encryptedPwd")
                 .role(Role.READER)
+                .libraryCode("123456")
                 .build();
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
 
-        Optional<AppUser> foundUser = userService.findByEmail("test@example.com");
+        Optional<AppUser> foundUser = userService.findByEmailAndLibraryCode("test@example.com","123456");
         assertTrue(foundUser.isPresent());
         assertEquals("testuser", foundUser.get().getUsername());
     }
 
     @Test
-    void testExistsByEmail() {
-        when(userRepository.existsByEmail("test@example.com")).thenReturn(true);
+    void testExistsByEmailAndLibraryCode() {
+        // 假设你的 Repository 使用的是 `existsByEmailAndLibraryCode` 方法
+        String email = "test@example.com";
+        String libraryCode = "libraryCode123";
 
-        boolean exists = userService.existsByEmail("test@example.com");
+        when(userRepository.existsByEmailAndLibraryCode(email, libraryCode)).thenReturn(true);
+
+        boolean exists = userService.existsByEmailAndLibraryCode(email, libraryCode);
         assertTrue(exists);
     }
 
@@ -64,7 +68,7 @@ public class UserServiceTest {
                 .username("newuser")
                 .email("newuser@example.com")
                 .password("pwd")
-                .role(Role.valueOf("ADMIN"))
+                .role(Role.ADMIN)
                 .build();
 
         when(userRepository.save(user)).thenReturn(user);
@@ -76,8 +80,11 @@ public class UserServiceTest {
 
     @Test
     void testDeleteUser() {
-        doNothing().when(userRepository).deleteById(1L);
-        userService.deleteUser(1L);
-        verify(userRepository, times(1)).deleteById(1L);
+        long userId = 1L;
+        doNothing().when(userRepository).deleteById(userId);
+
+        userService.deleteUser(userId);
+
+        verify(userRepository, times(1)).deleteById(userId);
     }
 }

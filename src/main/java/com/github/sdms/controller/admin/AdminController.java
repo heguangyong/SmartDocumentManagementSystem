@@ -1,7 +1,7 @@
 package com.github.sdms.controller.admin;
 
 import com.github.sdms.dto.ApiResponse;
-import com.github.sdms.service.MinioClientService;
+import com.github.sdms.service.MinioService;
 import com.github.sdms.service.ShareAccessLogService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.annotation.Resource;
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.*;
 public class AdminController {
 
     @Resource
-    private MinioClientService minioClientService;
+    private MinioService minioService;
     @Resource
     private ShareAccessLogService shareAccessLogService;
 
@@ -23,7 +23,7 @@ public class AdminController {
     @PostMapping("/clear-upload-cache")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> clearUploadCache() {
-        boolean result = minioClientService.clearUploadCache();
+        boolean result = minioService.clearUploadCache();
         return ResponseEntity.ok(ApiResponse.success(result ? "清理成功 ✅" : "清理失败 ❌"));
     }
 

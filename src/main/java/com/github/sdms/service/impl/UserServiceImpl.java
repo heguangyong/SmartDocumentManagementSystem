@@ -17,43 +17,43 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<AppUser> findByEmail(String email) {
-        return userRepository.findByEmail(email);
+    public Optional<AppUser> findByEmailAndLibraryCode(String email, String libraryCode) {
+        return userRepository.findByEmailAndLibraryCode(email, libraryCode);
     }
 
     @Override
-    public Optional<AppUser> findByUsername(String username) {
-        return userRepository.findByUsername(username);
+    public Optional<AppUser> findByUsernameAndLibraryCode(String username, String libraryCode) {
+        return userRepository.findByUsernameAndLibraryCode(username, libraryCode);
     }
 
     @Override
-    public boolean existsByEmail(String email) {
-        return userRepository.existsByEmail(email);
+    public boolean existsByEmailAndLibraryCode(String email, String libraryCode) {
+        return userRepository.existsByEmailAndLibraryCode(email, libraryCode);
     }
 
     @Override
-    public Optional<AppUser> findByUid(String uid) {
-        return userRepository.findByUid(uid);
+    public Optional<AppUser> findByUidAndLibraryCode(String uid, String libraryCode) {
+        return userRepository.findByUidAndLibraryCode(uid, libraryCode);
     }
 
     @Override
-    public boolean existsByUid(String uid) {
-        return userRepository.existsByUid(uid);
+    public boolean existsByUidAndLibraryCode(String uid, String libraryCode) {
+        return userRepository.existsByUidAndLibraryCode(uid, libraryCode);
     }
 
     @Override
-    public Optional<AppUser> findByMobile(String mobile) {
-        return userRepository.findByMobile(mobile);
+    public Optional<AppUser> findByMobileAndLibraryCode(String mobile, String libraryCode) {
+        return userRepository.findByMobileAndLibraryCode(mobile, libraryCode);
     }
 
     @Override
-    public boolean existsByMobile(String mobile) {
-        return userRepository.existsByMobile(mobile);
+    public boolean existsByMobileAndLibraryCode(String mobile, String libraryCode) {
+        return userRepository.existsByMobileAndLibraryCode(mobile, libraryCode);
     }
 
     @Override
-    public Optional<AppUser> findByUsernameOrEmail(String username, String email) {
-        return userRepository.findByUsernameOrEmail(username, email);
+    public Optional<AppUser> findByUsernameOrEmailAndLibraryCode(String username, String email, String libraryCode) {
+        return userRepository.findByUsernameOrEmailAndLibraryCode(username, email, libraryCode);
     }
 
     @Override

@@ -16,11 +16,10 @@ public class FolderServiceImpl implements FolderService {
     private final FolderRepository folderRepository;
 
     @Override
-    public Folder createFolder(String uid, String name, Long parentId) {
-        // 名称冲突校验（同一层级下）
+    public Folder createFolder(String uid, String name, Long parentId, String libraryCode) {
         List<Folder> siblings = parentId == null
-                ? folderRepository.findByUidAndParentIdIsNull(uid)
-                : folderRepository.findByUidAndParentId(uid, parentId);
+                ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
+                : folderRepository.findByUidAndParentIdAndLibraryCode(uid, parentId, libraryCode);
         if (siblings.stream().anyMatch(f -> f.getName().equals(name))) {
             throw new IllegalArgumentException("该目录下已存在同名文件夹");
         }
@@ -36,13 +35,11 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public Folder renameFolder(String uid, Long folderId, String newName) {
-        Folder folder = getFolderById(uid, folderId);
-
-        // 不允许重名（同父目录下）
+    public Folder renameFolder(String uid, Long folderId, String newName, String libraryCode) {
+        Folder folder = getFolderById(uid, folderId, libraryCode);
         List<Folder> siblings = folder.getParentId() == null
-                ? folderRepository.findByUidAndParentIdIsNull(uid)
-                : folderRepository.findByUidAndParentId(uid, folder.getParentId());
+                ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
+                : folderRepository.findByUidAndParentIdAndLibraryCode(uid, folder.getParentId(), libraryCode);
         if (siblings.stream().anyMatch(f -> !f.getId().equals(folderId) && f.getName().equals(newName))) {
             throw new IllegalArgumentException("该目录下已存在同名文件夹");
         }
@@ -53,8 +50,8 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public void deleteFolder(String uid, Long folderId) {
-        Folder folder = getFolderById(uid, folderId);
+    public void deleteFolder(String uid, Long folderId, String libraryCode) {
+        Folder folder = getFolderById(uid, folderId, libraryCode);
         if (Boolean.TRUE.equals(folder.getSystemFolder())) {
             throw new IllegalStateException("系统内置目录禁止删除");
         }
@@ -62,20 +59,20 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public List<Folder> listFolders(String uid, Long parentId) {
+    public List<Folder> listFolders(String uid, Long parentId, String libraryCode) {
         return parentId == null
-                ? folderRepository.findByUidAndParentIdIsNull(uid)
-                : folderRepository.findByUidAndParentId(uid, parentId);
+                ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
+                : folderRepository.findByUidAndParentIdAndLibraryCode(uid, parentId, libraryCode);
     }
 
     @Override
-    public List<Folder> listAllFolders(String uid) {
-        return folderRepository.findByUid(uid);
+    public List<Folder> listAllFolders(String uid, String libraryCode) {
+        return folderRepository.findByUidAndLibraryCode(uid, libraryCode);
     }
 
     @Override
-    public Folder getFolderById(String uid, Long folderId) {
-        Folder folder = folderRepository.findByIdAndUid(folderId, uid);
+    public Folder getFolderById(String uid, Long folderId, String libraryCode) {
+        Folder folder = folderRepository.findByIdAndUidAndLibraryCode(folderId, uid, libraryCode);
         if (folder == null) {
             throw new EntityNotFoundException("目录不存在或无权限访问");
         }
@@ -83,19 +80,17 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public void moveFolder(String uid, Long folderId, Long newParentId) {
+    public void moveFolder(String uid, Long folderId, Long newParentId, String libraryCode) {
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new RuntimeException("待移动目录不存在"));
 
         Folder newParent = folderRepository.findById(newParentId)
                 .orElseThrow(() -> new RuntimeException("目标父目录不存在"));
 
-        // 检查目录归属权限
         if (!folder.getOwnerId().equals(uid) || !newParent.getOwnerId().equals(uid)) {
             throw new SecurityException("无权限操作该目录");
         }
 
-        // 防止循环引用：不能将目录移动到自己的子孙节点中
         if (isDescendant(folderId, newParentId)) {
             throw new IllegalArgumentException("不能将目录移动到其子目录下");
         }
@@ -106,7 +101,6 @@ public class FolderServiceImpl implements FolderService {
     }
 
     private boolean isDescendant(Long sourceId, Long targetParentId) {
-        // 向上递归判断目标父目录是否为 sourceId 的子孙
         Long currentId = targetParentId;
         while (currentId != null) {
             if (currentId.equals(sourceId)) return true;
@@ -118,7 +112,7 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public String generateShareToken(String uid, Long folderId, Integer expireMinutes) {
+    public String generateShareToken(String uid, Long folderId, Integer expireMinutes, String libraryCode) {
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new RuntimeException("目录不存在"));
 
@@ -127,19 +121,15 @@ public class FolderServiceImpl implements FolderService {
         }
 
         String token = UUID.randomUUID().toString().replaceAll("-", "");
-
         folder.setShared(true);
         folder.setShareToken(token);
 
-        // 设置过期时间
         if (expireMinutes != null && expireMinutes > 0) {
-            Date now = new Date();
             Calendar calendar = Calendar.getInstance();
-            calendar.setTime(now);
             calendar.add(Calendar.MINUTE, expireMinutes);
             folder.setShareExpireAt(calendar.getTime());
         } else {
-            folder.setShareExpireAt(null); // 永不过期
+            folder.setShareExpireAt(null);
         }
 
         folder.setUpdatedAt(new Date());
@@ -148,9 +138,8 @@ public class FolderServiceImpl implements FolderService {
         return token;
     }
 
-
     @Override
-    public void revokeShareToken(String uid, Long folderId) {
+    public void revokeShareToken(String uid, Long folderId, String libraryCode) {
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new RuntimeException("目录不存在"));
 
@@ -165,8 +154,9 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public Folder getFolderByShareToken(String token) {
-        return folderRepository.findByShareToken(token).orElse(null);
+    public Folder getFolderByShareToken(String token, String libraryCode) {
+        return folderRepository.findByShareTokenAndLibraryCode(token, libraryCode).orElse(null);
     }
+
 
 }

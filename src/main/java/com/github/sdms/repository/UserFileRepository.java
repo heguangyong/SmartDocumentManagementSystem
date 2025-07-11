@@ -10,18 +10,25 @@ import java.util.Optional;
 
 @Repository
 public interface UserFileRepository extends JpaRepository<UserFile, Long> {
-    List<UserFile> findByUidAndDeleteFlagFalse(String uid);
 
-    void deleteByUidAndNameIn(String uid, List<String> names);
+    // 根据用户ID和deleteFlag查询文件列表
+    List<UserFile> findByUidAndDeleteFlagFalseAndLibraryCode(String uid, String libraryCode);
 
-    List<UserFile> findByUidAndDeleteFlagTrueAndCreatedDateAfter(String uid, Date after);
+    // 批量删除文件
+    void deleteByUidAndNameInAndLibraryCode(String uid, List<String> names, String libraryCode);
 
-    UserFile findByUidAndName(String uid, String name);
+    // 查询被标记为删除的文件
+    List<UserFile> findByUidAndDeleteFlagTrueAndCreatedDateAfterAndLibraryCode(String uid, Date after, String libraryCode);
 
-    List<UserFile> findByDeleteFlagTrueAndCreatedDateBefore(Date before);
+    // 根据UID和文件名查询文件
+    UserFile findByUidAndNameAndLibraryCode(String uid, String name, String libraryCode);
 
-    List<UserFile> findByUidAndFolderIdAndDeleteFlagFalse(String uid, Long folderId);
+    // 查询被删除且创建时间在指定日期之前的文件
+    List<UserFile> findByDeleteFlagTrueAndCreatedDateBeforeAndLibraryCode(Date before, String libraryCode);
 
-    Optional<UserFile> findByIdAndDeleteFlagFalse(Long fileId);
+    // 根据UID和文件夹ID查询文件列表
+    List<UserFile> findByUidAndFolderIdAndDeleteFlagFalseAndLibraryCode(String uid, Long folderId, String libraryCode);
 
+    // 根据文件ID查询文件
+    Optional<UserFile> findByIdAndDeleteFlagFalseAndLibraryCode(Long fileId, String libraryCode);
 }

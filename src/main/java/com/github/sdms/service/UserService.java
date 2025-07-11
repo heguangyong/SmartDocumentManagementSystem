@@ -6,24 +6,23 @@ import java.util.Optional;
 
 public interface UserService {
 
-    Optional<AppUser> findByEmail(String email);
+    Optional<AppUser> findByEmailAndLibraryCode(String email, String libraryCode);
 
-    Optional<AppUser> findByUsername(String username);
+    Optional<AppUser> findByUsernameAndLibraryCode(String username, String libraryCode);
 
-    boolean existsByEmail(String email);
+    boolean existsByEmailAndLibraryCode(String email, String libraryCode);
 
-    Optional<AppUser> findByUid(String uid);
+    Optional<AppUser> findByUidAndLibraryCode(String uid, String libraryCode);
 
-    boolean existsByUid(String uid);
+    boolean existsByUidAndLibraryCode(String uid, String libraryCode);
 
-    Optional<AppUser> findByMobile(String mobile);
+    Optional<AppUser> findByMobileAndLibraryCode(String mobile, String libraryCode);
 
-    boolean existsByMobile(String mobile);
+    boolean existsByMobileAndLibraryCode(String mobile, String libraryCode);
 
-    Optional<AppUser> findByUsernameOrEmail(String username, String email);
+    Optional<AppUser> findByUsernameOrEmailAndLibraryCode(String username, String email, String libraryCode);
 
     AppUser saveUser(AppUser user);
 
     void deleteUser(Long id);
-
 }

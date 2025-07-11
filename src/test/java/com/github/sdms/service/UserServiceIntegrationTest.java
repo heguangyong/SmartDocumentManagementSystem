@@ -35,7 +35,7 @@ public class UserServiceIntegrationTest {
 
         userService.saveUser(user);
 
-        Optional<AppUser> savedUser = userRepository.findByUsername("testuser");
+        Optional<AppUser> savedUser = userRepository.findByUsernameAndLibraryCode("testuser","G123");
         assertNotNull(savedUser);
         assertEquals("testuser", savedUser.get().getUsername());
     }

@@ -5,7 +5,7 @@ import com.github.sdms.model.Folder;
 import com.github.sdms.model.ShareAccessLog;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.service.FolderService;
-import com.github.sdms.service.MinioClientService;
+import com.github.sdms.service.MinioService;
 import com.github.sdms.service.ShareAccessLogService;
 import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.ShareTokenValidator;
@@ -15,7 +15,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Date;
 import java.util.List;
 
 @RestController
@@ -25,15 +24,17 @@ public class PublicFolderController {
 
     private final FolderService folderService;
     private final UserFileService userFileService;
-    private final MinioClientService minioClientService;
+    private final MinioService minioService;
     private final ShareAccessLogService shareAccessLogService;
 
     @GetMapping("/view")
     @Operation(summary = "通过分享 Token 访问文件夹及内容")
     public ApiResponse<SharedFolderView> viewSharedFolder(
-            @RequestParam String token
+            @RequestParam String token,
+            @RequestParam String libraryCode // 添加 libraryCode 参数
     ) {
-        Folder folder = folderService.getFolderByShareToken(token);
+        // 通过 shareToken 和 libraryCode 获取文件夹
+        Folder folder = folderService.getFolderByShareToken(token, libraryCode);
         try {
             ShareTokenValidator.validateShareToken(folder);
         } catch (IllegalStateException e) {
@@ -41,7 +42,7 @@ public class PublicFolderController {
         }
 
         // 可选扩展：返回该目录下的文件或子目录（只读）
-        List<Folder> children = folderService.listFolders(folder.getOwnerId(), folder.getId());
+        List<Folder> children = folderService.listFolders(folder.getOwnerId(), folder.getId(), libraryCode);
 
         SharedFolderView result = new SharedFolderView(folder.getName(), folder.getId(), children);
         return ApiResponse.success("访问成功", result);
@@ -51,8 +52,9 @@ public class PublicFolderController {
 
     @GetMapping("/files")
     @Operation(summary = "列出分享目录下的文件列表")
-    public ApiResponse<List<UserFile>> listSharedFiles(@RequestParam String token) {
-        Folder folder = folderService.getFolderByShareToken(token);
+    public ApiResponse<List<UserFile>> listSharedFiles(@RequestParam String token, @RequestParam String libraryCode) {
+        // 通过 shareToken 和 libraryCode 获取文件夹
+        Folder folder = folderService.getFolderByShareToken(token, libraryCode);
         try {
             ShareTokenValidator.validateShareToken(folder);
         } catch (IllegalStateException e) {
@@ -60,7 +62,7 @@ public class PublicFolderController {
         }
 
         // 查询该目录下的文件列表（只读）
-        List<UserFile> files = userFileService.listFilesByFolder(folder.getOwnerId(), folder.getId());
+        List<UserFile> files = userFileService.listFilesByFolder(folder.getOwnerId(), folder.getId(), libraryCode);
         return ApiResponse.success("查询成功", files);
     }
 
@@ -68,16 +70,18 @@ public class PublicFolderController {
     public ResponseEntity<?> downloadFile(
             @RequestParam String token,
             @RequestParam Long fileId,
+            @RequestParam String libraryCode,  // 添加 libraryCode 参数
             HttpServletRequest request
     ) {
-        Folder folder = folderService.getFolderByShareToken(token);
+        // 通过 shareToken 和 libraryCode 获取文件夹
+        Folder folder = folderService.getFolderByShareToken(token, libraryCode);
         try {
             ShareTokenValidator.validateShareToken(folder);
         } catch (IllegalStateException e) {
             return ResponseEntity.status(403).body(e.getMessage());
         }
 
-        UserFile file = userFileService.getFileById(fileId);
+        UserFile file = userFileService.getFileById(fileId,libraryCode);
         if (!file.getFolderId().equals(folder.getId())) {
             return ResponseEntity.status(403).body("该文件不属于当前分享目录");
         }
@@ -97,7 +101,7 @@ public class PublicFolderController {
         shareAccessLogService.recordAccess(log);
 
         // ✅ 跳转至 MinIO 下载链接
-        String url = minioClientService.getPresignedDownloadUrl(file.getBucket(), file.getUrl(), file.getOriginFilename());
+        String url = minioService.getPresignedDownloadUrl(file.getBucket(), file.getUrl(), file.getOriginFilename());
         return ResponseEntity.status(302).header("Location", url).build();
     }
 
@@ -110,3 +114,4 @@ public class PublicFolderController {
     }
 
 }
+

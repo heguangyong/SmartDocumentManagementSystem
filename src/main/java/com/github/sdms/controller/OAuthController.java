@@ -45,14 +45,14 @@ public class OAuthController {
 
     @Operation(summary = "获取授权跳转地址（download）（所有角色可访问，未登录可跳转授权）")
     @GetMapping("/redirect/download")
-    public void redirectToOauth1(HttpServletResponse response) throws IOException {
-        response.sendRedirect(authService.getOauthRedirectUri("1"));
+    public void redirectToOauth1(@RequestParam String libraryCode, HttpServletResponse response) throws IOException {
+        response.sendRedirect(authService.getOauthRedirectUri("1", libraryCode));
     }
 
     @Operation(summary = "获取授权跳转地址（upload）（所有角色可访问，未登录可跳转授权）")
     @GetMapping("/redirect/upload")
-    public void redirectToOauth2(HttpServletResponse response) throws IOException {
-        response.sendRedirect(authService.getOauthRedirectUri("2"));
+    public void redirectToOauth2(@RequestParam String libraryCode, HttpServletResponse response) throws IOException {
+        response.sendRedirect(authService.getOauthRedirectUri("2", libraryCode));
     }
 
     @Operation(summary = "授权回调处理（download）（所有角色可访问）")
@@ -60,9 +60,10 @@ public class OAuthController {
     public void handleAuthCallback(
             @RequestParam("code") String code,
             @RequestParam("state") String state,
+            @RequestParam String libraryCode,
             HttpServletResponse response
     ) throws IOException {
-        String redirectUrl = authService.handleCallback(code, state, downloadUrl);
+        String redirectUrl = authService.handleCallback(code, state, downloadUrl, libraryCode);
         response.sendRedirect(redirectUrl);
     }
 
@@ -71,17 +72,18 @@ public class OAuthController {
     public void handleAuthCallbackUpload(
             @RequestParam("code") String code,
             @RequestParam("state") String state,
+            @RequestParam String libraryCode,
             HttpServletResponse response
     ) throws IOException {
-        String redirectUrl = authService.handleCallback(code, state, uploadUrl);
+        String redirectUrl = authService.handleCallback(code, state, uploadUrl, libraryCode);
         response.sendRedirect(redirectUrl);
     }
 
     @Operation(summary = "根据code获取当前用户信息（READER/LIBRARIAN/ADMIN）")
     @PostMapping("/userinfo")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
-    public ResponseEntity<ApiResponse<String>> getUserInfo(@RequestBody UUserReq req, HttpServletResponse response) throws IOException {
-        String result = authService.getUserInfoByCode(req, response);
+    public ResponseEntity<ApiResponse<String>> getUserInfo(@RequestBody UUserReq req, @RequestParam String libraryCode, HttpServletResponse response) throws IOException {
+        String result = authService.getUserInfoByCode(req, libraryCode, response);
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
@@ -95,36 +97,43 @@ public class OAuthController {
     @Operation(summary = "会话检查（READER/LIBRARIAN/ADMIN）")
     @PostMapping("/session/check")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
-    public ResponseEntity<ApiResponse<String>> checkSession(@RequestParam("uid") String uid, HttpServletRequest request) {
-        return ResponseEntity.ok(ApiResponse.success(authService.checkSession(uid, request.getRequestURI())));
+    public ResponseEntity<ApiResponse<String>> checkSession(
+            @RequestParam("uid") String uid,
+            @RequestParam("libraryCode") String libraryCode, // 新增 libraryCode 参数
+            HttpServletRequest request
+    ) {
+        // 调用 service 层的 checkSession 方法，传递 libraryCode 参数
+        return ResponseEntity.ok(ApiResponse.success(authService.checkSession(uid, request.getRequestURI(), libraryCode)));
     }
+
 
     @Operation(summary = "根据 accessToken 查询用户信息（仅 ADMIN）")
     @GetMapping("/userinfo/accessToken")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<String>> getUserInfoByAccessToken(@RequestParam("accessToken") String accessToken) throws Exception {
-        return ResponseEntity.ok(ApiResponse.success(authService.getUserInfoByAccessToken(accessToken)));
+    public ResponseEntity<ApiResponse<String>> getUserInfoByAccessToken(@RequestParam("accessToken") String accessToken, @RequestParam String libraryCode) throws Exception {
+        return ResponseEntity.ok(ApiResponse.success(authService.getUserInfoByAccessToken(accessToken, libraryCode)));
     }
 
     @Operation(summary = "登录成功会话处理（READER/LIBRARIAN/ADMIN）")
     @PostMapping("/session/set")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
-    public ResponseEntity<ApiResponse<String>> loginset(@RequestParam("uid") String uid) {
-        return ResponseEntity.ok(ApiResponse.success(authService.setLogin(uid)));
+    public ResponseEntity<ApiResponse<String>> loginset(@RequestParam("uid") String uid, @RequestParam String libraryCode) {
+        return ResponseEntity.ok(ApiResponse.success(authService.setLogin(uid,libraryCode)));
     }
 
     @Operation(summary = "获取当前登录用户信息（READER/LIBRARIAN/ADMIN）")
     @GetMapping("/profile")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
-    public ResponseEntity<ApiResponse<UserProfileDto>> getProfile(Authentication authentication) {
+    public ResponseEntity<ApiResponse<UserProfileDto>> getProfile(Authentication authentication, @RequestParam String libraryCode) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.failure("Unauthorized"));
         }
 
         String username = authentication.getName();
-        AppUser user = userRepository.findByEmail(username)
-                .orElseGet(() -> userRepository.findByUid(username).orElse(null));
+        // 使用 libraryCode 查询邮箱和 UID 进行匹配
+        AppUser user = userRepository.findByEmailAndLibraryCode(username, libraryCode)
+                .orElseGet(() -> userRepository.findByUidAndLibraryCode(username, libraryCode).orElse(null));
 
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -140,5 +149,6 @@ public class OAuthController {
 
         return ResponseEntity.ok(ApiResponse.success(dto));
     }
+
 
 }
