@@ -135,7 +135,8 @@ public class AppUser {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "role",nullable = false)
-    private Role role;// READER, LIBRARIAN, ADMIN
+    @Builder.Default // 默认构造时自动使用 READER
+    private Role role = Role.READER;// READER, LIBRARIAN, ADMIN
 
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)

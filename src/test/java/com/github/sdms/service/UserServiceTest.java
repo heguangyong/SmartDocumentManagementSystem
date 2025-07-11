@@ -1,5 +1,6 @@
 package com.github.sdms.service;
 
+import com.github.sdms.config.SecurityTestConfig;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
@@ -8,6 +9,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +20,7 @@ import static org.mockito.Mockito.*;
 
 @SpringBootTest
 @ActiveProfiles("test")
+@Import(SecurityTestConfig.class)
 @Transactional
 public class UserServiceTest {
 
@@ -37,7 +40,7 @@ public class UserServiceTest {
                 .username("testuser")
                 .email("test@example.com")
                 .password("encryptedPwd")
-                .role(Role.valueOf("USER"))
+                .role(Role.READER)
                 .build();
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
