@@ -30,7 +30,7 @@ public class UserFileController {
     @GetMapping("/{uid}/list")
     @Operation(summary = "获取用户文件列表（所有用户，受用户身份校验限制）")
     public ApiResponse<List<UserFile>> list(@PathVariable String uid, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         return ApiResponse.success(userFileService.getActiveFiles(uid, libraryCode));
     }
 
@@ -38,7 +38,7 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "逻辑删除用户文件（馆员LIBRARIAN及管理员ADMIN）")
     public ApiResponse<Void> deleteFiles(@PathVariable String uid, @RequestBody List<String> filenames, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         userFileService.softDeleteFiles(uid, filenames, libraryCode);
         return ApiResponse.success("文件已删除", null);
     }
@@ -47,7 +47,7 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "恢复最近删除的文件（馆员LIBRARIAN及管理员ADMIN）")
     public ApiResponse<Void> restoreFiles(@PathVariable String uid, @RequestBody List<String> filenames, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         userFileService.restoreFiles(uid, filenames, libraryCode);
         return ApiResponse.success("文件已恢复", null);
     }
@@ -59,7 +59,7 @@ public class UserFileController {
                          @PathVariable String filename,
                          @RequestParam String libraryCode,  // 添加 libraryCode 参数
                          HttpServletResponse response) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
 
         try {
             UserFile file = userFileService.getActiveFiles(uid, libraryCode).stream()
@@ -82,7 +82,7 @@ public class UserFileController {
     @GetMapping("/{uid}/usage")
     @Operation(summary = "获取用户已使用空间（单位：字节）（所有用户，受用户身份校验限制）")
     public ApiResponse<Long> getUserStorageUsage(@PathVariable String uid, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         long usage = userFileService.getActiveFiles(uid, libraryCode).stream()
                 .mapToLong(UserFile::getSize)
                 .sum();
@@ -93,7 +93,7 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "获取用户最近删除的文件（7天内）（馆员LIBRARIAN及管理员ADMIN）")
     public ApiResponse<List<UserFile>> getDeletedFiles(@PathVariable String uid, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         return ApiResponse.success(userFileService.getDeletedFilesWithin7Days(uid, libraryCode));
     }
 
@@ -101,7 +101,7 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @Operation(summary = "获取指定文件的临时下载链接（读者READER及以上）")
     public ApiResponse<String> getPresignedUrl(@PathVariable String uid, @PathVariable String filename, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
 
         UserFile file = userFileService.getActiveFiles(uid, libraryCode).stream()
                 .filter(f -> f.getName().equals(filename))
@@ -115,7 +115,7 @@ public class UserFileController {
     @GetMapping("/{uid}/info/{filename}")
     @Operation(summary = "获取指定文件详情（所有用户，受用户身份校验限制）")
     public ApiResponse<UserFile> getFileInfo(@PathVariable String uid, @PathVariable String filename, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         UserFile file = userFileService.getActiveFiles(uid, libraryCode).stream()
                 .filter(f -> f.getName().equals(filename))
                 .findFirst()
@@ -126,7 +126,7 @@ public class UserFileController {
     @PostMapping("/{uid}/batchInfo")
     @Operation(summary = "批量获取文件详情（所有用户，受用户身份校验限制）")
     public ApiResponse<List<UserFile>> getBatchFileInfo(@PathVariable String uid, @RequestBody List<String> filenames, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         List<UserFile> files = userFileService.getActiveFiles(uid, libraryCode).stream()
                 .filter(f -> filenames.contains(f.getName()))
                 .toList();
@@ -140,7 +140,7 @@ public class UserFileController {
                                         @RequestParam String oldName,
                                         @RequestParam String newName,
                                         @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
 
         List<UserFile> files = userFileService.getActiveFiles(uid, libraryCode);
         UserFile file = files.stream()
@@ -161,7 +161,7 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "彻底删除指定文件（馆员LIBRARIAN及管理员ADMIN）")
     public ApiResponse<Void> purgeFile(@PathVariable String uid, @RequestParam String filename, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
 
         UserFile file = userFileService.getActiveFiles(uid, libraryCode).stream()
                 .filter(f -> f.getName().equals(filename))
@@ -179,7 +179,7 @@ public class UserFileController {
     public ApiResponse<List<UserFile>> getFilesByType(@PathVariable String uid,
                                                       @PathVariable String fileType,
                                                       @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         List<UserFile> files = userFileService.getActiveFiles(uid, libraryCode).stream()
                 .filter(f -> fileType.equalsIgnoreCase(f.getType()))
                 .toList();
@@ -190,7 +190,7 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "批量物理删除用户文件（馆员LIBRARIAN及管理员ADMIN）")
     public ApiResponse<Void> purgeFiles(@PathVariable String uid, @RequestBody List<String> filenames, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
 
         List<UserFile> files = userFileService.getActiveFiles(uid, libraryCode).stream()
                 .filter(f -> filenames.contains(f.getName()))
@@ -208,7 +208,7 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "清空当前用户回收站（彻底删除软删除文件）（馆员LIBRARIAN及管理员ADMIN）")
     public ApiResponse<Void> emptyTrash(@PathVariable String uid, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
 
         List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(uid, libraryCode);
         for (UserFile file : deletedFiles) {
@@ -250,7 +250,7 @@ public class UserFileController {
     @GetMapping("/{uid}/quota")
     @Operation(summary = "获取用户存储配额信息（所有用户，受用户身份校验限制）")
     public ApiResponse<Map<String, Long>> getQuota(@PathVariable String uid, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         long used = userFileService.getUserStorageUsage(uid, libraryCode);
         long max = storageQuotaService.getMaxQuota(uid,libraryCode);
         long remaining = max - used;

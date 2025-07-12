@@ -107,7 +107,7 @@ public class AuthController {
 
             // 从数据库加载用户信息
             UserDetails userDetails = customUserDetailsServices.loadUserByUsernameAndLibraryCode(email, libraryCode);
-            String jwt = jwtUtil.generateToken(userDetails);
+            String jwt = jwtUtil.generateToken(userDetails,libraryCode);
 
             // 获取所有角色字符串列表
             List<String> roles = userDetails.getAuthorities().stream()

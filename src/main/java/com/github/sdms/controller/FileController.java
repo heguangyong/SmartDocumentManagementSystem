@@ -54,10 +54,6 @@ public class FileController {
         }
     }
 
-    /**
-     * 管理员上传文件（指定 uid）
-     * 权限：仅管理员
-     */
     @Operation(summary = "管理员上传文件（指定 uid）【权限：仅管理员】")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/upload/admin")
@@ -67,15 +63,25 @@ public class FileController {
             @RequestParam("libraryCode") String libraryCode  // 确保管理员提供 libraryCode
     ) {
         String filename = file.getOriginalFilename();
-        // 校验目标用户是否属于该馆
+
+        // 校验目标用户是否存在于指定馆
         AppUser targetUser = userRepository.findByUidAndLibraryCode(targetUid, libraryCode).orElse(null);
         if (targetUser == null) {
             return ResponseEntity.status(404).body(ApiResponse.failure("用户不存在或不属于指定馆"));
         }
 
-        String msg = "管理员上传文件成功，文件：" + filename + "，目标用户：" + targetUid;
-        return ResponseEntity.ok(ApiResponse.success(msg));
+        try {
+            // 实际上传
+            String objectName = minioService.uploadFile(targetUid, file, libraryCode);
+
+            String msg = String.format("✅ 管理员上传成功 - 用户: %s | 馆: %s | 文件: %s", targetUid, libraryCode, objectName);
+            return ResponseEntity.ok(ApiResponse.success(msg));
+        } catch (Exception e) {
+            String err = String.format("❌ 管理员上传失败 - 用户: %s | 文件: %s | 错误: %s", targetUid, filename, e.getMessage());
+            return ResponseEntity.status(500).body(ApiResponse.failure(err));
+        }
     }
+
 
     /**
      * 下载文件并生成下载链接
@@ -106,4 +112,5 @@ public class FileController {
             return ResponseEntity.status(500).body(ApiResponse.failure("生成下载链接失败: " + e.getMessage()));
         }
     }
+
 }

@@ -54,12 +54,12 @@ public interface MinioService {
     /**
      * 生成下载链接
      * @param uid 用户ID
-     * @param objectName 文件名
      * @param libraryCode 租户代码（多租户支持）
+     * @param objectName 文件名
      * @return 预签名的下载链接
      * @throws Exception 生成链接过程中抛出的异常
      */
-    String generatePresignedDownloadUrl(String uid, String objectName, String libraryCode) throws Exception;
+    String generatePresignedDownloadUrl(String uid, String libraryCode, String objectName) throws Exception;
 
     /**
      * 获取公共下载链接

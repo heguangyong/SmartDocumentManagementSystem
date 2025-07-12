@@ -38,7 +38,7 @@ public class FolderController {
             @RequestParam(required = false) Long parentId,
             @RequestParam String libraryCode  // 新增租户代码
     ) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         Folder folder = folderService.createFolder(uid, name, parentId, libraryCode);
         return ApiResponse.success("创建成功", folder);
     }
@@ -60,7 +60,7 @@ public class FolderController {
             @RequestParam @NotBlank String newName,
             @RequestParam String libraryCode  // 新增租户代码
     ) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         Folder folder = folderService.renameFolder(uid, folderId, newName, libraryCode);
         return ApiResponse.success("重命名成功", folder);
     }
@@ -80,7 +80,7 @@ public class FolderController {
             @PathVariable Long folderId,
             @RequestParam String libraryCode  // 新增租户代码
     ) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         folderService.deleteFolder(uid, folderId, libraryCode);
         return ApiResponse.success("删除成功", null);
     }
@@ -99,7 +99,7 @@ public class FolderController {
             @RequestParam(required = false) Long parentId,
             @RequestParam String libraryCode  // 新增租户代码
     ) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         List<Folder> list = folderService.listFolders(uid, parentId, libraryCode);
         return ApiResponse.success("查询成功", list);
     }
@@ -113,7 +113,7 @@ public class FolderController {
     @GetMapping("/{uid}/tree")
     @Operation(summary = "获取完整目录树")
     public ApiResponse<List<FolderNode>> folderTree(@PathVariable String uid, @RequestParam String libraryCode) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         List<Folder> all = folderService.listAllFolders(uid, libraryCode);
         List<FolderNode> tree = buildTree(all);
         return ApiResponse.success("查询成功", tree);
@@ -170,7 +170,7 @@ public class FolderController {
             @RequestParam Long newParentId,
             @RequestParam String libraryCode  // 新增租户代码
     ) {
-        permissionChecker.checkAccess(uid);
+        permissionChecker.checkAccess(uid, libraryCode);
         folderService.moveFolder(uid, folderId, newParentId, libraryCode);
         return ApiResponse.success("移动成功", null);
     }

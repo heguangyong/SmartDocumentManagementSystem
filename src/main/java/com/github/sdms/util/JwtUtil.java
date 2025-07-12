@@ -27,7 +27,7 @@ public class JwtUtil {
     /**
      * 生成 JWT - 本地登录用，支持多角色
      */
-    public String generateToken(UserDetails userDetails) {
+    public String generateToken(UserDetails userDetails, String libraryCode) {
         String subject = userDetails.getUsername();
         Map<String, Object> claims = new HashMap<>();
         claims.put("username", subject);
@@ -36,6 +36,7 @@ public class JwtUtil {
                 .map(Object::toString)
                 .collect(Collectors.toList());
         claims.put("roles", roles);
+        claims.put("libraryCode", libraryCode); // ✅ 加入馆代码
 
         return buildToken(claims, subject);
     }
@@ -43,13 +44,16 @@ public class JwtUtil {
     /**
      * 生成 JWT - OAuth 登录用，支持单角色（可扩展为多角色）
      */
-    public String generateToken(String uid, List<String> roles) {
+// 新增方法：OAuth 登录或自定义登录时使用
+    public String generateToken(String uid, List<String> roles, String libraryCode) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("username", uid);
         claims.put("roles", roles);
+        claims.put("libraryCode", libraryCode); // ✅ 加入馆代码
 
         return buildToken(claims, uid);
     }
+
 
     /**
      * 核心构建逻辑
@@ -160,5 +164,27 @@ public class JwtUtil {
         }
         return null;
     }
+
+    // ✅ 获取当前登录用户的 libraryCode
+    public String getCurrentLibraryCode() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+
+        // 获取当前 Token
+        Object credentials = authentication.getCredentials();
+        if (credentials instanceof String token) {
+            return extractLibraryCode(token);
+        }
+
+        return null;
+    }
+
+    // ✅ 从 JWT 中提取 libraryCode claim
+    public String extractLibraryCode(String token) {
+        return extractAllClaims(token).get("libraryCode", String.class);
+    }
+
 
 }

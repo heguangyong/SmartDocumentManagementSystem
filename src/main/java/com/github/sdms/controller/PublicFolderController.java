@@ -81,12 +81,12 @@ public class PublicFolderController {
             return ResponseEntity.status(403).body(e.getMessage());
         }
 
-        UserFile file = userFileService.getFileById(fileId,libraryCode);
+        UserFile file = userFileService.getFileById(fileId, libraryCode);
         if (!file.getFolderId().equals(folder.getId())) {
             return ResponseEntity.status(403).body("该文件不属于当前分享目录");
         }
 
-        // ✅ 记录访问日志
+        // 记录访问日志
         String ip = getClientIp(request);
         String ua = request.getHeader("User-Agent");
 
@@ -100,10 +100,11 @@ public class PublicFolderController {
 
         shareAccessLogService.recordAccess(log);
 
-        // ✅ 跳转至 MinIO 下载链接
+        // 跳转至 MinIO 下载链接，传入桶名和 objectName
         String url = minioService.getPresignedDownloadUrl(file.getBucket(), file.getUrl(), file.getOriginFilename());
         return ResponseEntity.status(302).header("Location", url).build();
     }
+
 
     private String getClientIp(HttpServletRequest request) {
         String xfHeader = request.getHeader("X-Forwarded-For");

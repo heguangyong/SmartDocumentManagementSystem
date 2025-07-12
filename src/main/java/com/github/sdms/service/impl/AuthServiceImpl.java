@@ -93,7 +93,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // 生成 JWT，传递角色列表
-        String jwt = jwtUtil.generateToken(uid, rolesFromFolio);
+        String jwt = jwtUtil.generateToken(uid, rolesFromFolio,libraryCode);
 
         stringRedisTemplate.opsForValue().set("accessToken_" + uid, accessToken);
 
@@ -170,7 +170,7 @@ public class AuthServiceImpl implements AuthService {
         // ✅ 使用统一 JWT 生成逻辑
         org.springframework.security.core.userdetails.User jwtUser =
                 new org.springframework.security.core.userdetails.User(uid, "", java.util.Collections.emptyList());
-        String jwt = jwtUtil.generateToken(jwtUser);
+        String jwt = jwtUtil.generateToken(jwtUser,libraryCode);
 
         stringRedisTemplate.opsForValue().set("accessToken_" + uid, accessToken);
 

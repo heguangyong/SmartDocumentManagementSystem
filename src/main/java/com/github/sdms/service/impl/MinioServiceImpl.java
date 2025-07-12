@@ -114,39 +114,44 @@ public class MinioServiceImpl implements MinioService {
     @Override
     public String uploadFile(String uid, MultipartFile file, String libraryCode) throws Exception {
         String originalFilename = file.getOriginalFilename();
-        String objectName = uid + "/" + libraryCode + "/" + System.currentTimeMillis() + "_" + originalFilename;
 
-        try (InputStream inputStream = file.getInputStream()) {
-            // 检查桶是否存在，如果不存在则创建
-            boolean found = minioClient.bucketExists(
-                    io.minio.BucketExistsArgs.builder()
-                            .bucket(BUCKET_NAME)
+        // 生成桶名
+        String bucketName = getBucketName(uid,libraryCode);
+
+        // 检查桶是否存在，如果不存在则创建
+        boolean found = minioClient.bucketExists(
+                io.minio.BucketExistsArgs.builder()
+                        .bucket(bucketName)
+                        .build()
+        );
+
+        if (!found) {
+            minioClient.makeBucket(
+                    io.minio.MakeBucketArgs.builder()
+                            .bucket(bucketName)
                             .build()
             );
+            log.info("Created bucket: {}", bucketName);
+        }
 
-            if (!found) {
-                minioClient.makeBucket(
-                        io.minio.MakeBucketArgs.builder()
-                                .bucket(BUCKET_NAME)
-                                .build()
-                );
-                log.info("Created bucket: {}", BUCKET_NAME);
-            }
+        // 构造对象名，这里可以简化为只用时间戳+文件名，目录结构就靠桶隔离
+        String objectName = System.currentTimeMillis() + "_" + originalFilename;
 
-            // 校验上传配额
+        try (InputStream inputStream = file.getInputStream()) {
+            // 校验上传配额，按用户和馆代码
             if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
                 throw new RuntimeException("上传失败：存储配额不足，请联系管理员或清理文件。");
             }
 
             // 上传文件
-            minioClient.putObject(PutObjectArgs.builder()
-                    .bucket(BUCKET_NAME)
+            minioClient.putObject(io.minio.PutObjectArgs.builder()
+                    .bucket(bucketName)
                     .object(objectName)
                     .stream(inputStream, file.getSize(), -1)
                     .contentType(file.getContentType())
                     .build());
 
-            // 上传成功后
+            // 保存数据库记录，注意 bucket 字段要是当前桶名
             UserFile record = UserFile.builder()
                     .uid(uid)
                     .name(objectName)
@@ -155,14 +160,15 @@ public class MinioServiceImpl implements MinioService {
                     .size(file.getSize())
                     .url(objectName)
                     .md5(null) // 可后续计算
-                    .bucket(BUCKET_NAME)
+                    .bucket(bucketName)
                     .deleteFlag(false)
                     .uperr(0)
                     .createdDate(new Date())
+                    .libraryCode(libraryCode)
                     .build();
             userFileService.saveUserFile(record);
 
-            log.info("User {} uploaded file: {}", uid, objectName);
+            log.info("User {} uploaded file to bucket {}: {}", uid, bucketName, objectName);
             return objectName;
         } catch (MinioException e) {
             log.error("MinIO upload error: ", e);
@@ -170,20 +176,27 @@ public class MinioServiceImpl implements MinioService {
         }
     }
 
+    public String getBucketName(String uid, String libraryCode) {
+        return "sdms-" + uid.toLowerCase().replaceAll("[^a-z0-9-]", "") + "-" + libraryCode.toLowerCase();
+    }
+
+
     @Override
-    public String generatePresignedDownloadUrl(String uid, String objectName, String libraryCode) throws Exception {
-        // 防止越权，确保用户只能下载自己文件夹下的文件
-        if (!objectName.startsWith(uid + "/" + libraryCode + "/")) {
-            throw new IllegalArgumentException("无权访问该文件");
-        }
+    public String generatePresignedDownloadUrl(String uid, String libraryCode, String objectName) throws Exception {
+        // 生成桶名
+        String bucketName = getBucketName(uid, libraryCode);
+
+        // 防止越权校验，确保文件属于该用户（可以根据业务调整）
+        // 这里假设objectName无需包含uid/libraryCode前缀，已存入对应桶中
+        // 如果你数据库存储了全路径，则这里可去除前缀判断，或改为更细粒度权限判断
 
         try {
             return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
-                            .bucket(BUCKET_NAME)
+                            .bucket(bucketName)
                             .object(objectName)
                             .method(Method.GET)
-                            .expiry(60 * 5) // 链接5分钟有效
+                            .expiry(60 * 5) // 5分钟有效
                             .build()
             );
         } catch (MinioException e) {
@@ -191,6 +204,7 @@ public class MinioServiceImpl implements MinioService {
             throw new Exception("生成下载链接失败: " + e.getMessage());
         }
     }
+
 
     @Override
     public String getPresignedUrl(String bucket, String objectName) {
