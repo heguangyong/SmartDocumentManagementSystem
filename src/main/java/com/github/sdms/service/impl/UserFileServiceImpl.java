@@ -2,9 +2,13 @@ package com.github.sdms.service.impl;
 
 import com.github.sdms.model.UserFile;
 import com.github.sdms.repository.UserFileRepository;
+import com.github.sdms.service.MinioService;
+import com.github.sdms.service.StorageQuotaService;
 import com.github.sdms.service.UserFileService;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
 import java.util.List;
@@ -15,6 +19,14 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Autowired
     private UserFileRepository userFileRepository;
+
+    @Autowired
+    private MinioService minioService;
+
+    @Autowired
+    private StorageQuotaService storageQuotaService;
+
+
 
     @Override
     public void saveUserFile(UserFile file) {
@@ -102,4 +114,46 @@ public class UserFileServiceImpl implements UserFileService {
         return userFileRepository.findByIdAndDeleteFlagFalseAndLibraryCode(fileId, libraryCode)
                 .orElseThrow(() -> new RuntimeException("文件不存在或已被删除"));
     }
+
+    @Override
+    public UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes) {
+        // 先校验配额
+        if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
+            throw new RuntimeException("上传失败：存储配额不足");
+        }
+
+        List<UserFile> history = userFileRepository.findByDocIdAndLibraryCodeOrderByVersionNumberDesc(docId, libraryCode);
+        int nextVersion = history.isEmpty() ? 1 : history.get(0).getVersionNumber() + 1;
+
+        history.forEach(f -> {
+            if (Boolean.TRUE.equals(f.getIsLatest())) {
+                f.setIsLatest(false);
+                userFileRepository.save(f);
+            }
+        });
+
+        String objectName;
+        try {
+            objectName = minioService.uploadFile(uid, file, libraryCode);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        UserFile newVersion = userFileRepository.findByNameAndLibraryCode(objectName, libraryCode)
+                .orElseThrow(() -> new RuntimeException("上传记录未找到"));
+
+        newVersion.setDocId(docId);
+        newVersion.setVersionNumber(nextVersion);
+        newVersion.setNotes(notes);
+        newVersion.setIsLatest(true);
+        userFileRepository.save(newVersion);
+
+        return newVersion; // ✅ 别忘了这一句
+    }
+
+    @Override
+    public List<UserFile> getVersionsByDocId(Long docId, String libraryCode) {
+        return userFileRepository.findByDocIdAndLibraryCodeOrderByVersionNumberDesc(docId, libraryCode);
+    }
+
 }

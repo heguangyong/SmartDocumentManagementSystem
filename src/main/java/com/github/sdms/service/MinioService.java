@@ -92,4 +92,5 @@ public interface MinioService {
      * @return 预签名的下载链接
      */
     String getPresignedDownloadUrl(String bucket, String objectKey, String filename);
+
 }

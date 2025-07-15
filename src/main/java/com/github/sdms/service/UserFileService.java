@@ -1,6 +1,7 @@
 package com.github.sdms.service;
 
 import com.github.sdms.model.UserFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
 import java.util.List;
@@ -30,4 +31,9 @@ public interface UserFileService {
     List<UserFile> listFilesByFolder(String uid, Long folderId, String libraryCode);
 
     UserFile getFileById(Long fileId, String libraryCode);
+
+    UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes);
+
+    List<UserFile> getVersionsByDocId(Long docId, String libraryCode);
+
 }

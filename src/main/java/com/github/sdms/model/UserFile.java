@@ -53,4 +53,17 @@ public class UserFile {
     // 新增馆代码字段
     @Column(nullable = false)
     private String libraryCode;
+
+    @Column(name = "doc_id")
+    private Long docId; // 所属文档ID
+
+    @Column(name = "version_number")
+    private Integer versionNumber;
+
+    @Column(name = "version_notes")
+    private String notes;
+
+    @Column(name = "is_latest")
+    private Boolean isLatest = true;
+
 }

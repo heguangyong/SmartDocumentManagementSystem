@@ -31,4 +31,10 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
 
     // 根据文件ID查询文件
     Optional<UserFile> findByIdAndDeleteFlagFalseAndLibraryCode(Long fileId, String libraryCode);
+
+    //返回某个文档 ID 在指定馆下的所有版本
+    List<UserFile> findByDocIdAndLibraryCodeOrderByVersionNumberDesc(Long docId, String libraryCode);
+
+    Optional<UserFile> findByNameAndLibraryCode(String name, String libraryCode);
+
 }

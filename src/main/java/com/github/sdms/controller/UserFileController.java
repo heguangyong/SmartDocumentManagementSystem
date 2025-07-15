@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.Date;
@@ -314,5 +315,34 @@ public class UserFileController {
 
         return ApiResponse.success("配额信息", result);
     }
+
+    @PostMapping("/uploadVersion")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    public ApiResponse<UserFile> uploadNewVersion(
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
+            @RequestParam MultipartFile file, //新上传的文件
+            @RequestParam Long docId, //所属文档 ID
+            @RequestParam(required = false) String notes //本次版本说明（可选）
+    ) {
+        UserFile fileRecord = userFileService.uploadNewVersion(
+                file, userDetails.getUid(), userDetails.getLibraryCode(), docId, notes
+        );
+        return ApiResponse.success(fileRecord);
+    }
+
+    @GetMapping("/versions/{docId}")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
+    public ApiResponse<List<UserFile>> getAllVersions(
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
+            @PathVariable Long docId
+    ) {
+        String uid = userDetails.getUid();
+        String libraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(uid, libraryCode);
+
+        List<UserFile> versions = userFileService.getVersionsByDocId(docId, libraryCode);
+        return ApiResponse.success(versions);
+    }
+
 
 }

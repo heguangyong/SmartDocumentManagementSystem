@@ -1,11 +1,14 @@
 package com.github.sdms.service.impl;
 
 import com.github.sdms.model.AppUser;
+import com.github.sdms.model.UserFile;
 import com.github.sdms.model.enums.Role;
+import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.StorageQuotaService;
 import com.github.sdms.service.UserFileService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
@@ -16,7 +19,9 @@ import java.util.Map;
 public class StorageQuotaServiceImpl implements StorageQuotaService {
 
     private final UserRepository userRepository;
-    private final UserFileService userFileService;
+
+    private final UserFileRepository userFileRepository;
+
 
     // 配额映射表（字节）
     private static final Map<String, Long> ROLE_QUOTA = Map.of(
@@ -48,7 +53,11 @@ public class StorageQuotaServiceImpl implements StorageQuotaService {
      */
     @Override
     public long getUsedQuota(String uid, String libraryCode) {
-        return userFileService.getUserStorageUsage(uid, libraryCode);
+        // 直接用Repository查询，避免依赖UserFileService
+        return userFileRepository.findByUidAndDeleteFlagFalseAndLibraryCode(uid, libraryCode)
+                .stream()
+                .mapToLong(UserFile::getSize)
+                .sum();
     }
 
     /**

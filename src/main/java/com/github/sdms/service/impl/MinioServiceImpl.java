@@ -9,6 +9,7 @@ import io.minio.errors.MinioException;
 import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,16 +29,10 @@ public class MinioServiceImpl implements MinioService {
     @Autowired
     private MinioClient minioClient;
 
-    private static final String BUCKET_NAME = "sdmsfilesmanager";
-
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-    @Autowired
-    private UserFileService userFileService;
-
-    @Autowired
-    private StorageQuotaService storageQuotaService;
+    private static final String BUCKET_NAME_PREFIX = "sdms";
 
     @Override
     public String urltoken(Map<String, Object> params) {
@@ -141,11 +136,6 @@ public class MinioServiceImpl implements MinioService {
         String objectName = System.currentTimeMillis() + "_" + originalFilename;
 
         try (InputStream inputStream = file.getInputStream()) {
-            // 校验上传配额，按用户和馆代码
-            if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
-                throw new RuntimeException("上传失败：存储配额不足，请联系管理员或清理文件。");
-            }
-
             // 上传文件
             minioClient.putObject(io.minio.PutObjectArgs.builder()
                     .bucket(bucketName)
@@ -153,23 +143,6 @@ public class MinioServiceImpl implements MinioService {
                     .stream(inputStream, file.getSize(), -1)
                     .contentType(file.getContentType())
                     .build());
-
-            // 保存数据库记录，注意 bucket 字段要是当前桶名
-            UserFile record = UserFile.builder()
-                    .uid(uid)
-                    .name(objectName)
-                    .originFilename(originalFilename)
-                    .type(file.getContentType())
-                    .size(file.getSize())
-                    .url(objectName)
-                    .md5(null) // 可后续计算
-                    .bucket(bucketName)
-                    .deleteFlag(false)
-                    .uperr(0)
-                    .createdDate(new Date())
-                    .libraryCode(libraryCode)
-                    .build();
-            userFileService.saveUserFile(record);
 
             log.info("User {} uploaded file to bucket {}: {}", uid, bucketName, objectName);
             return objectName;
