@@ -80,19 +80,22 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public String logintimecheck(String uid, String libraryCode, String path) {
-        // 白名单
-        Set<String> whitelist = Set.of("/api/user/auth", "/api/userFile/downloadStatus");
+        Set<String> whitelist = Set.of(
+                "/api/user/auth",
+                "/api/userFile/downloadStatus",
+                "/api/files/upload"  // ✅ 上传接口加入白名单，或选择验证
+        );
         if (whitelist.contains(path)) return "timein";
 
-        String key = uid + libraryCode + "logintime";  // 使用 uid 和 libraryCode 作为 key
+        String key = uid + libraryCode + "logintime";
         String timeStr = redisTemplate.opsForValue().get(key);
         if (timeStr == null || !timeStr.matches("\\d+")) return "timeout";
 
         long timestamp = System.currentTimeMillis() / 1000;
         long loginTime = Long.parseLong(timeStr);
-
         return (timestamp - loginTime > 120) ? "timeout" : "timein";
     }
+
 
     @Override
     public void loginset(String uid, String libraryCode) {

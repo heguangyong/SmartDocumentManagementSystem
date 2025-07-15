@@ -19,10 +19,14 @@ public class JwtUtil {
 
     @Value("${jwt.secret}")
     private String SECRET_KEY;
+    @Value("${jwt.expiration:7200000}") // 2小时默认
+    private long EXPIRATION_TIME;
+
 
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
     }
+    private static final List<String> ROLE_PRIORITY = List.of("admin", "librarian", "reader");
 
     /**
      * 生成 JWT - 本地登录用，支持多角色
@@ -37,6 +41,7 @@ public class JwtUtil {
                 .collect(Collectors.toList());
         claims.put("roles", roles);
         claims.put("libraryCode", libraryCode); // ✅ 加入馆代码
+        claims.put("iss", determineIssuer(roles));// 例如 "reader"、"librarian"、"admin"
 
         return buildToken(claims, subject);
     }
@@ -50,6 +55,7 @@ public class JwtUtil {
         claims.put("username", uid);
         claims.put("roles", roles);
         claims.put("libraryCode", libraryCode); // ✅ 加入馆代码
+        claims.put("iss", determineIssuer(roles));// 例如 "reader"、"librarian"、"admin"
 
         return buildToken(claims, uid);
     }
@@ -63,8 +69,8 @@ public class JwtUtil {
                 .setClaims(claims)
                 .setSubject(subject)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + 1000 * 60 * 60 * 2)) // 2 小时
-                .signWith(getSigningKey())
+                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME)) // 2 小时
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512) //  Kong 期望的签名算法是 HS512
                 .compact();
     }
 
@@ -186,5 +192,11 @@ public class JwtUtil {
         return extractAllClaims(token).get("libraryCode", String.class);
     }
 
-
+    private String determineIssuer(List<String> roles) {
+        return roles.stream()
+                .map(String::toLowerCase)
+                .filter(ROLE_PRIORITY::contains)
+                .min(Comparator.comparingInt(ROLE_PRIORITY::indexOf))
+                .orElse("reader");
+    }
 }

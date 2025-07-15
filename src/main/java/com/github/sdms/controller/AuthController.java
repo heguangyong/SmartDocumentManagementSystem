@@ -10,6 +10,7 @@ import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.CustomUserDetailsServices;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,7 +22,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/auth/local")
@@ -33,6 +36,7 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RedisTemplate<String, String> redisTemplate; // ✅ 注入 RedisTemplate
 
     /**
      * 任何已登录用户都可以访问此接口，用于测试权限
@@ -71,9 +75,10 @@ public class AuthController {
             if (libraryCode == null || libraryCode.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("libraryCode must not be empty"));
             }
-
             // 创建用户对象并保存到数据库
             AppUser user = AppUser.builder()
+                    // 生成唯一的uid
+                    .uid(UUID.randomUUID().toString())
                     .username(request.getUsername())
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))
@@ -100,28 +105,38 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestParam String email, @RequestParam String password, @RequestParam String libraryCode) {
         try {
-            // 根据 email 和 libraryCode 认证用户
             Authentication authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(email, password)
             );
 
-            // 从数据库加载用户信息
             UserDetails userDetails = customUserDetailsServices.loadUserByUsernameAndLibraryCode(email, libraryCode);
-            String jwt = jwtUtil.generateToken(userDetails,libraryCode);
+            String jwt = jwtUtil.generateToken(userDetails, libraryCode);
 
-            // 获取所有角色字符串列表
             List<String> roles = userDetails.getAuthorities().stream()
-                    .map(auth -> auth.getAuthority())  // 例如 ROLE_ADMIN
+                    .map(auth -> auth.getAuthority())
                     .toList();
 
-            LoginResponse response = new LoginResponse(jwt, "Bearer", roles);
+            // ✅ 写入 Redis 登录时间戳
+            String key = userDetails.getUsername() + libraryCode + "logintime";
+            String timestamp = String.valueOf(System.currentTimeMillis() / 1000);
+            redisTemplate.opsForValue().set(key, timestamp);
 
+            // 生成主角色（iss）字段，剥离 ROLE_ 前缀后参与排序
+            String mainRole = roles.stream()
+                    .map(r -> r.replace("ROLE_", "").toLowerCase())
+                    .filter(r -> List.of("admin", "librarian", "reader").contains(r))
+                    .min(Comparator.comparingInt(r -> List.of("admin", "librarian", "reader").indexOf(r)))
+                    .orElse("reader");
+            // ✅ 构建响应体
+            LoginResponse response = new LoginResponse(jwt, "Bearer", roles, mainRole);
             return ResponseEntity.ok(ApiResponse.success(response));
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(ApiResponse.failure("Login failed ❌: " + e.getMessage()));
         }
     }
+
 
     /**
      * 管理员接口：获取所有角色列表
