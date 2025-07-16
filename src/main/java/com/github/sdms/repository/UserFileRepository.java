@@ -37,4 +37,7 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
 
     Optional<UserFile> findByNameAndLibraryCode(String name, String libraryCode);
 
+    Optional<UserFile> findFirstByDocIdAndUidAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(Long docId, String uid, String libraryCode);
+
+    Optional<UserFile> findFirstByDocIdAndUidAndIsLatestTrue(Long docId, String uid);
 }

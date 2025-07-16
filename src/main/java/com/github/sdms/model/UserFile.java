@@ -66,4 +66,11 @@ public class UserFile {
     @Column(name = "is_latest")
     private Boolean isLatest = true;
 
+    public String getVersionKey() {
+        if (docId == null || versionNumber == null) {
+            return null;
+        }
+        return docId + "_v" + versionNumber;
+    }
+
 }

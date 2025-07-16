@@ -156,4 +156,16 @@ public class UserFileServiceImpl implements UserFileService {
         return userFileRepository.findByDocIdAndLibraryCodeOrderByVersionNumberDesc(docId, libraryCode);
     }
 
+    @Override
+    public UserFile getFileByDocIdAndUid(Long docId, String uid, String libraryCode) {
+        // 查询 docId + uid + libraryCode 下最新的有效版本（isLatest=true，deleteFlag=false）
+        return userFileRepository.findFirstByDocIdAndUidAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(docId, uid, libraryCode)
+                .orElse(null);
+    }
+
+    @Override
+    public UserFile getFileByDocIdAndUid(Long docId, String uid) {
+        return userFileRepository.findFirstByDocIdAndUidAndIsLatestTrue(docId, uid)
+                .orElse(null);
+    }
 }

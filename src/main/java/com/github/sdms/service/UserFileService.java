@@ -36,4 +36,16 @@ public interface UserFileService {
 
     List<UserFile> getVersionsByDocId(Long docId, String libraryCode);
 
+    /**
+     * 根据 docId 和 uid 查询最新的用户文件版本
+     */
+    UserFile getFileByDocIdAndUid(Long docId, String uid, String libraryCode);
+
+    /**
+     * 根据文档ID和用户ID获取对应的最新 UserFile 记录
+     * @param docId 文档ID
+     * @param uid 用户ID
+     * @return UserFile，若无则返回null
+     */
+    UserFile getFileByDocIdAndUid(Long docId, String uid);
 }

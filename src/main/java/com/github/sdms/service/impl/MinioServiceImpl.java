@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -226,6 +227,7 @@ public class MinioServiceImpl implements MinioService {
         }
     }
 
+    @Override
     public String getPresignedDownloadUrl(String bucket, String objectKey, String filename) {
         try {
             return minioClient.getPresignedObjectUrl(
@@ -240,4 +242,27 @@ public class MinioServiceImpl implements MinioService {
             throw new RuntimeException("生成预签名地址失败", e);
         }
     }
+
+    @Override
+    public String uploadFileFromUrl(String uid, String libraryCode, Long docId, String fileUrl) throws Exception {
+        // 这里伪代码，需实现从fileUrl下载文件流，然后上传到MinIO
+        try (InputStream in = new URL(fileUrl).openStream()) {
+            // 构造桶名
+            String bucketName = getBucketName(uid, libraryCode);
+            String objectName = System.currentTimeMillis() + "_onlyoffice_update";
+
+            minioClient.putObject(
+                    PutObjectArgs.builder()
+                            .bucket(bucketName)
+                            .object(objectName)
+                            .stream(in, -1, 10485760) // -1长度，10MB分块大小
+                            .build());
+
+            return objectName;
+        } catch (Exception e) {
+            log.error("OnlyOffice文件下载上传失败", e);
+            throw new Exception("OnlyOffice文件保存失败: " + e.getMessage());
+        }
+    }
+
 }

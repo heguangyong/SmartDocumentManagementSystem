@@ -93,4 +93,15 @@ public interface MinioService {
      */
     String getPresignedDownloadUrl(String bucket, String objectKey, String filename);
 
+    /**
+     * 从URL下载文件并上传的功能（辅助OnlyOffice回调）
+     * @param uid 用户ID
+     * @param libraryCode 馆点码
+     * @param docId 文档ID
+     * @param fileUrl 文件URL
+     * @return 带有时间戳的更新标记
+     */
+    String uploadFileFromUrl(String uid, String libraryCode, Long docId, String fileUrl)  throws Exception;
+
+
 }

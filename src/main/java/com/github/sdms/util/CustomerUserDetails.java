@@ -61,5 +61,13 @@ public class CustomerUserDetails implements UserDetails {
         return user.getLibraryCode();  // 假设 user 对象中包含 libraryCode 字段
     }
 
-
+    public boolean hasRole(String role) {
+        if (role == null || role.isEmpty()) {
+            return false;
+        }
+        String roleWithPrefix = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+        return getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch(roleWithPrefix::equals);
+    }
 }
