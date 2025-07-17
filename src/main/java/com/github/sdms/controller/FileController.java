@@ -25,9 +25,9 @@ import java.util.Map;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/userFile")
+@RequestMapping("/api/file")
 @RequiredArgsConstructor
-public class UserFileController {
+public class FileController {
 
     private final UserFileService userFileService;
     private final MinioService minioService;
@@ -116,7 +116,6 @@ public class UserFileController {
                          @PathVariable String filename,
                          HttpServletResponse response) {
         permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
-
         try {
             UserFile file = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode()).stream()
                     .filter(f -> f.getName().equals(filename))
@@ -280,7 +279,6 @@ public class UserFileController {
     public ApiResponse<Void> purgeExpiredFiles(@RequestParam String libraryCode) {
         Date cutoff = new Date(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000);
 
-        // 管理员有权限直接操作指定馆
         List<UserFile> expiredFiles = userFileService.getDeletedFilesBefore(cutoff, libraryCode);
 
         for (UserFile file : expiredFiles) {
@@ -320,7 +318,7 @@ public class UserFileController {
                                                  @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date expireAt) {
         permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
         String token = userFileService.generateShareToken(userDetails.getUid(), filename, expireAt);
-        return ApiResponse.success("生成成功", "/api/userFile/shared/" + token);
+        return ApiResponse.success("生成成功", "/api/file/shared/" + token);
     }
 
     @GetMapping("/shared/{token}")
@@ -330,8 +328,7 @@ public class UserFileController {
                                  HttpServletRequest request) {
         try {
             UserFile file = userFileService.validateAndGetSharedFile(token);
-            // 记录访问日志
-            userFileService.recordShareAccess(token,  request,"download");
+            userFileService.recordShareAccess(token, request, "download");
 
             response.setContentType(file.getType());
             response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getOriginFilename() + "\"");

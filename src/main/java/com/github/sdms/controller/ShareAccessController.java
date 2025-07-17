@@ -18,22 +18,24 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/public/folder")
+@RequestMapping("/api/share")
 @RequiredArgsConstructor
-public class PublicFolderController {
+public class ShareAccessController {
 
     private final FolderService folderService;
     private final UserFileService userFileService;
     private final MinioService minioService;
     private final ShareAccessLogService shareAccessLogService;
 
-    @GetMapping("/view")
+    /**
+     * 通过分享 Token 查看目录结构
+     */
+    @GetMapping("/view-folder")
     @Operation(summary = "通过分享 Token 访问文件夹及内容")
     public ApiResponse<SharedFolderView> viewSharedFolder(
             @RequestParam String token,
-            @RequestParam String libraryCode // 添加 libraryCode 参数
+            @RequestParam String libraryCode
     ) {
-        // 通过 shareToken 和 libraryCode 获取文件夹
         Folder folder = folderService.getFolderByShareToken(token, libraryCode);
         try {
             ShareTokenValidator.validateShareToken(folder);
@@ -41,19 +43,25 @@ public class PublicFolderController {
             return ApiResponse.failure(e.getMessage());
         }
 
-        // 可选扩展：返回该目录下的文件或子目录（只读）
         List<Folder> children = folderService.listFolders(folder.getOwnerId(), folder.getId(), libraryCode);
-
         SharedFolderView result = new SharedFolderView(folder.getName(), folder.getId(), children);
         return ApiResponse.success("访问成功", result);
     }
 
+    /**
+     * 分享目录视图响应结构
+     */
     public record SharedFolderView(String folderName, Long folderId, List<Folder> children) {}
 
+    /**
+     * 分享链接下列出文件
+     */
     @GetMapping("/files")
     @Operation(summary = "列出分享目录下的文件列表")
-    public ApiResponse<List<UserFile>> listSharedFiles(@RequestParam String token, @RequestParam String libraryCode) {
-        // 通过 shareToken 和 libraryCode 获取文件夹
+    public ApiResponse<List<UserFile>> listSharedFiles(
+            @RequestParam String token,
+            @RequestParam String libraryCode
+    ) {
         Folder folder = folderService.getFolderByShareToken(token, libraryCode);
         try {
             ShareTokenValidator.validateShareToken(folder);
@@ -61,19 +69,21 @@ public class PublicFolderController {
             return ApiResponse.failure(e.getMessage());
         }
 
-        // 查询该目录下的文件列表（只读）
         List<UserFile> files = userFileService.listFilesByFolder(folder.getOwnerId(), folder.getId(), libraryCode);
         return ApiResponse.success("查询成功", files);
     }
 
+    /**
+     * 下载分享目录下的文件
+     */
     @GetMapping("/download")
+    @Operation(summary = "通过分享链接下载文件")
     public ResponseEntity<?> downloadFile(
             @RequestParam String token,
             @RequestParam Long fileId,
-            @RequestParam String libraryCode,  // 添加 libraryCode 参数
+            @RequestParam String libraryCode,
             HttpServletRequest request
     ) {
-        // 通过 shareToken 和 libraryCode 获取文件夹
         Folder folder = folderService.getFolderByShareToken(token, libraryCode);
         try {
             ShareTokenValidator.validateShareToken(folder);
@@ -97,15 +107,16 @@ public class PublicFolderController {
                 .accessIp(ip)
                 .userAgent(ua)
                 .build();
-
         shareAccessLogService.recordAccess(log);
 
-        // 跳转至 MinIO 下载链接，传入桶名和 objectName
+        // 获取 MinIO 下载 URL 并重定向
         String url = minioService.getPresignedDownloadUrl(file.getBucket(), file.getUrl(), file.getOriginFilename());
         return ResponseEntity.status(302).header("Location", url).build();
     }
 
-
+    /**
+     * 获取客户端 IP
+     */
     private String getClientIp(HttpServletRequest request) {
         String xfHeader = request.getHeader("X-Forwarded-For");
         if (xfHeader != null) {
@@ -113,6 +124,4 @@ public class PublicFolderController {
         }
         return request.getRemoteAddr();
     }
-
 }
-

@@ -1,4 +1,4 @@
-package com.github.sdms.controller.admin;
+package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.service.MinioService;
