@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
@@ -170,7 +171,7 @@ public class UserFileServiceImpl implements UserFileService {
 
 
 
-
+    @Transactional
     @Override
     public UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes) {
         if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
@@ -234,6 +235,8 @@ public class UserFileServiceImpl implements UserFileService {
         userFile.setDeleteFlag(false);
         userFile.setBucket(bucketName);
         userFile.setType(file.getContentType());
+        // ✅ 设置 URL（对象名即可，供下载接口使用）
+        userFile.setUrl(objectName);
         return userFile;
     }
 

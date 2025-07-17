@@ -46,6 +46,7 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
     Optional<UserFile> findFirstByDocIdAndUidAndIsLatestTrue(Long docId, String uid);
 
     @Modifying
+    @Transactional
     @Query("UPDATE UserFile uf SET uf.isLatest = false WHERE uf.docId = :docId AND uf.isLatest = true AND uf.libraryCode = :libraryCode")
     int markAllOldVersionsNotLatest(@Param("docId") Long docId, @Param("libraryCode") String libraryCode);
 
