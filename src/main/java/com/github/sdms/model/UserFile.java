@@ -73,4 +73,8 @@ public class UserFile {
         return docId + "_v" + versionNumber;
     }
 
+    private Boolean shared; // 是否公开分享
+    private String shareToken; // 唯一分享 token
+    private Date shareExpireAt; // 过期时间
+
 }

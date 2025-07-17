@@ -1,6 +1,7 @@
 package com.github.sdms.util;
 
 import com.github.sdms.model.Folder;
+import com.github.sdms.model.UserFile;
 
 import java.util.Date;
 
@@ -17,6 +18,15 @@ public class ShareTokenValidator {
         }
 
         if (folder.getShareExpireAt() != null && new Date().after(folder.getShareExpireAt())) {
+            throw new IllegalStateException("分享链接已过期");
+        }
+    }
+
+    public static void validateFileShareToken(UserFile userFile) {
+        if (userFile == null || !Boolean.TRUE.equals(userFile.getShared())) {
+            throw new IllegalStateException("无效的分享链接");
+        }
+        if (userFile.getShareExpireAt() != null && new Date().after(userFile.getShareExpireAt())) {
             throw new IllegalStateException("分享链接已过期");
         }
     }

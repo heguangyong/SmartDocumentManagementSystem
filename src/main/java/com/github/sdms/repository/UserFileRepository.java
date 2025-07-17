@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.ScopedValue;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -44,6 +45,9 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
     Optional<UserFile> findFirstByDocIdAndUidAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(Long docId, String uid, String libraryCode);
 
     Optional<UserFile> findFirstByDocIdAndUidAndIsLatestTrue(Long docId, String uid);
+
+    Optional<UserFile> findByUidAndOriginFilenameAndDeleteFlagFalse(String uid, String originFilename);
+
 
     @Modifying
     @Transactional

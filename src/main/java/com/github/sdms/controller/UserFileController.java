@@ -8,9 +8,11 @@ import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -310,4 +312,38 @@ public class UserFileController {
 
         return ApiResponse.success("配额信息", result);
     }
+
+    @PostMapping("/share")
+    @Operation(summary = "生成文件分享链接")
+    public ApiResponse<String> generateShareLink(@AuthenticationPrincipal CustomerUserDetails userDetails,
+                                                 @RequestParam String filename,
+                                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date expireAt) {
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        String token = userFileService.generateShareToken(userDetails.getUid(), filename, expireAt);
+        return ApiResponse.success("生成成功", "/api/userFile/shared/" + token);
+    }
+
+    @GetMapping("/shared/{token}")
+    @Operation(summary = "通过分享链接下载文件")
+    public void accessSharedFile(@PathVariable String token,
+                                 HttpServletResponse response,
+                                 HttpServletRequest request) {
+        try {
+            UserFile file = userFileService.validateAndGetSharedFile(token);
+            // 记录访问日志
+            userFileService.recordShareAccess(token,  request,"download");
+
+            response.setContentType(file.getType());
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getOriginFilename() + "\"");
+
+            try (InputStream is = minioService.getObject(file.getBucket(), file.getName())) {
+                is.transferTo(response.getOutputStream());
+                response.flushBuffer();
+            }
+        } catch (Exception e) {
+            log.error("分享访问失败", e);
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+        }
+    }
+
 }

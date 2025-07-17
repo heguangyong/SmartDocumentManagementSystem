@@ -38,6 +38,9 @@ jwt:
 
 file:
   upload-dir: uploads/
+  share:
+    default-expire-millis: 7200000 # 默认2小时
+    secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  #${SHARE_SECRET:share-file-jwt-secret} 取环境变量值：没有就用默认值
 
 oauth:
   api_url: https://passport.library.sh.cn/

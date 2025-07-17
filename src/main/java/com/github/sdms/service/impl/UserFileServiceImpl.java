@@ -1,24 +1,29 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.model.ShareAccessLog;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.MinioService;
+import com.github.sdms.service.ShareAccessLogService;
 import com.github.sdms.service.StorageQuotaService;
 import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CachedIdGenerator;
+import io.jsonwebtoken.*;
+import io.jsonwebtoken.security.Keys;
 import io.minio.MinioClient;
 import io.minio.errors.MinioException;
+import jakarta.servlet.http.HttpServletRequest;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class UserFileServiceImpl implements UserFileService {
@@ -39,7 +44,14 @@ public class UserFileServiceImpl implements UserFileService {
     @Autowired
     private CachedIdGenerator cachedIdGenerator;
 
+    @Value("${file.share.secret}")
+    private String shareSecret;
 
+    @Value("${file.share.default-expire-millis}")
+    private long defaultExpireMillis ;
+
+    @Autowired
+    private ShareAccessLogService shareAccessLogService;
 
     @Override
     public void saveUserFile(UserFile file) {
@@ -218,6 +230,134 @@ public class UserFileServiceImpl implements UserFileService {
         return userFileRepository.findFirstByDocIdAndUidAndIsLatestTrue(docId, uid)
                 .orElse(null);
     }
+
+    @Override
+    public String generateShareToken(String uid, String filename, Date expireAt) {
+        // 查找文件
+        UserFile file = userFileRepository.findByUidAndOriginFilenameAndDeleteFlagFalse(uid, filename)
+                .orElseThrow(() -> new IllegalArgumentException("文件不存在"));
+
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("fileId", file.getId());
+        claims.put("fileName", file.getOriginFilename());
+
+        long now = System.currentTimeMillis();
+        long expireMillis;
+        if (expireAt != null) {
+            expireMillis = expireAt.getTime() - now;
+            if (expireMillis <= 0) {
+                throw new IllegalArgumentException("过期时间必须晚于当前时间");
+            }
+        } else {
+            expireMillis = defaultExpireMillis; // 比如 2小时
+        }
+
+        return Jwts.builder()
+                .setClaims(claims)
+                .setSubject("file_share")
+                .setIssuedAt(new Date(now))
+                .setExpiration(new Date(now + expireMillis))
+                .signWith(Keys.hmacShaKeyFor(shareSecret.getBytes()), SignatureAlgorithm.HS512)
+                .compact();
+    }
+
+    @Override
+    public UserFile validateAndGetSharedFile(String token) {
+        try {
+            Claims claims = Jwts.parser()
+                    .verifyWith(Keys.hmacShaKeyFor(shareSecret.getBytes()))
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            Long fileId = claims.get("fileId", Long.class);
+
+            if (fileId == null) {
+                throw new IllegalArgumentException("Token 中缺少文件信息");
+            }
+
+            Optional<UserFile> optional = userFileRepository.findById(fileId);
+            if (optional.isEmpty()) {
+                throw new IllegalArgumentException("文件不存在");
+            }
+
+            return optional.get();
+        } catch (ExpiredJwtException e) {
+            throw new IllegalStateException("分享链接已过期");
+        } catch (Exception e) {
+            throw new IllegalStateException("无效的分享链接");
+        }
+    }
+
+    /**
+     * 记录用户操作行为
+     * @param token 令牌
+     * @param request 请求
+     * @param actionType
+     *         preview: 用户预览文件
+     *         list: 用户查看文件列表
+     *         delete: 用户删除文件（如果适用）
+     *         restore: 用户恢复文件（如果适用）
+     *         share: 用户分享文件链接
+     */
+    @Override
+    public void recordShareAccess(String token, HttpServletRequest request, String actionType) {
+        try {
+            // 解析 token
+            Claims claims = Jwts.parser()
+                    .verifyWith(Keys.hmacShaKeyFor(shareSecret.getBytes()))
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+
+            Long fileId = claims.get("fileId", Long.class);
+            String fileName = claims.get("fileName", String.class);
+
+            // 校验文件信息
+            if (fileId == null || fileName == null) {
+                log.warn("访问日志记录失败：缺失 fileId 或 fileName，token 无效");
+                return;
+            }
+
+            // 生成 token 的哈希值（避免存储敏感信息）
+            String tokenHash = DigestUtils.sha256Hex(token);
+
+            // 构建日志对象
+            ShareAccessLog logEntry = ShareAccessLog.builder()
+                    .token(token)           // 记录原始 token，便于后期追踪
+                    .tokenHash(tokenHash)   // 记录哈希值
+                    .fileId(fileId)
+                    .fileName(fileName)
+                    .accessIp(getClientIp(request))
+                    .userAgent(request.getHeader("User-Agent"))
+                    .accessTime(new Date())
+                    .libraryCode(claims.get("libraryCode", String.class))
+                    .ownerUid(claims.get("uid", String.class))
+                    .actionType(actionType) // 设置操作类型
+                    .build();
+
+            // 保存访问日志
+            shareAccessLogService.recordAccess(logEntry);
+        } catch (ExpiredJwtException e) {
+            log.warn("访问日志记录失败：token 已过期");
+        } catch (JwtException e) {
+            log.warn("访问日志记录失败：token 解析错误", e);
+        } catch (Exception e) {
+            log.warn("访问日志记录异常", e);
+        }
+    }
+
+
+    private String getClientIp(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        } else {
+            ip = ip.split(",")[0].trim(); // 如果多个 IP，只取第一个
+        }
+        return ip;
+    }
+
 
     private UserFile buildFileRecord(String uid, String libraryCode, MultipartFile file, String objectName,
                                      int version, Long docId, String notes, boolean isLatest, String bucketName) {

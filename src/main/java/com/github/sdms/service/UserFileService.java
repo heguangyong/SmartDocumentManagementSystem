@@ -1,6 +1,7 @@
 package com.github.sdms.service;
 
 import com.github.sdms.model.UserFile;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
@@ -52,4 +53,17 @@ public interface UserFileService {
      * @return UserFile，若无则返回null
      */
     UserFile getFileByDocIdAndUid(Long docId, String uid);
+
+    /**
+     * 根据用户ID和文件名，生成分享Token，支持设置过期时间
+     * @param uid 用户ID
+     * @param filename 文件名（唯一标识）
+     * @param expireAt 过期时间（可空，若为空则默认有效期）
+     * @return 分享Token
+     */
+    String generateShareToken(String uid, String filename, Date expireAt);
+
+    UserFile validateAndGetSharedFile(String token);
+
+    void recordShareAccess(String token, HttpServletRequest request, String actionType);
 }

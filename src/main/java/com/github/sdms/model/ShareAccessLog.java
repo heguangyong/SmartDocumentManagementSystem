@@ -20,6 +20,8 @@ public class ShareAccessLog {
 
     private String token;
 
+    private String tokenHash;  // 新增字段，用于存储 token 的哈希值
+
     private Long fileId;
 
     private String fileName;
@@ -30,4 +32,9 @@ public class ShareAccessLog {
 
     @Temporal(TemporalType.TIMESTAMP)
     private Date accessTime = new Date();
+
+    private String libraryCode;
+    private String ownerUid;
+    private String actionType; // preview, download, list
+
 }
