@@ -1,8 +1,12 @@
 package com.github.sdms.repository;
 
 import com.github.sdms.model.UserFile;
+import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.List;
@@ -40,4 +44,9 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
     Optional<UserFile> findFirstByDocIdAndUidAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(Long docId, String uid, String libraryCode);
 
     Optional<UserFile> findFirstByDocIdAndUidAndIsLatestTrue(Long docId, String uid);
+
+    @Modifying
+    @Query("UPDATE UserFile uf SET uf.isLatest = false WHERE uf.docId = :docId AND uf.isLatest = true AND uf.libraryCode = :libraryCode")
+    int markAllOldVersionsNotLatest(@Param("docId") Long docId, @Param("libraryCode") String libraryCode);
+
 }

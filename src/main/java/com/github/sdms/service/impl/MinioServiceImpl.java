@@ -1,15 +1,11 @@
 package com.github.sdms.service.impl;
 
-import com.github.sdms.model.UserFile;
 import com.github.sdms.service.MinioService;
-import com.github.sdms.service.StorageQuotaService;
-import com.github.sdms.service.UserFileService;
 import io.minio.*;
 import io.minio.errors.MinioException;
 import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Lazy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
@@ -153,6 +149,7 @@ public class MinioServiceImpl implements MinioService {
         }
     }
 
+    @Override
     public String getBucketName(String uid, String libraryCode) {
         return "sdms-" + uid.toLowerCase().replaceAll("[^a-z0-9-]", "") + "-" + libraryCode.toLowerCase();
     }

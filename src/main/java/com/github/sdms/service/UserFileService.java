@@ -32,6 +32,10 @@ public interface UserFileService {
 
     UserFile getFileById(Long fileId, String libraryCode);
 
+    UserFile uploadNewDocument(MultipartFile file, String uid, String libraryCode, String notes) throws Exception;
+
+    UserFile uploadFileAndCreateRecord(String uid, MultipartFile file, String libraryCode, String notes) throws Exception;
+
     UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes);
 
     List<UserFile> getVersionsByDocId(Long docId, String libraryCode);

@@ -51,6 +51,8 @@ public interface MinioService {
      */
     String uploadFile(String uid, MultipartFile file, String libraryCode) throws Exception;
 
+    String getBucketName(String uid, String libraryCode);
+
     /**
      * 生成下载链接
      * @param uid 用户ID

@@ -22,6 +22,7 @@ import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.github.sdms.util.FileUtil.convertUrlToMultipartFile;
 import static com.github.sdms.util.FileUtil.parseDocIdFromKey;
 
 @Slf4j
@@ -42,7 +43,7 @@ public class OnlyOfficeController {
     public ResponseEntity<ApiResponse<Map<String, Object>>> getEditConfig(
             @AuthenticationPrincipal CustomerUserDetails userDetails,
             @PathVariable Long docId,
-            HttpServletRequest request) {
+            HttpServletRequest request) throws Exception {
 
         String uid = userDetails.getUid();
         String libraryCode = userDetails.getLibraryCode();

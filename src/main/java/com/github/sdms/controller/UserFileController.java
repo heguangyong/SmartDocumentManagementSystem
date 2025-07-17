@@ -316,12 +316,29 @@ public class UserFileController {
         return ApiResponse.success("配额信息", result);
     }
 
+    @PostMapping("/upload")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    public ApiResponse<UserFile> upload(
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
+            @RequestParam MultipartFile file,
+            @RequestParam(required = false) String notes
+    ) {
+        UserFile firstVersion = null;
+        try {
+            firstVersion = userFileService.uploadNewDocument(file, userDetails.getUid(), userDetails.getLibraryCode(), notes);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+        return ApiResponse.success(firstVersion);
+    }
+
+
     @PostMapping("/uploadVersion")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ApiResponse<UserFile> uploadNewVersion(
             @AuthenticationPrincipal CustomerUserDetails userDetails,
             @RequestParam MultipartFile file, //新上传的文件
-            @RequestParam Long docId, //所属文档 ID
+            @RequestParam Long docId, //所属文档 ID 初版时不需要填写，存入数据库中后自动填入id作为docId
             @RequestParam(required = false) String notes //本次版本说明（可选）
     ) {
         UserFile fileRecord = userFileService.uploadNewVersion(

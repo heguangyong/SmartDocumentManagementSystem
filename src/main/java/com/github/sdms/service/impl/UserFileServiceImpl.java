@@ -5,26 +5,38 @@ import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.MinioService;
 import com.github.sdms.service.StorageQuotaService;
 import com.github.sdms.service.UserFileService;
-import jakarta.transaction.Transactional;
+import com.github.sdms.util.CachedIdGenerator;
+import io.minio.MinioClient;
+import io.minio.errors.MinioException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
 @Service
 public class UserFileServiceImpl implements UserFileService {
+    private static final Logger log = LoggerFactory.getLogger(UserFileServiceImpl.class);
 
     @Autowired
     private UserFileRepository userFileRepository;
+
+    @Autowired
+    private MinioClient minioClient;
 
     @Autowired
     private MinioService minioService;
 
     @Autowired
     private StorageQuotaService storageQuotaService;
+
+    @Autowired
+    private CachedIdGenerator cachedIdGenerator;
 
 
 
@@ -116,40 +128,77 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
+    public UserFile uploadNewDocument(MultipartFile file, String uid, String libraryCode, String notes) throws Exception {
+        if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
+            throw new RuntimeException("上传失败：配额不足");
+        }
+
+        return uploadFileAndCreateRecord(uid, file, libraryCode, notes);
+    }
+
+    @Override
+    public UserFile uploadFileAndCreateRecord(String uid, MultipartFile file, String libraryCode, String notes) throws Exception {
+        String originalFilename = file.getOriginalFilename();
+        String bucketName = minioService.getBucketName(uid, libraryCode);
+
+        if (!minioClient.bucketExists(io.minio.BucketExistsArgs.builder().bucket(bucketName).build())) {
+            minioClient.makeBucket(io.minio.MakeBucketArgs.builder().bucket(bucketName).build());
+            log.info("Created bucket: {}", bucketName);
+        }
+
+        String objectName = System.currentTimeMillis() + "_" + originalFilename;
+
+        try (InputStream inputStream = file.getInputStream()) {
+            minioClient.putObject(io.minio.PutObjectArgs.builder()
+                    .bucket(bucketName)
+                    .object(objectName)
+                    .stream(inputStream, file.getSize(), -1)
+                    .contentType(file.getContentType())
+                    .build());
+            log.info("User {} uploaded file to bucket {}: {}", uid, bucketName, objectName);
+        } catch (MinioException e) {
+            log.error("MinIO upload error: ", e);
+            throw new Exception("文件上传失败: " + e.getMessage());
+        }
+
+        // 使用 buildFileRecord 构建 UserFile 实体
+        Long docId = cachedIdGenerator.nextId("doc_id");
+        UserFile fileRecord = buildFileRecord(uid, libraryCode, file, objectName, 1, docId, notes, true, bucketName);
+
+        return userFileRepository.save(fileRecord);
+    }
+
+
+
+
+    @Override
     public UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes) {
-        // 先校验配额
         if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
             throw new RuntimeException("上传失败：存储配额不足");
         }
 
+        // 获取历史版本，确定版本号
         List<UserFile> history = userFileRepository.findByDocIdAndLibraryCodeOrderByVersionNumberDesc(docId, libraryCode);
-        int nextVersion = history.isEmpty() ? 1 : history.get(0).getVersionNumber() + 1;
+        int nextVersion = history.isEmpty() ? 1 : (history.get(0).getVersionNumber() + 1);
 
-        history.forEach(f -> {
-            if (Boolean.TRUE.equals(f.getIsLatest())) {
-                f.setIsLatest(false);
-                userFileRepository.save(f);
-            }
-        });
+        // 批量标记旧版本为非最新
+        userFileRepository.markAllOldVersionsNotLatest(docId, libraryCode);
 
+        // 上传至 MinIO
         String objectName;
         try {
             objectName = minioService.uploadFile(uid, file, libraryCode);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("文件上传失败: " + e.getMessage(), e);
         }
 
-        UserFile newVersion = userFileRepository.findByNameAndLibraryCode(objectName, libraryCode)
-                .orElseThrow(() -> new RuntimeException("上传记录未找到"));
+        String bucketName = minioService.getBucketName(uid, libraryCode);
+        UserFile newVersion = buildFileRecord(uid, libraryCode, file, objectName, nextVersion, docId, notes, true, bucketName);
+        return userFileRepository.save(newVersion);
 
-        newVersion.setDocId(docId);
-        newVersion.setVersionNumber(nextVersion);
-        newVersion.setNotes(notes);
-        newVersion.setIsLatest(true);
-        userFileRepository.save(newVersion);
-
-        return newVersion; // ✅ 别忘了这一句
     }
+
+
 
     @Override
     public List<UserFile> getVersionsByDocId(Long docId, String libraryCode) {
@@ -168,4 +217,26 @@ public class UserFileServiceImpl implements UserFileService {
         return userFileRepository.findFirstByDocIdAndUidAndIsLatestTrue(docId, uid)
                 .orElse(null);
     }
+
+    private UserFile buildFileRecord(String uid, String libraryCode, MultipartFile file, String objectName,
+                                     int version, Long docId, String notes, boolean isLatest, String bucketName) {
+        UserFile userFile = new UserFile();
+        userFile.setUid(uid);
+        userFile.setLibraryCode(libraryCode);
+        userFile.setName(objectName);
+        userFile.setOriginFilename(file.getOriginalFilename());
+        userFile.setSize(file.getSize());
+        userFile.setVersionNumber(version);
+        userFile.setDocId(docId);
+        userFile.setIsLatest(isLatest);
+        userFile.setNotes(notes);
+        userFile.setCreatedDate(new Date());
+        userFile.setDeleteFlag(false);
+        userFile.setBucket(bucketName);
+        userFile.setType(file.getContentType());
+        return userFile;
+    }
+
+
+
 }

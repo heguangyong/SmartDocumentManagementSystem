@@ -21,10 +21,10 @@ public class UserFile {
     private String uid; // 上传用户 ID
 
     @Column(nullable = false)
-    private String name; // 存储名（唯一）
+    private String name; // 用于存储 MinIO 的 objectName
 
     @Column(name = "origin_fn")
-    private String originFilename; // 原始文件名
+    private String originFilename;  // 用于保存上传文件的原始文件名
 
     private String type; // 文件类型
 
@@ -41,7 +41,7 @@ public class UserFile {
 
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "created_date")
-    private Date createdDate = new Date();
+    private Date createdDate = new Date();// 对应上传时间
 
     private Integer uperr = 0; // 上传错误标志位
 
@@ -61,7 +61,7 @@ public class UserFile {
     private Integer versionNumber;
 
     @Column(name = "version_notes")
-    private String notes;
+    private String notes;// 版本说明
 
     @Column(name = "is_latest")
     private Boolean isLatest = true;
