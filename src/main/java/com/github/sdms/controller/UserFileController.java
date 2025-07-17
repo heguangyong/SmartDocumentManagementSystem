@@ -10,6 +10,7 @@ import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,7 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/userFile")
 @RequiredArgsConstructor
@@ -30,14 +32,58 @@ public class UserFileController {
     private final PermissionChecker permissionChecker;
     private final StorageQuotaService storageQuotaService;
 
+    @PostMapping("/upload")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    @Operation(summary = "上传新文档（馆员及管理员）")
+    public ApiResponse<UserFile> uploadNewDocument(
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
+            @RequestParam MultipartFile file,
+            @RequestParam(required = false) String notes
+    ) {
+        try {
+            UserFile firstVersion = userFileService.uploadNewDocument(file, userDetails.getUid(), userDetails.getLibraryCode(), notes);
+            return ApiResponse.success(firstVersion);
+        } catch (Exception e) {
+            log.error("上传新文档失败", e);
+            return ApiResponse.failure("上传失败: " + e.getMessage());
+        }
+    }
+
+    @PostMapping("/uploadVersion")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    @Operation(summary = "上传文档新版本（馆员及管理员）")
+    public ApiResponse<UserFile> uploadNewVersion(
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
+            @RequestParam MultipartFile file,
+            @RequestParam Long docId,
+            @RequestParam(required = false) String notes
+    ) {
+        try {
+            UserFile newVersion = userFileService.uploadNewVersion(file, userDetails.getUid(), userDetails.getLibraryCode(), docId, notes);
+            return ApiResponse.success(newVersion);
+        } catch (Exception e) {
+            log.error("上传文档新版本失败", e);
+            return ApiResponse.failure("上传失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/versions/{docId}")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
+    @Operation(summary = "获取指定文档所有版本（读者及以上）")
+    public ApiResponse<List<UserFile>> getAllVersions(
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
+            @PathVariable Long docId
+    ) {
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        List<UserFile> versions = userFileService.getVersionsByDocId(docId, userDetails.getLibraryCode());
+        return ApiResponse.success(versions);
+    }
+
     @GetMapping("/list")
     @Operation(summary = "获取当前用户文件列表")
     public ApiResponse<List<UserFile>> list(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
-
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-        List<UserFile> files = userFileService.getActiveFiles(currentUid, currentLibraryCode);
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        List<UserFile> files = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode());
         return ApiResponse.success(files);
     }
 
@@ -46,11 +92,8 @@ public class UserFileController {
     @Operation(summary = "逻辑删除当前用户文件（馆员及管理员）")
     public ApiResponse<Void> deleteFiles(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                          @RequestBody List<String> filenames) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
-
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-        userFileService.softDeleteFiles(currentUid, filenames, currentLibraryCode);
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        userFileService.softDeleteFiles(userDetails.getUid(), filenames, userDetails.getLibraryCode());
         return ApiResponse.success("文件已删除", null);
     }
 
@@ -59,11 +102,8 @@ public class UserFileController {
     @Operation(summary = "恢复最近删除的文件（馆员及管理员）")
     public ApiResponse<Void> restoreFiles(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                           @RequestBody List<String> filenames) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
-
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-        userFileService.restoreFiles(currentUid, filenames, currentLibraryCode);
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        userFileService.restoreFiles(userDetails.getUid(), filenames, userDetails.getLibraryCode());
         return ApiResponse.success("文件已恢复", null);
     }
 
@@ -73,13 +113,10 @@ public class UserFileController {
     public void download(@AuthenticationPrincipal CustomerUserDetails userDetails,
                          @PathVariable String filename,
                          HttpServletResponse response) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
-
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
         try {
-            UserFile file = userFileService.getActiveFiles(currentUid, currentLibraryCode).stream()
+            UserFile file = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode()).stream()
                     .filter(f -> f.getName().equals(filename))
                     .findFirst()
                     .orElseThrow(() -> new RuntimeException("文件不存在"));
@@ -92,6 +129,7 @@ public class UserFileController {
                 response.flushBuffer();
             }
         } catch (Exception e) {
+            log.error("文件下载失败", e);
             response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         }
     }
@@ -99,11 +137,8 @@ public class UserFileController {
     @GetMapping("/usage")
     @Operation(summary = "获取当前用户已使用空间（单位：字节）")
     public ApiResponse<Long> getUserStorageUsage(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
-
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-        long usage = userFileService.getActiveFiles(currentUid, currentLibraryCode).stream()
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        long usage = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode()).stream()
                 .mapToLong(UserFile::getSize)
                 .sum();
         return ApiResponse.success(usage);
@@ -113,11 +148,8 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "获取当前用户最近删除的文件（7天内）")
     public ApiResponse<List<UserFile>> getDeletedFiles(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
-
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-        List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(currentUid, currentLibraryCode);
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(userDetails.getUid(), userDetails.getLibraryCode());
         return ApiResponse.success(deletedFiles);
     }
 
@@ -126,12 +158,9 @@ public class UserFileController {
     @Operation(summary = "获取指定文件的临时下载链接")
     public ApiResponse<String> getPresignedUrl(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                                @PathVariable String filename) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-
-        UserFile file = userFileService.getActiveFiles(currentUid, currentLibraryCode).stream()
+        UserFile file = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode()).stream()
                 .filter(f -> f.getName().equals(filename))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("文件不存在"));
@@ -144,11 +173,9 @@ public class UserFileController {
     @Operation(summary = "获取指定文件详情")
     public ApiResponse<UserFile> getFileInfo(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                              @PathVariable String filename) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-        UserFile file = userFileService.getActiveFiles(currentUid, currentLibraryCode).stream()
+        UserFile file = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode()).stream()
                 .filter(f -> f.getName().equals(filename))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("文件不存在"));
@@ -159,11 +186,9 @@ public class UserFileController {
     @Operation(summary = "批量获取文件详情")
     public ApiResponse<List<UserFile>> getBatchFileInfo(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                                         @RequestBody List<String> filenames) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-        List<UserFile> files = userFileService.getActiveFiles(currentUid, currentLibraryCode).stream()
+        List<UserFile> files = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode()).stream()
                 .filter(f -> filenames.contains(f.getName()))
                 .toList();
         return ApiResponse.success(files);
@@ -175,12 +200,9 @@ public class UserFileController {
     public ApiResponse<Void> renameFile(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                         @RequestParam String oldName,
                                         @RequestParam String newName) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-
-        List<UserFile> files = userFileService.getActiveFiles(currentUid, currentLibraryCode);
+        List<UserFile> files = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode());
         UserFile file = files.stream()
                 .filter(f -> f.getName().equals(oldName))
                 .findFirst()
@@ -200,34 +222,17 @@ public class UserFileController {
     @Operation(summary = "彻底删除指定文件")
     public ApiResponse<Void> purgeFile(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                        @RequestParam String filename) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-
-        UserFile file = userFileService.getActiveFiles(currentUid, currentLibraryCode).stream()
+        UserFile file = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode()).stream()
                 .filter(f -> f.getName().equals(filename))
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("文件不存在"));
 
         minioService.deleteObject(file.getBucket(), file.getName());
-        userFileService.deletePermanently(file.getId(), currentLibraryCode);
+        userFileService.deletePermanently(file.getId(), userDetails.getLibraryCode());
 
         return ApiResponse.success("文件已彻底删除", null);
-    }
-
-    @GetMapping("/type/{fileType}")
-    @Operation(summary = "按文件类型查询")
-    public ApiResponse<List<UserFile>> getFilesByType(@AuthenticationPrincipal CustomerUserDetails userDetails,
-                                                      @PathVariable String fileType) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
-
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-        List<UserFile> files = userFileService.getActiveFiles(currentUid, currentLibraryCode).stream()
-                .filter(f -> fileType.equalsIgnoreCase(f.getType()))
-                .toList();
-        return ApiResponse.success(files);
     }
 
     @DeleteMapping("/purgeFiles")
@@ -235,18 +240,15 @@ public class UserFileController {
     @Operation(summary = "批量物理删除用户文件")
     public ApiResponse<Void> purgeFiles(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                         @RequestBody List<String> filenames) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-
-        List<UserFile> files = userFileService.getActiveFiles(currentUid, currentLibraryCode).stream()
+        List<UserFile> files = userFileService.getActiveFiles(userDetails.getUid(), userDetails.getLibraryCode()).stream()
                 .filter(f -> filenames.contains(f.getName()))
                 .toList();
 
         for (UserFile file : files) {
             minioService.deleteObject(file.getBucket(), file.getName());
-            userFileService.deletePermanently(file.getId(), currentLibraryCode);
+            userFileService.deletePermanently(file.getId(), userDetails.getLibraryCode());
         }
 
         return ApiResponse.success("已永久删除选中文件", null);
@@ -256,24 +258,20 @@ public class UserFileController {
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "清空当前用户回收站")
     public ApiResponse<Void> emptyTrash(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-
-        List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(currentUid, currentLibraryCode);
+        List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(userDetails.getUid(), userDetails.getLibraryCode());
         for (UserFile file : deletedFiles) {
             try {
                 minioService.deleteObject(file.getBucket(), file.getName());
             } catch (Exception ignored) {
             }
-            userFileService.deletePermanently(file.getId(), currentLibraryCode);
+            userFileService.deletePermanently(file.getId(), userDetails.getLibraryCode());
         }
 
         return ApiResponse.success("回收站已清空", null);
     }
 
-    // 管理员清理过期文件，需传入馆代码参数
     @DeleteMapping("/admin/purge-expired")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "管理员清理过期删除记录（超出7天）")
@@ -298,13 +296,10 @@ public class UserFileController {
     @GetMapping("/quota")
     @Operation(summary = "获取当前用户存储配额信息")
     public ApiResponse<Map<String, Long>> getQuota(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        String currentUid = userDetails.getUid();
-        String currentLibraryCode = userDetails.getLibraryCode();
+        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
 
-        permissionChecker.checkAccess(currentUid, currentLibraryCode);
-
-        long used = userFileService.getUserStorageUsage(currentUid, currentLibraryCode);
-        long max = storageQuotaService.getMaxQuota(currentUid, currentLibraryCode);
+        long used = userFileService.getUserStorageUsage(userDetails.getUid(), userDetails.getLibraryCode());
+        long max = storageQuotaService.getMaxQuota(userDetails.getUid(), userDetails.getLibraryCode());
         long remaining = max - used;
 
         Map<String, Long> result = Map.of(
@@ -315,51 +310,4 @@ public class UserFileController {
 
         return ApiResponse.success("配额信息", result);
     }
-
-    @PostMapping("/upload")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<UserFile> upload(
-            @AuthenticationPrincipal CustomerUserDetails userDetails,
-            @RequestParam MultipartFile file,
-            @RequestParam(required = false) String notes
-    ) {
-        UserFile firstVersion = null;
-        try {
-            firstVersion = userFileService.uploadNewDocument(file, userDetails.getUid(), userDetails.getLibraryCode(), notes);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-        return ApiResponse.success(firstVersion);
-    }
-
-
-    @PostMapping("/uploadVersion")
-    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<UserFile> uploadNewVersion(
-            @AuthenticationPrincipal CustomerUserDetails userDetails,
-            @RequestParam MultipartFile file, //新上传的文件
-            @RequestParam Long docId, //所属文档 ID 初版时不需要填写，存入数据库中后自动填入id作为docId
-            @RequestParam(required = false) String notes //本次版本说明（可选）
-    ) {
-        UserFile fileRecord = userFileService.uploadNewVersion(
-                file, userDetails.getUid(), userDetails.getLibraryCode(), docId, notes
-        );
-        return ApiResponse.success(fileRecord);
-    }
-
-    @GetMapping("/versions/{docId}")
-    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
-    public ApiResponse<List<UserFile>> getAllVersions(
-            @AuthenticationPrincipal CustomerUserDetails userDetails,
-            @PathVariable Long docId
-    ) {
-        String uid = userDetails.getUid();
-        String libraryCode = userDetails.getLibraryCode();
-        permissionChecker.checkAccess(uid, libraryCode);
-
-        List<UserFile> versions = userFileService.getVersionsByDocId(docId, libraryCode);
-        return ApiResponse.success(versions);
-    }
-
-
 }
