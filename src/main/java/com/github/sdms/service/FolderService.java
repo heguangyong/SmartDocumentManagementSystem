@@ -21,10 +21,4 @@ public interface FolderService {
 
     void moveFolder(String uid, Long folderId, Long newParentId, String libraryCode);
 
-    String generateShareToken(String uid, Long folderId, Integer expireMinutes, String libraryCode);
-
-    void revokeShareToken(String uid, Long folderId, String libraryCode);
-
-    // 查询共享Token并支持多租户libraryCode
-    Folder getFolderByShareToken(String token, String libraryCode);
 }

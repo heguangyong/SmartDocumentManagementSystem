@@ -53,4 +53,5 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
     @Query("UPDATE UserFile uf SET uf.isLatest = false WHERE uf.docId = :docId AND uf.isLatest = true AND uf.libraryCode = :libraryCode")
     int markAllOldVersionsNotLatest(@Param("docId") Long docId, @Param("libraryCode") String libraryCode);
 
+    List<UserFile> findByFolderIdAndUidAndLibraryCode(Long id, String ownerId, String libraryCode);
 }

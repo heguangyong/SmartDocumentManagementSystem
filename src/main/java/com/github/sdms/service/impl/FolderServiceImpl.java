@@ -7,7 +7,9 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.Date;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -17,9 +19,10 @@ public class FolderServiceImpl implements FolderService {
 
     @Override
     public Folder createFolder(String uid, String name, Long parentId, String libraryCode) {
-        List<Folder> siblings = parentId == null
+        List<Folder> siblings = (parentId == null)
                 ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
                 : folderRepository.findByUidAndParentIdAndLibraryCode(uid, parentId, libraryCode);
+
         if (siblings.stream().anyMatch(f -> f.getName().equals(name))) {
             throw new IllegalArgumentException("该目录下已存在同名文件夹");
         }
@@ -28,6 +31,7 @@ public class FolderServiceImpl implements FolderService {
                 .uid(uid)
                 .name(name)
                 .parentId(parentId)
+                .libraryCode(libraryCode)
                 .createdAt(new Date())
                 .updatedAt(new Date())
                 .build();
@@ -37,9 +41,11 @@ public class FolderServiceImpl implements FolderService {
     @Override
     public Folder renameFolder(String uid, Long folderId, String newName, String libraryCode) {
         Folder folder = getFolderById(uid, folderId, libraryCode);
-        List<Folder> siblings = folder.getParentId() == null
+
+        List<Folder> siblings = (folder.getParentId() == null)
                 ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
                 : folderRepository.findByUidAndParentIdAndLibraryCode(uid, folder.getParentId(), libraryCode);
+
         if (siblings.stream().anyMatch(f -> !f.getId().equals(folderId) && f.getName().equals(newName))) {
             throw new IllegalArgumentException("该目录下已存在同名文件夹");
         }
@@ -60,7 +66,7 @@ public class FolderServiceImpl implements FolderService {
 
     @Override
     public List<Folder> listFolders(String uid, Long parentId, String libraryCode) {
-        return parentId == null
+        return (parentId == null)
                 ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
                 : folderRepository.findByUidAndParentIdAndLibraryCode(uid, parentId, libraryCode);
     }
@@ -87,7 +93,7 @@ public class FolderServiceImpl implements FolderService {
         Folder newParent = folderRepository.findById(newParentId)
                 .orElseThrow(() -> new RuntimeException("目标父目录不存在"));
 
-        if (!folder.getOwnerId().equals(uid) || !newParent.getOwnerId().equals(uid)) {
+        if (!folder.getUid().equals(uid) || !newParent.getUid().equals(uid)) {
             throw new SecurityException("无权限操作该目录");
         }
 
@@ -110,53 +116,4 @@ public class FolderServiceImpl implements FolderService {
         }
         return false;
     }
-
-    @Override
-    public String generateShareToken(String uid, Long folderId, Integer expireMinutes, String libraryCode) {
-        Folder folder = folderRepository.findById(folderId)
-                .orElseThrow(() -> new RuntimeException("目录不存在"));
-
-        if (!folder.getOwnerId().equals(uid)) {
-            throw new SecurityException("无权限分享该目录");
-        }
-
-        String token = UUID.randomUUID().toString().replaceAll("-", "");
-        folder.setShared(true);
-        folder.setShareToken(token);
-
-        if (expireMinutes != null && expireMinutes > 0) {
-            Calendar calendar = Calendar.getInstance();
-            calendar.add(Calendar.MINUTE, expireMinutes);
-            folder.setShareExpireAt(calendar.getTime());
-        } else {
-            folder.setShareExpireAt(null);
-        }
-
-        folder.setUpdatedAt(new Date());
-        folderRepository.save(folder);
-
-        return token;
-    }
-
-    @Override
-    public void revokeShareToken(String uid, Long folderId, String libraryCode) {
-        Folder folder = folderRepository.findById(folderId)
-                .orElseThrow(() -> new RuntimeException("目录不存在"));
-
-        if (!folder.getOwnerId().equals(uid)) {
-            throw new SecurityException("无权限取消分享");
-        }
-
-        folder.setShared(false);
-        folder.setShareToken(null);
-        folder.setUpdatedAt(new Date());
-        folderRepository.save(folder);
-    }
-
-    @Override
-    public Folder getFolderByShareToken(String token, String libraryCode) {
-        return folderRepository.findByShareTokenAndLibraryCode(token, libraryCode).orElse(null);
-    }
-
-
 }

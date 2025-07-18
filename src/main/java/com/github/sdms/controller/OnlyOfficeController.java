@@ -81,7 +81,8 @@ public class OnlyOfficeController {
 
     @PostMapping("/onlyofficeCallback")
     public ResponseEntity<String> onlyofficeCallback(@RequestBody Map<String, Object> callbackData,
-                                                     @AuthenticationPrincipal CustomerUserDetails userDetails) {
+                                                     @AuthenticationPrincipal CustomerUserDetails userDetails,
+                                                     @RequestParam(required = false) Long folderId) {
         log.info("OnlyOffice Callback data: {}", callbackData);
 
         Integer status = (Integer) callbackData.get("status");
@@ -99,7 +100,7 @@ public class OnlyOfficeController {
 
                 // 调用UserFileService上传新版本
                 MultipartFile multipartFile = convertUrlToMultipartFile(docUrl); // 需实现转换方法，或者调整逻辑
-                userFileService.uploadNewVersion(multipartFile, uid, libraryCode, docId, "OnlyOffice自动保存");
+                userFileService.uploadNewVersion(multipartFile, uid, libraryCode, docId, "OnlyOffice自动保存",folderId);
 
                 log.info("OnlyOffice文档保存成功，新对象名：{}", objectName);
             } catch (Exception e) {

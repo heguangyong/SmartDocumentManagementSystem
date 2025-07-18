@@ -40,10 +40,11 @@ public class FileController {
     public ApiResponse<UserFile> uploadNewDocument(
             @AuthenticationPrincipal CustomerUserDetails userDetails,
             @RequestParam MultipartFile file,
-            @RequestParam(required = false) String notes
+            @RequestParam(required = false) String notes,
+            @RequestParam(required = false) Long folderId // 👈 新增目录ID参数
     ) {
         try {
-            UserFile firstVersion = userFileService.uploadNewDocument(file, userDetails.getUid(), userDetails.getLibraryCode(), notes);
+            UserFile firstVersion = userFileService.uploadNewDocument(file, userDetails.getUid(), userDetails.getLibraryCode(), notes,folderId);
             return ApiResponse.success(firstVersion);
         } catch (Exception e) {
             log.error("上传新文档失败", e);
@@ -58,10 +59,11 @@ public class FileController {
             @AuthenticationPrincipal CustomerUserDetails userDetails,
             @RequestParam MultipartFile file,
             @RequestParam Long docId,
-            @RequestParam(required = false) String notes
+            @RequestParam(required = false) String notes,
+            @RequestParam(required = false) Long folderId // 👈 新增目录ID参数
     ) {
         try {
-            UserFile newVersion = userFileService.uploadNewVersion(file, userDetails.getUid(), userDetails.getLibraryCode(), docId, notes);
+            UserFile newVersion = userFileService.uploadNewVersion(file, userDetails.getUid(), userDetails.getLibraryCode(), docId, notes,folderId);
             return ApiResponse.success(newVersion);
         } catch (Exception e) {
             log.error("上传文档新版本失败", e);
@@ -309,38 +311,6 @@ public class FileController {
         );
 
         return ApiResponse.success("配额信息", result);
-    }
-
-    @PostMapping("/share")
-    @Operation(summary = "生成文件分享链接")
-    public ApiResponse<String> generateShareLink(@AuthenticationPrincipal CustomerUserDetails userDetails,
-                                                 @RequestParam String filename,
-                                                 @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date expireAt) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
-        String token = userFileService.generateShareToken(userDetails.getUid(), filename, expireAt);
-        return ApiResponse.success("生成成功", "/api/file/shared/" + token);
-    }
-
-    @GetMapping("/shared/{token}")
-    @Operation(summary = "通过分享链接下载文件")
-    public void accessSharedFile(@PathVariable String token,
-                                 HttpServletResponse response,
-                                 HttpServletRequest request) {
-        try {
-            UserFile file = userFileService.validateAndGetSharedFile(token);
-            userFileService.recordShareAccess(token, request, "download");
-
-            response.setContentType(file.getType());
-            response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getOriginFilename() + "\"");
-
-            try (InputStream is = minioService.getObject(file.getBucket(), file.getName())) {
-                is.transferTo(response.getOutputStream());
-                response.flushBuffer();
-            }
-        } catch (Exception e) {
-            log.error("分享访问失败", e);
-            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-        }
     }
 
 }

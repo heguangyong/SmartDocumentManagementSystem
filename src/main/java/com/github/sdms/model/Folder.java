@@ -48,8 +48,6 @@ public class Folder {
     @Column(name = "shared")
     private Boolean shared = false;
 
-    @Column(name = "share_token")
-    private String shareToken;
 
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "share_expire_at")
