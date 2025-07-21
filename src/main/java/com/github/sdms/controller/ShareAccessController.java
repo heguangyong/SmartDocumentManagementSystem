@@ -12,8 +12,10 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.*;
 
 @RestController
@@ -94,17 +96,15 @@ public class ShareAccessController {
             @RequestParam String uid,
             @RequestParam String type,
             @RequestParam Long targetId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Date expireAt,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime  expireAt,
             @RequestParam String libraryCode
     ) {
         // 设置默认过期时间（7天后）
         if (expireAt == null) {
-            Calendar calendar = Calendar.getInstance();
-            calendar.add(Calendar.DAY_OF_MONTH, 7);
-            expireAt = calendar.getTime();
+            expireAt = LocalDateTime.now().plusDays(7);
         }
 
-        String token = shareAccessService.createShare(uid, type, targetId, expireAt, libraryCode);
+        String token = shareAccessService.createShare(uid, type, targetId, java.sql.Timestamp.valueOf(expireAt), libraryCode);
         return ResponseEntity.ok(Map.of("token", token));
     }
 

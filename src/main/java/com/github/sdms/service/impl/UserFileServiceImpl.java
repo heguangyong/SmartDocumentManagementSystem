@@ -1,5 +1,6 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.MinioService;
@@ -44,7 +45,7 @@ public class UserFileServiceImpl implements UserFileService {
     private String shareSecret;
 
     @Value("${file.share.default-expire-millis}")
-    private long defaultExpireMillis ;
+    private long defaultExpireMillis;
 
     @Override
     public void saveUserFile(UserFile file) {
@@ -100,7 +101,7 @@ public class UserFileServiceImpl implements UserFileService {
         if (fileOptional.isPresent()) {
             userFileRepository.deleteById(fileId);
         } else {
-            throw new RuntimeException("文件不存在或已被删除");
+            throw new ApiException(404, "文件不存在或已被删除，无法永久删除");
         }
     }
 
@@ -130,13 +131,13 @@ public class UserFileServiceImpl implements UserFileService {
     @Override
     public UserFile getFileById(Long fileId, String libraryCode) {
         return userFileRepository.findByIdAndDeleteFlagFalseAndLibraryCode(fileId, libraryCode)
-                .orElseThrow(() -> new RuntimeException("文件不存在或已被删除"));
+                .orElseThrow(() -> new ApiException(404, "指定的文件不存在或已被删除"));
     }
 
     @Override
     public UserFile uploadNewDocument(MultipartFile file, String uid, String libraryCode, String notes, Long folderId) throws Exception {
         if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
-            throw new RuntimeException("上传失败：配额不足");
+            throw new ApiException(403, "上传失败：存储配额不足");
         }
 
         return uploadFileAndCreateRecord(uid, file, libraryCode, notes, folderId);
@@ -164,12 +165,11 @@ public class UserFileServiceImpl implements UserFileService {
             log.info("User {} uploaded file to bucket {}: {}", uid, bucketName, objectName);
         } catch (MinioException e) {
             log.error("MinIO upload error: ", e);
-            throw new Exception("文件上传失败: " + e.getMessage());
+            throw new ApiException(500, "文件上传失败：" + e.getMessage());
         }
 
         Long docId = cachedIdGenerator.nextId("doc_id");
         UserFile fileRecord = buildFileRecord(uid, libraryCode, file, objectName, 1, docId, notes, true, bucketName, folderId);
-
         return userFileRepository.save(fileRecord);
     }
 
@@ -177,7 +177,7 @@ public class UserFileServiceImpl implements UserFileService {
     @Override
     public UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes, Long folderId) throws Exception {
         if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
-            throw new RuntimeException("上传失败：存储配额不足");
+            throw new ApiException(403, "上传失败：存储配额不足");
         }
 
         List<UserFile> history = userFileRepository.findByDocIdAndLibraryCodeOrderByVersionNumberDesc(docId, libraryCode);
@@ -189,7 +189,8 @@ public class UserFileServiceImpl implements UserFileService {
         try {
             objectName = minioService.uploadFile(uid, file, libraryCode);
         } catch (Exception e) {
-            throw new RuntimeException("文件上传失败: " + e.getMessage(), e);
+            log.error("上传新版本失败: ", e);
+            throw new ApiException(500, "上传新版本失败：" + e.getMessage());
         }
 
         String bucketName = minioService.getBucketName(uid, libraryCode);

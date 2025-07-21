@@ -1,16 +1,17 @@
 package com.github.sdms.service.impl;
 
 import cn.hutool.core.util.URLUtil;
-import com.github.sdms.util.JwtUtil;
+import com.github.sdms.dto.UUserReq;
+import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
-import com.github.sdms.service.MinioService;
-import com.github.sdms.util.OAuthClient;
-import com.alibaba.fastjson2.JSONObject;
-import com.github.sdms.dto.UUserReq;
 import com.github.sdms.service.AuthService;
+import com.github.sdms.service.MinioService;
+import com.github.sdms.util.JwtUtil;
+import com.github.sdms.util.OAuthClient;
 import com.github.sdms.util.ServletUtils;
+import com.alibaba.fastjson2.JSONObject;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
@@ -24,6 +25,7 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @Slf4j
@@ -59,9 +61,20 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public String handleCallback(String code, String state, String baseRedirectUrl, String libraryCode) {
         String accessToken = oAuthClient.getOauthToken(code);
+        if (accessToken == null || accessToken.isEmpty()) {
+            throw new ApiException(400, "无法获取访问令牌");
+        }
+
         JSONObject userInfo = oAuthClient.userinfoByAccessToken(accessToken, state.equals("2") ? "v5" : "v3");
+        if (userInfo == null || userInfo.isEmpty()) {
+            throw new ApiException(400, "无法获取用户信息");
+        }
 
         String uid = userInfo.getString("x-oauth-unionid");
+        if (uid == null || uid.isEmpty()) {
+            throw new ApiException(400, "用户唯一标识不存在");
+        }
+
         String username = userInfo.getString("nameCn");
 
         // 解析角色列表
@@ -93,7 +106,7 @@ public class AuthServiceImpl implements AuthService {
         userRepository.save(user);
 
         // 生成 JWT，传递角色列表
-        String jwt = jwtUtil.generateToken(uid, rolesFromFolio,libraryCode);
+        String jwt = jwtUtil.generateToken(uid, rolesFromFolio, libraryCode);
 
         stringRedisTemplate.opsForValue().set("accessToken_" + uid, accessToken);
 
@@ -108,17 +121,17 @@ public class AuthServiceImpl implements AuthService {
             response.setContentType("text/html");
             PrintWriter out = response.getWriter();
             out.print("URL token Failed verification!");
-            return "";
+            throw new ApiException(403, "URL token 验证失败");
         }
 
-        // ✅ code 本身是 JWT
+        // code 本身是 JWT
         String jwt = req.getCode();
         String uid = jwtUtil.extractUsername(jwt); // subject 就是 uid
-        String role = jwtUtil.extractRole(jwt);
-
         if (uid == null) {
-            return "Invalid token";
+            throw new ApiException(401, "无效的Token");
         }
+
+        String role = jwtUtil.extractRole(jwt);
 
         // 根据 libraryCode 查询用户
         AppUser user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
@@ -140,20 +153,32 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public String checkSession(String uid, String path, String libraryCode) {
         // 使用 libraryCode 来进行会话验证，确保每个租户的用户会话是独立的
-        return "timeout".equals(minioService.logintimecheck(uid, path, libraryCode)) ? "session timeout" : "session valid";
+        String status = minioService.logintimecheck(uid, path, libraryCode);
+        if ("timeout".equals(status)) {
+            throw new ApiException(401, "会话已过期，请重新登录");
+        }
+        return "session valid";
     }
 
 
     @Override
     public String setLogin(String uid, String libraryCode) {
-        minioService.loginset(uid,libraryCode);
+        minioService.loginset(uid, libraryCode);
         return "loginset success";
     }
 
     @Override
     public String getUserInfoByAccessToken(String accessToken, String libraryCode) throws Exception {
         JSONObject userInfo = oAuthClient.userinfoByAccessToken(accessToken, "v5");
+        if (userInfo == null || userInfo.isEmpty()) {
+            throw new ApiException(400, "无法获取用户信息");
+        }
+
         String uid = userInfo.getString("x-oauth-unionid");
+        if (uid == null || uid.isEmpty()) {
+            throw new ApiException(400, "用户唯一标识不存在");
+        }
+
         String username = userInfo.getString("nameCn");
 
         // 根据 libraryCode 查询用户
@@ -167,10 +192,10 @@ public class AuthServiceImpl implements AuthService {
             userRepository.save(user);
         }
 
-        // ✅ 使用统一 JWT 生成逻辑
+        // 使用统一 JWT 生成逻辑
         org.springframework.security.core.userdetails.User jwtUser =
                 new org.springframework.security.core.userdetails.User(uid, "", java.util.Collections.emptyList());
-        String jwt = jwtUtil.generateToken(jwtUser,libraryCode);
+        String jwt = jwtUtil.generateToken(jwtUser, libraryCode);
 
         stringRedisTemplate.opsForValue().set("accessToken_" + uid, accessToken);
 

@@ -1,5 +1,6 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.model.ShareAccess;
 import com.github.sdms.model.UserFile;
@@ -26,9 +27,9 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     @Override
     public ShareAccess createFileShare(String uid, Long fileId, Integer expireMinutes, String libraryCode) {
         UserFile file = userFileRepository.findById(fileId)
-                .orElseThrow(() -> new RuntimeException("文件不存在"));
+                .orElseThrow(() -> new ApiException(404, "文件不存在"));
         if (!file.getUid().equals(uid)) {
-            throw new SecurityException("无权分享该文件");
+            throw new ApiException(403, "无权限分享该文件");
         }
 
         ShareAccess share = buildBaseShare(uid, "file", fileId, file.getOriginFilename(), expireMinutes, libraryCode);
@@ -38,9 +39,9 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     @Override
     public ShareAccess createFolderShare(String uid, Long folderId, Integer expireMinutes, String libraryCode) {
         Folder folder = folderRepository.findById(folderId)
-                .orElseThrow(() -> new RuntimeException("目录不存在"));
+                .orElseThrow(() -> new ApiException(404, "目录不存在"));
         if (!folder.getOwnerId().equals(uid)) {
-            throw new SecurityException("无权分享该目录");
+            throw new ApiException(403, "无权限分享该目录");
         }
 
         ShareAccess share = buildBaseShare(uid, "folder", folderId, folder.getName(), expireMinutes, libraryCode);
@@ -59,7 +60,7 @@ public class ShareAccessServiceImpl implements ShareAccessService {
         } else if ("folder".equalsIgnoreCase(targetType)) {
             share = createFolderShare(uid, targetId, expireMinutes, libraryCode);
         } else {
-            throw new IllegalArgumentException("不支持的 targetType：" + targetType);
+            throw new ApiException(400, "不支持的 targetType：" + targetType);
         }
         return share.getToken(); // 明文 token 返回前端
     }
@@ -92,7 +93,7 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     public void revokeShare(String uid, String token, String libraryCode) {
         ShareAccess share = getRawByToken(token);
         if (!share.getCreatedBy().equals(uid) || !libraryCode.equals(share.getLibraryCode())) {
-            throw new SecurityException("无权限撤销该分享");
+            throw new ApiException(403, "无权限撤销该分享");
         }
         share.setEnabled(false); // 逻辑禁用
         shareAccessRepository.save(share);
@@ -102,13 +103,13 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     public ShareAccess getByToken(String token, String libraryCode) {
         ShareAccess share = getRawByToken(token);
         if (!Boolean.TRUE.equals(share.getEnabled())) {
-            throw new RuntimeException("分享已被禁用");
+            throw new ApiException(403, "该分享已被禁用");
         }
         if (!libraryCode.equals(share.getLibraryCode())) {
-            throw new RuntimeException("库信息不匹配");
+            throw new ApiException(403, "库信息不匹配");
         }
         if (isShareExpired(share)) {
-            throw new RuntimeException("分享链接已过期");
+            throw new ApiException(403, "该分享链接已过期");
         }
         return share;
     }
@@ -117,27 +118,27 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     public ShareAccess getRawByToken(String token) {
         String hash = TokenUtils.hashToken(token);
         return shareAccessRepository.findByTokenHash(hash)
-                .orElseThrow(() -> new RuntimeException("无效的分享链接"));
+                .orElseThrow(() -> new ApiException(404, "无效的分享链接"));
     }
 
     @Override
     public UserFile getFileByToken(String token, String libraryCode) {
         ShareAccess share = getByToken(token, libraryCode);
         if (!"file".equalsIgnoreCase(share.getTargetType())) {
-            throw new RuntimeException("分享类型错误，非文件");
+            throw new ApiException(400, "分享类型错误：不是文件类型");
         }
         return userFileRepository.findById(share.getTargetId())
-                .orElseThrow(() -> new RuntimeException("文件不存在"));
+                .orElseThrow(() -> new ApiException(404, "文件不存在"));
     }
 
     @Override
     public Folder getFolderByToken(String token, String libraryCode) {
         ShareAccess share = getByToken(token, libraryCode);
         if (!"folder".equalsIgnoreCase(share.getTargetType())) {
-            throw new RuntimeException("分享类型错误，非目录");
+            throw new ApiException(400, "分享类型错误：不是目录类型");
         }
         return folderRepository.findById(share.getTargetId())
-                .orElseThrow(() -> new RuntimeException("目录不存在"));
+                .orElseThrow(() -> new ApiException(404, "目录不存在"));
     }
 
     @Override
@@ -170,4 +171,3 @@ public class ShareAccessServiceImpl implements ShareAccessService {
                 uid, targetType, libraryCode);
     }
 }
-

@@ -1,5 +1,6 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.repository.FolderRepository;
 import com.github.sdms.service.FolderService;
@@ -24,7 +25,7 @@ public class FolderServiceImpl implements FolderService {
                 : folderRepository.findByUidAndParentIdAndLibraryCode(uid, parentId, libraryCode);
 
         if (siblings.stream().anyMatch(f -> f.getName().equals(name))) {
-            throw new IllegalArgumentException("该目录下已存在同名文件夹");
+            throw new ApiException(400, "该目录下已存在同名文件夹");
         }
 
         Folder folder = Folder.builder()
@@ -47,7 +48,7 @@ public class FolderServiceImpl implements FolderService {
                 : folderRepository.findByUidAndParentIdAndLibraryCode(uid, folder.getParentId(), libraryCode);
 
         if (siblings.stream().anyMatch(f -> !f.getId().equals(folderId) && f.getName().equals(newName))) {
-            throw new IllegalArgumentException("该目录下已存在同名文件夹");
+            throw new ApiException(400, "该目录下已存在同名文件夹");
         }
 
         folder.setName(newName);
@@ -59,7 +60,7 @@ public class FolderServiceImpl implements FolderService {
     public void deleteFolder(String uid, Long folderId, String libraryCode) {
         Folder folder = getFolderById(uid, folderId, libraryCode);
         if (Boolean.TRUE.equals(folder.getSystemFolder())) {
-            throw new IllegalStateException("系统内置目录禁止删除");
+            throw new ApiException(403, "系统内置目录禁止删除");
         }
         folderRepository.delete(folder);
     }
@@ -80,7 +81,7 @@ public class FolderServiceImpl implements FolderService {
     public Folder getFolderById(String uid, Long folderId, String libraryCode) {
         Folder folder = folderRepository.findByIdAndUidAndLibraryCode(folderId, uid, libraryCode);
         if (folder == null) {
-            throw new EntityNotFoundException("目录不存在或无权限访问");
+            throw new ApiException(404, "目录不存在或无权限访问");
         }
         return folder;
     }
@@ -88,17 +89,17 @@ public class FolderServiceImpl implements FolderService {
     @Override
     public void moveFolder(String uid, Long folderId, Long newParentId, String libraryCode) {
         Folder folder = folderRepository.findById(folderId)
-                .orElseThrow(() -> new RuntimeException("待移动目录不存在"));
+                .orElseThrow(() -> new ApiException(404, "待移动目录不存在"));
 
         Folder newParent = folderRepository.findById(newParentId)
-                .orElseThrow(() -> new RuntimeException("目标父目录不存在"));
+                .orElseThrow(() -> new ApiException(404, "目标父目录不存在"));
 
         if (!folder.getUid().equals(uid) || !newParent.getUid().equals(uid)) {
-            throw new SecurityException("无权限操作该目录");
+            throw new ApiException(403, "无权限操作该目录");
         }
 
         if (isDescendant(folderId, newParentId)) {
-            throw new IllegalArgumentException("不能将目录移动到其子目录下");
+            throw new ApiException(400, "不能将目录移动到其子目录下");
         }
 
         folder.setParentId(newParentId);

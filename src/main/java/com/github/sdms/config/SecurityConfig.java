@@ -36,7 +36,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // 🟢 分享目录入口：无需登录
-                        .requestMatchers("/public/**").permitAll()
+                        .requestMatchers("/api/share/**").permitAll()
 
                         // 🟢 登录认证相关接口：本地+OAuth
                         .requestMatchers("/auth/**", "/auth/local/**").permitAll()

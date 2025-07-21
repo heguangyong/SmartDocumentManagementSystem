@@ -1,18 +1,16 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.StorageQuotaService;
-import com.github.sdms.service.UserFileService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
-
 
 @Service
 @RequiredArgsConstructor
@@ -22,12 +20,11 @@ public class StorageQuotaServiceImpl implements StorageQuotaService {
 
     private final UserFileRepository userFileRepository;
 
-
     // 配额映射表（字节）
     private static final Map<String, Long> ROLE_QUOTA = Map.of(
-            "READER", 1L * 1024 * 1024 * 1024, // 1GB
-            "LIBRARIAN", 10L * 1024 * 1024 * 1024, // 10GB
-            "ADMIN", Long.MAX_VALUE // 无限
+            "READER", 1L * 1024 * 1024 * 1024,       // 1GB
+            "LIBRARIAN", 10L * 1024 * 1024 * 1024,   // 10GB
+            "ADMIN", Long.MAX_VALUE                    // 无限
     );
 
     /**
@@ -40,7 +37,7 @@ public class StorageQuotaServiceImpl implements StorageQuotaService {
     public long getMaxQuota(String uid, String libraryCode) {
         Role role = userRepository.findByUidAndLibraryCode(uid, libraryCode)
                 .map(AppUser::getRole)
-                .orElse(Role.READER); // 默认角色
+                .orElseThrow(() -> new ApiException(403, "用户未找到或无权限"));
 
         return ROLE_QUOTA.getOrDefault(role.toString().toUpperCase(), 0L);
     }
