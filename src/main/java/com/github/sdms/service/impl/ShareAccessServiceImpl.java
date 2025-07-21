@@ -1,13 +1,19 @@
 package com.github.sdms.service.impl;
 
-import com.github.sdms.model.*;
-import com.github.sdms.repository.*;
+import com.github.sdms.model.Folder;
+import com.github.sdms.model.ShareAccess;
+import com.github.sdms.model.UserFile;
+import com.github.sdms.repository.FolderRepository;
+import com.github.sdms.repository.ShareAccessRepository;
+import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.ShareAccessService;
+import com.github.sdms.util.TokenUtils;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -21,12 +27,11 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     public ShareAccess createFileShare(String uid, Long fileId, Integer expireMinutes, String libraryCode) {
         UserFile file = userFileRepository.findById(fileId)
                 .orElseThrow(() -> new RuntimeException("文件不存在"));
-
         if (!file.getUid().equals(uid)) {
-            throw new SecurityException("无权限分享该文件");
+            throw new SecurityException("无权分享该文件");
         }
 
-        ShareAccess share = buildBaseShare(uid, "file", fileId, expireMinutes, libraryCode);
+        ShareAccess share = buildBaseShare(uid, "file", fileId, file.getOriginFilename(), expireMinutes, libraryCode);
         return shareAccessRepository.save(share);
     }
 
@@ -34,66 +39,93 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     public ShareAccess createFolderShare(String uid, Long folderId, Integer expireMinutes, String libraryCode) {
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new RuntimeException("目录不存在"));
-
         if (!folder.getOwnerId().equals(uid)) {
-            throw new SecurityException("无权限分享该目录");
+            throw new SecurityException("无权分享该目录");
         }
 
-        ShareAccess share = buildBaseShare(uid, "folder", folderId, expireMinutes, libraryCode);
+        ShareAccess share = buildBaseShare(uid, "folder", folderId, folder.getName(), expireMinutes, libraryCode);
         return shareAccessRepository.save(share);
     }
 
-    private ShareAccess buildBaseShare(String uid, String type, Long targetId, Integer expireMinutes, String libraryCode) {
-        String token = UUID.randomUUID().toString().replaceAll("-", "");
+    @Override
+    public String createShare(String uid, String targetType, Long targetId, Date expireAt, String libraryCode) {
+        Integer expireMinutes = (expireAt != null)
+                ? (int) ((expireAt.getTime() - System.currentTimeMillis()) / 60000)
+                : null;
 
-        ShareAccess share = new ShareAccess();
-        share.setToken(token);
-        share.setTokenHash(DigestUtils.sha256Hex(token));
-        share.setType(type);
-        share.setTargetId(targetId);
-        share.setOwnerUid(uid);
-        share.setLibraryCode(libraryCode);
-        share.setCreatedAt(new Date());
-        share.setActive(true);
+        ShareAccess share;
+        if ("file".equalsIgnoreCase(targetType)) {
+            share = createFileShare(uid, targetId, expireMinutes, libraryCode);
+        } else if ("folder".equalsIgnoreCase(targetType)) {
+            share = createFolderShare(uid, targetId, expireMinutes, libraryCode);
+        } else {
+            throw new IllegalArgumentException("不支持的 targetType：" + targetType);
+        }
+        return share.getToken(); // 明文 token 返回前端
+    }
+
+    private ShareAccess buildBaseShare(String uid, String type, Long targetId, String targetName, Integer expireMinutes, String libraryCode) {
+        String token = TokenUtils.generateToken();
+        String hash = TokenUtils.hashToken(token);
+
+        ShareAccess share = ShareAccess.builder()
+                .token(token)
+                .tokenHash(hash)
+                .targetType(type)
+                .targetId(targetId)
+                .targetName(targetName)
+                .createdBy(uid)
+                .libraryCode(libraryCode)
+                .createdAt(new Date())
+                .enabled(true)
+                .build();
 
         if (expireMinutes != null && expireMinutes > 0) {
-            Calendar calendar = Calendar.getInstance();
-            calendar.add(Calendar.MINUTE, expireMinutes);
-            share.setExpireAt(calendar.getTime());
+            Calendar cal = Calendar.getInstance();
+            cal.add(Calendar.MINUTE, expireMinutes);
+            share.setExpireAt(cal.getTime());
         }
-
         return share;
     }
 
     @Override
     public void revokeShare(String uid, String token, String libraryCode) {
-        ShareAccess share = shareAccessRepository.findByTokenAndLibraryCode(token, libraryCode)
-                .orElseThrow(() -> new RuntimeException("分享链接不存在"));
-
-        if (!share.getOwnerUid().equals(uid)) {
+        ShareAccess share = getRawByToken(token);
+        if (!share.getCreatedBy().equals(uid) || !libraryCode.equals(share.getLibraryCode())) {
             throw new SecurityException("无权限撤销该分享");
         }
-
-        shareAccessRepository.delete(share);
+        share.setEnabled(false); // 逻辑禁用
+        shareAccessRepository.save(share);
     }
 
     @Override
     public ShareAccess getByToken(String token, String libraryCode) {
-        return shareAccessRepository.findByTokenAndLibraryCode(token, libraryCode)
+        ShareAccess share = getRawByToken(token);
+        if (!Boolean.TRUE.equals(share.getEnabled())) {
+            throw new RuntimeException("分享已被禁用");
+        }
+        if (!libraryCode.equals(share.getLibraryCode())) {
+            throw new RuntimeException("库信息不匹配");
+        }
+        if (isShareExpired(share)) {
+            throw new RuntimeException("分享链接已过期");
+        }
+        return share;
+    }
+
+    @Override
+    public ShareAccess getRawByToken(String token) {
+        String hash = TokenUtils.hashToken(token);
+        return shareAccessRepository.findByTokenHash(hash)
                 .orElseThrow(() -> new RuntimeException("无效的分享链接"));
     }
 
     @Override
     public UserFile getFileByToken(String token, String libraryCode) {
         ShareAccess share = getByToken(token, libraryCode);
-        if (!"file".equals(share.getType())) {
+        if (!"file".equalsIgnoreCase(share.getTargetType())) {
             throw new RuntimeException("分享类型错误，非文件");
         }
-
-        if (isShareExpired(share)) {
-            throw new RuntimeException("分享链接已过期");
-        }
-
         return userFileRepository.findById(share.getTargetId())
                 .orElseThrow(() -> new RuntimeException("文件不存在"));
     }
@@ -101,14 +133,9 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     @Override
     public Folder getFolderByToken(String token, String libraryCode) {
         ShareAccess share = getByToken(token, libraryCode);
-        if (!"folder".equals(share.getType())) {
+        if (!"folder".equalsIgnoreCase(share.getTargetType())) {
             throw new RuntimeException("分享类型错误，非目录");
         }
-
-        if (isShareExpired(share)) {
-            throw new RuntimeException("分享链接已过期");
-        }
-
         return folderRepository.findById(share.getTargetId())
                 .orElseThrow(() -> new RuntimeException("目录不存在"));
     }
@@ -119,17 +146,15 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     }
 
     @Override
-    public List<Folder> listChildFolders(Folder folder) {
-        return folderRepository.findByParentIdAndUidAndLibraryCode(
-                folder.getId(), folder.getOwnerId(), folder.getLibraryCode()
-        );
+    public List<UserFile> listFilesByFolder(Folder folder) {
+        return userFileRepository.findByFolderIdAndUidAndLibraryCode(
+                folder.getId(), folder.getOwnerId(), folder.getLibraryCode());
     }
 
     @Override
-    public List<UserFile> listFilesByFolder(Folder folder) {
-        return userFileRepository.findByFolderIdAndUidAndLibraryCode(
-                folder.getId(), folder.getOwnerId(), folder.getLibraryCode()
-        );
+    public List<Folder> listChildFolders(Folder folder) {
+        return folderRepository.findByParentIdAndUidAndLibraryCode(
+                folder.getId(), folder.getOwnerId(), folder.getLibraryCode());
     }
 
     @Override
@@ -140,20 +165,9 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     }
 
     @Override
-    public String createShare(String uid, String type, Long targetId, Date expireAt) {
-        int expireMinutes = (expireAt != null)
-                ? (int) ((expireAt.getTime() - System.currentTimeMillis()) / 60000)
-                : 0;
-
-        ShareAccess share;
-        if ("file".equalsIgnoreCase(type)) {
-            share = createFileShare(uid, targetId, expireMinutes > 0 ? expireMinutes : null, null);
-        } else if ("folder".equalsIgnoreCase(type)) {
-            share = createFolderShare(uid, targetId, expireMinutes > 0 ? expireMinutes : null, null);
-        } else {
-            throw new IllegalArgumentException("不支持的分享类型: " + type);
-        }
-
-        return share.getToken();
+    public List<ShareAccess> listMyShares(String uid, String targetType, String libraryCode) {
+        return shareAccessRepository.findByCreatedByAndTargetTypeAndLibraryCodeAndEnabledTrue(
+                uid, targetType, libraryCode);
     }
 }
+

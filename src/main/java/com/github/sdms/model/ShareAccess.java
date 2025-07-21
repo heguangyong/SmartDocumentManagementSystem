@@ -18,20 +18,18 @@ public class ShareAccess {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String token;         // 明文 token（可选，建议前端只接收一次性返回）
-    private String tokenHash;     // 哈希化存储 token，校验用
+    private String token;         // 明文 token，仅用于传输
+    private String tokenHash;     // 哈希 token，用于校验
 
-    private String type;          // "file" 或 "folder"
+    private String targetType;    // "file" 或 "folder"
+    private Long targetId;        // 对应 fileId 或 folderId
+    private String targetName;    // 可选：用于前端显示
 
-    private Long targetId;        // 指向 fileId 或 folderId
-    private String targetName;    // 文件或目录名
-
-    private String ownerUid;
-    private String libraryCode;
+    private String createdBy;     // 创建者 uid
+    private String libraryCode;   // 所属库
 
     private Date expireAt;
-    private Date createdAt = new Date();
+    private Date createdAt;
 
-    private Boolean active = true;
+    private Boolean enabled = true;
 }
-
