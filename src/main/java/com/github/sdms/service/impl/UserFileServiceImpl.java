@@ -2,6 +2,7 @@ package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.UserFile;
+import com.github.sdms.repository.BucketPermissionRepository;
 import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.MinioService;
 import com.github.sdms.service.PermissionValidator;
@@ -52,6 +53,9 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Autowired
     private PermissionValidator permissionValidator;
+
+    @Autowired
+    private BucketPermissionRepository bucketPermissionRepository;
 
     @Override
     public void saveUserFile(UserFile file) {
@@ -159,6 +163,11 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Override
     public UserFile uploadFileAndCreateRecord(String uid, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception {
+        Long bucketId = minioService.getBucketId(uid, libraryCode);
+
+        if (!hasBucketPermission(uid, bucketId, "write")) {
+            throw new ApiException(403, "无权限上传文件到该桶");
+        }
         String originalFilename = file.getOriginalFilename();
         String bucketName = minioService.getBucketName(uid, libraryCode);
 
@@ -271,5 +280,9 @@ public class UserFileServiceImpl implements UserFileService {
             throw new ApiException("未登录，无法获取当前用户");
         }
         return auth.getName(); // 或根据你自定义的 UserDetails 实现类转换后获取 uid
+    }
+
+    private boolean hasBucketPermission(String uid, Long bucketId, String permission) {
+        return bucketPermissionRepository.hasPermission(uid, bucketId, permission);
     }
 }

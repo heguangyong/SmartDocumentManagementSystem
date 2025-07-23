@@ -105,5 +105,10 @@ public interface MinioService {
      */
     String uploadFileFromUrl(String uid, String libraryCode, Long docId, String fileUrl)  throws Exception;
 
+    /**
+     * 根据用户ID和馆代码，获取对应桶的数据库主键ID
+     */
+    Long getBucketId(String uid, String libraryCode);
+
 
 }

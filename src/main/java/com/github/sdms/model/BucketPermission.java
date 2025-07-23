@@ -2,6 +2,7 @@ package com.github.sdms.model;
 
 import jakarta.persistence.*;
 import lombok.*;
+import java.util.Date;
 
 @Entity
 @Table(name = "bucket_permission", uniqueConstraints = {
@@ -22,11 +23,33 @@ public class BucketPermission {
     private String uid;
 
     @Column(name = "bucket_id", nullable = false)
-    private String bucketId;
+    private Long bucketId;
 
-    @Column(name = "can_read", nullable = false)
-    private boolean canRead;
+    /**
+     * 权限字符串，例如 "read", "write", "read,write", "admin"
+     */
+    @Column(nullable = false, length = 64)
+    private String permission;
 
-    @Column(name = "can_write", nullable = false)
-    private boolean canWrite;
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Date createdAt;
+
+    @Temporal(TemporalType.TIMESTAMP)
+    @Column(name = "updated_at")
+    private Date updatedAt;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bucket_id", insertable = false, updatable = false)
+    private Bucket bucket;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = new Date();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = new Date();
+    }
 }

@@ -1,6 +1,8 @@
 package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
+import com.github.sdms.model.Bucket;
+import com.github.sdms.repository.BucketRepository;
 import com.github.sdms.service.MinioService;
 import com.github.sdms.service.PermissionValidator;
 import io.minio.*;
@@ -26,8 +28,8 @@ public class MinioServiceImpl implements MinioService {
 
     private static final String SECRET_KEY = "12345678"; // 可配置
 
-    @Autowired
-    private MinioClient minioClient;
+    private final MinioClient minioClient;
+    private final BucketRepository bucketRepository;
 
     @Autowired
     private StringRedisTemplate redisTemplate;
@@ -37,6 +39,10 @@ public class MinioServiceImpl implements MinioService {
     @Autowired
     private PermissionValidator permissionValidator;
 
+    public MinioServiceImpl(MinioClient minioClient, BucketRepository bucketRepository) {
+        this.minioClient = minioClient;
+        this.bucketRepository = bucketRepository;
+    }
 
     @Override
     public String urltoken(Map<String, Object> params) {
@@ -275,6 +281,13 @@ public class MinioServiceImpl implements MinioService {
             log.error("OnlyOffice 文件保存失败", e);
             throw new ApiException("OnlyOffice 文件保存失败: " + e.getMessage());
         }
+    }
+
+    @Override
+    public Long getBucketId(String uid, String libraryCode) {
+        return bucketRepository.findByName(libraryCode)
+                .map(Bucket::getId)
+                .orElseThrow(() -> new ApiException("未找到桶：" + libraryCode));
     }
 
     private String getCurrentUid() {

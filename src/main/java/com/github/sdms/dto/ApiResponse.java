@@ -38,6 +38,13 @@ public class ApiResponse<T> {
     }
 
     /**
+     * ✅ 返回成功（无数据，默认消息）
+     */
+    public static ApiResponse<Void> success() {
+        return new ApiResponse<>(true, "操作成功", null);
+    }
+
+    /**
      * 返回失败带自定义消息
      */
     public static <T> ApiResponse<T> failure(String message) {
