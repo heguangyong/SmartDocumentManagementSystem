@@ -4,6 +4,7 @@ import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.MinioService;
+import com.github.sdms.service.PermissionValidator;
 import com.github.sdms.service.StorageQuotaService;
 import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CachedIdGenerator;
@@ -13,6 +14,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -46,6 +49,9 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Value("${file.share.default-expire-millis}")
     private long defaultExpireMillis;
+
+    @Autowired
+    private PermissionValidator permissionValidator;
 
     @Override
     public void saveUserFile(UserFile file) {
@@ -130,6 +136,14 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Override
     public UserFile getFileById(Long fileId, String libraryCode) {
+        // 从上下文获取uid，或者通过参数传入（这里示范参数传入方式）
+        // 如无上下文，需在调用处补充uid传递
+        String uid = getCurrentUid(); // 需自行实现或传入参数
+
+        if (!permissionValidator.canReadFile(uid, fileId)) {
+            throw new ApiException(403, "无权限访问该文件");
+        }
+
         return userFileRepository.findByIdAndDeleteFlagFalseAndLibraryCode(fileId, libraryCode)
                 .orElseThrow(() -> new ApiException(404, "指定的文件不存在或已被删除"));
     }
@@ -176,6 +190,16 @@ public class UserFileServiceImpl implements UserFileService {
     @Transactional
     @Override
     public UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes, Long folderId) throws Exception {
+        // 获取文件最新版本id，用于权限校验
+        UserFile originFile = getFileByDocIdAndUid(docId, uid, libraryCode);
+        if (originFile == null) {
+            throw new ApiException(403, "无权限上传该文档新版本");
+        }
+
+        if (!permissionValidator.canWriteFile(uid, originFile.getId())) {
+            throw new ApiException(403, "无权限上传该文档新版本");
+        }
+
         if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
             throw new ApiException(403, "上传失败：存储配额不足");
         }
@@ -205,8 +229,13 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Override
     public UserFile getFileByDocIdAndUid(Long docId, String uid, String libraryCode) {
-        return userFileRepository.findFirstByDocIdAndUidAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(docId, uid, libraryCode)
+        UserFile file = userFileRepository.findFirstByDocIdAndUidAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(docId, uid, libraryCode)
                 .orElse(null);
+
+        if (file != null && !permissionValidator.canReadFile(uid, file.getId())) {
+            throw new ApiException(403, "无权限访问该文件");
+        }
+        return file;
     }
 
     @Override
@@ -234,5 +263,13 @@ public class UserFileServiceImpl implements UserFileService {
         userFile.setFolderId(folderId);
         userFile.setUrl(objectName);
         return userFile;
+    }
+
+    private String getCurrentUid() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new ApiException("未登录，无法获取当前用户");
+        }
+        return auth.getName(); // 或根据你自定义的 UserDetails 实现类转换后获取 uid
     }
 }

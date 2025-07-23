@@ -2,12 +2,14 @@ package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.service.MinioService;
+import com.github.sdms.service.PermissionValidator;
 import io.minio.*;
-import io.minio.errors.MinioException;
 import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -31,6 +33,10 @@ public class MinioServiceImpl implements MinioService {
     private StringRedisTemplate redisTemplate;
 
     private static final String BUCKET_NAME_PREFIX = "sdms";
+
+    @Autowired
+    private PermissionValidator permissionValidator;
+
 
     @Override
     public String urltoken(Map<String, Object> params) {
@@ -106,8 +112,11 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public String uploadFile(String uid, MultipartFile file, String libraryCode) {
-        String originalFilename = file.getOriginalFilename();
         String bucketName = getBucketName(uid, libraryCode);
+
+        if (!permissionValidator.canWriteBucket(uid, bucketName)) {
+            throw new ApiException("无权限上传至桶：" + bucketName);
+        }
 
         try {
             boolean found = minioClient.bucketExists(
@@ -120,8 +129,7 @@ public class MinioServiceImpl implements MinioService {
                 log.info("Created bucket: {}", bucketName);
             }
 
-            String objectName = System.currentTimeMillis() + "_" + originalFilename;
-
+            String objectName = System.currentTimeMillis() + "_" + file.getOriginalFilename();
             try (InputStream inputStream = file.getInputStream()) {
                 minioClient.putObject(
                         PutObjectArgs.builder()
@@ -147,8 +155,13 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public String generatePresignedDownloadUrl(String uid, String libraryCode, String objectName) {
+        String bucketName = getBucketName(uid, libraryCode);
+
+        if (!permissionValidator.canReadBucket(uid, bucketName)) {
+            throw new ApiException("无权限访问桶：" + bucketName);
+        }
+
         try {
-            String bucketName = getBucketName(uid, libraryCode);
             return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
                             .bucket(bucketName)
@@ -162,6 +175,7 @@ public class MinioServiceImpl implements MinioService {
             throw new ApiException("生成下载链接失败: " + e.getMessage());
         }
     }
+
 
     @Override
     public String getPresignedUrl(String bucket, String objectName) {
@@ -182,6 +196,10 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public InputStream getObject(String bucket, String objectName) {
+        if (!permissionValidator.canReadBucket(getCurrentUid(), bucket)) {
+            throw new ApiException("无权限访问桶：" + bucket);
+        }
+
         try {
             return minioClient.getObject(
                     GetObjectArgs.builder()
@@ -195,8 +213,13 @@ public class MinioServiceImpl implements MinioService {
         }
     }
 
+
     @Override
     public void deleteObject(String bucketName, String objectName) {
+        if (!permissionValidator.canWriteBucket(getCurrentUid(), bucketName)) {
+            throw new ApiException("无权限删除桶中的文件：" + bucketName);
+        }
+
         try {
             minioClient.removeObject(
                     RemoveObjectArgs.builder()
@@ -209,6 +232,7 @@ public class MinioServiceImpl implements MinioService {
             throw new ApiException("删除对象失败: " + objectName);
         }
     }
+
 
     @Override
     public String getPresignedDownloadUrl(String bucket, String objectKey, String filename) {
@@ -229,8 +253,13 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public String uploadFileFromUrl(String uid, String libraryCode, Long docId, String fileUrl) {
+        String bucketName = getBucketName(uid, libraryCode);
+
+        if (!permissionValidator.canWriteBucket(uid, bucketName)) {
+            throw new ApiException("无权限上传至桶：" + bucketName);
+        }
+
         try (InputStream in = new URL(fileUrl).openStream()) {
-            String bucketName = getBucketName(uid, libraryCode);
             String objectName = System.currentTimeMillis() + "_onlyoffice_update";
 
             minioClient.putObject(
@@ -247,4 +276,13 @@ public class MinioServiceImpl implements MinioService {
             throw new ApiException("OnlyOffice 文件保存失败: " + e.getMessage());
         }
     }
+
+    private String getCurrentUid() {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || auth.getPrincipal() == null) {
+            throw new ApiException("未登录，无法获取当前用户");
+        }
+        return auth.getName(); // 或根据你自定义的 UserDetails 实现类转换后获取 uid
+    }
+
 }
