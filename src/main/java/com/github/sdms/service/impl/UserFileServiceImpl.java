@@ -11,8 +11,7 @@ import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CachedIdGenerator;
 import io.minio.MinioClient;
 import io.minio.errors.MinioException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -27,8 +26,8 @@ import java.util.List;
 import java.util.Optional;
 
 @Service
+@Slf4j
 public class UserFileServiceImpl implements UserFileService {
-    private static final Logger log = LoggerFactory.getLogger(UserFileServiceImpl.class);
 
     @Autowired
     private UserFileRepository userFileRepository;

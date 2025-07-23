@@ -28,6 +28,8 @@ public class SecurityConfig {
 
     private final JwtRequestFilter jwtRequestFilter;
     private final CustomUserDetailsServices customUserDetailsServices;
+    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
+    private final CustomAccessDeniedHandler customAccessDeniedHandler;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -50,7 +52,10 @@ public class SecurityConfig {
                         // 🔒 其他接口必须认证
                         .anyRequest().authenticated()
                 )
-
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(new CustomAuthenticationEntryPoint()) // 未登录
+                        .accessDeniedHandler(new CustomAccessDeniedHandler())           // 无权限
+                )
                 .authenticationProvider(daoAuthenticationProvider())
                 .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
 
