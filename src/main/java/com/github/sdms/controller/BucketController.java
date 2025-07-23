@@ -3,6 +3,7 @@ package com.github.sdms.controller;
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.service.BucketService;
+import com.github.sdms.util.AuthUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -10,60 +11,71 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/admin/bucket")
+@RequestMapping("/api/bucket")
 @RequiredArgsConstructor
 public class BucketController {
 
     private final BucketService bucketService;
 
-    /**
-     * 创建桶
-     */
+    // ========================= 管理员操作 =========================
+
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/create")
-    public ApiResponse<Bucket> createBucket(@RequestBody Bucket bucket) {
+    @PostMapping("/admin/create")
+    public ApiResponse<Bucket> createBucketByAdmin(@RequestBody Bucket bucket) {
         Bucket created = bucketService.createBucket(bucket);
         return ApiResponse.success(created);
     }
 
-    /**
-     * 根据 ID 获取桶信息
-     */
     @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/{id}")
+    @GetMapping("/admin/{id}")
     public ApiResponse<Bucket> getBucketById(@PathVariable Long id) {
         Bucket bucket = bucketService.getBucketById(id);
         return ApiResponse.success(bucket);
     }
 
-    /**
-     * 获取所有桶
-     */
     @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/list")
+    @GetMapping("/admin/list")
     public ApiResponse<List<Bucket>> listBuckets() {
         List<Bucket> buckets = bucketService.getAllBuckets();
         return ApiResponse.success(buckets);
     }
 
-    /**
-     * 更新桶
-     */
     @PreAuthorize("hasRole('ADMIN')")
-    @PutMapping("/update/{id}")
+    @PutMapping("/admin/update/{id}")
     public ApiResponse<Bucket> updateBucket(@PathVariable Long id, @RequestBody Bucket bucket) {
         bucket.setId(id);
         Bucket updated = bucketService.updateBucket(bucket);
         return ApiResponse.success(updated);
     }
 
-    /**
-     * 删除桶
-     */
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/delete/{id}")
+    @DeleteMapping("/admin/delete/{id}")
     public ApiResponse<Void> deleteBucket(@PathVariable Long id) {
         bucketService.deleteBucket(id);
         return ApiResponse.success();
+    }
+
+    // ========================= 用户操作 =========================
+
+    /**
+     * 当前用户获取自己有权限访问的所有桶（包括自己拥有的和被授权的）
+     */
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/user/list")
+    public ApiResponse<List<Bucket>> listUserBuckets() {
+        String uid = AuthUtils.getUid();
+        List<Bucket> buckets = bucketService.getAccessibleBuckets(uid);
+        return ApiResponse.success(buckets);
+    }
+
+    /**
+     * 用户创建自己的桶
+     */
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/user/create")
+    public ApiResponse<Bucket> createBucketByUser(@RequestBody Bucket bucket) {
+        bucket.setOwnerUid(AuthUtils.getUid());
+        Bucket created = bucketService.createBucket(bucket);
+        return ApiResponse.success(created);
     }
 }

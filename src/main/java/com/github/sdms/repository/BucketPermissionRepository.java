@@ -5,6 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
+
 public interface BucketPermissionRepository extends JpaRepository<BucketPermission, Long> {
 
     // 判断用户对某桶是否具备某权限（读/写等），使用LIKE模糊匹配权限字符串
@@ -13,5 +15,7 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
     boolean hasPermission(@Param("uid") String uid,
                           @Param("bucketId") Long bucketId,
                           @Param("permission") String permission);
+
+    List<BucketPermission> findAllByUid(String uid);
 
 }

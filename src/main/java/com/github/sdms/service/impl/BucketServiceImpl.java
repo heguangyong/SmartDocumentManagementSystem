@@ -3,6 +3,7 @@ package com.github.sdms.service.impl;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.repository.BucketRepository;
+import com.github.sdms.service.BucketPermissionService;
 import com.github.sdms.service.BucketService;
 import com.github.sdms.service.MinioService;
 import io.minio.BucketExistsArgs;
@@ -14,7 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ public class BucketServiceImpl implements BucketService {
     private final BucketRepository bucketRepository;
     private final MinioClient minioClient;
     private final MinioService minioService;
+    private final BucketPermissionService bucketPermissionService;
 
     /**
      * 创建存储桶（同时在数据库和 MinIO 创建）
@@ -156,6 +160,33 @@ public class BucketServiceImpl implements BucketService {
         }
 
         bucketRepository.deleteById(id);
+    }
+
+    @Override
+    public List<Bucket> getAccessibleBuckets(String uid) {
+        // 获取用户拥有权限的桶ID列表
+        List<Long> accessibleBucketIds = bucketPermissionService.getAccessibleBucketIds(uid);
+
+        // 获取用户自己拥有的桶
+        List<Bucket> ownBuckets = bucketRepository.findByOwnerUid(uid);
+
+        // 查询所有桶，合并并去重
+        List<Bucket> authorizedBuckets = bucketRepository.findAllById(accessibleBucketIds);
+
+        // 合并ownBuckets和authorizedBuckets，去重
+        Set<Bucket> resultSet = new HashSet<>();
+        resultSet.addAll(ownBuckets);
+        resultSet.addAll(authorizedBuckets);
+
+        // 过滤存在于MinIO中的桶
+        return resultSet.stream().filter(bucket -> {
+            try {
+                return minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket.getName()).build());
+            } catch (Exception e) {
+                log.warn("检查MinIO桶失败: {}", bucket.getName(), e);
+                return false;
+            }
+        }).toList();
     }
 
 }

@@ -8,14 +8,13 @@ import com.github.sdms.service.MinioService;
 import com.github.sdms.service.PermissionValidator;
 import com.github.sdms.service.StorageQuotaService;
 import com.github.sdms.service.UserFileService;
+import com.github.sdms.util.AuthUtils;
 import com.github.sdms.util.CachedIdGenerator;
 import io.minio.MinioClient;
 import io.minio.errors.MinioException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -141,7 +140,7 @@ public class UserFileServiceImpl implements UserFileService {
     public UserFile getFileById(Long fileId, String libraryCode) {
         // 从上下文获取uid，或者通过参数传入（这里示范参数传入方式）
         // 如无上下文，需在调用处补充uid传递
-        String uid = getCurrentUid(); // 需自行实现或传入参数
+        String uid = AuthUtils.getUid(); // 需自行实现或传入参数
 
         if (!permissionValidator.canReadFile(uid, fileId)) {
             throw new ApiException(403, "无权限访问该文件");
@@ -271,14 +270,6 @@ public class UserFileServiceImpl implements UserFileService {
         userFile.setFolderId(folderId);
         userFile.setUrl(objectName);
         return userFile;
-    }
-
-    private String getCurrentUid() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) {
-            throw new ApiException("未登录，无法获取当前用户");
-        }
-        return auth.getName(); // 或根据你自定义的 UserDetails 实现类转换后获取 uid
     }
 
     private boolean hasBucketPermission(String uid, Long bucketId, String permission) {

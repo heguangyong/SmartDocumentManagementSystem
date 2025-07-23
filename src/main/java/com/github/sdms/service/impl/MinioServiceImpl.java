@@ -5,13 +5,12 @@ import com.github.sdms.model.Bucket;
 import com.github.sdms.repository.BucketRepository;
 import com.github.sdms.service.MinioService;
 import com.github.sdms.service.PermissionValidator;
+import com.github.sdms.util.AuthUtils;
 import io.minio.*;
 import io.minio.http.Method;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -202,7 +201,7 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public InputStream getObject(String bucket, String objectName) {
-        if (!permissionValidator.canReadBucket(getCurrentUid(), bucket)) {
+        if (!permissionValidator.canReadBucket(AuthUtils.getUid(), bucket)) {
             throw new ApiException("无权限访问桶：" + bucket);
         }
 
@@ -222,7 +221,7 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public void deleteObject(String bucketName, String objectName) {
-        if (!permissionValidator.canWriteBucket(getCurrentUid(), bucketName)) {
+        if (!permissionValidator.canWriteBucket(AuthUtils.getUid(), bucketName)) {
             throw new ApiException("无权限删除桶中的文件：" + bucketName);
         }
 
@@ -288,14 +287,6 @@ public class MinioServiceImpl implements MinioService {
         return bucketRepository.findByName(libraryCode)
                 .map(Bucket::getId)
                 .orElseThrow(() -> new ApiException("未找到桶：" + libraryCode));
-    }
-
-    private String getCurrentUid() {
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        if (auth == null || auth.getPrincipal() == null) {
-            throw new ApiException("未登录，无法获取当前用户");
-        }
-        return auth.getName(); // 或根据你自定义的 UserDetails 实现类转换后获取 uid
     }
 
 }

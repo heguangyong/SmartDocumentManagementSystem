@@ -15,4 +15,6 @@ public interface BucketService {
 
     void deleteBucket(Long id);
 
+    List<Bucket> getAccessibleBuckets(String uid);
+
 }
