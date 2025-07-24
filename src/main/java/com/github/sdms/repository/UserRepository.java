@@ -38,4 +38,6 @@ public interface UserRepository extends JpaRepository<AppUser, Long> {
 
     // 根据用户名或邮箱查询用户，满足任一条件即可
     Optional<AppUser> findByUsernameOrEmailAndLibraryCode(@Param("username") String username, @Param("email") String email, @Param("libraryCode") String libraryCode);
+
+    Optional<AppUser> findByUid(String uid);
 }

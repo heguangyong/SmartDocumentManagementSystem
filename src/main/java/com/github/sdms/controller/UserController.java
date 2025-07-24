@@ -48,13 +48,24 @@ public class UserController {
         return ResponseEntity.ok(userRepository.findAll());
     }
 
-    @Operation(summary = "删除用户", description = "根据用户ID删除用户，仅管理员可执行。")
+    @Operation(summary = "删除用户", description = "管理员删除用户")
     @PreAuthorize("hasRole('ADMIN')")
-    @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteUser(@PathVariable Long id, @RequestParam String libraryCode) {
-        userRepository.deleteById(id);
-        return ResponseEntity.ok("User deleted");
+    @DeleteMapping("/{uid}")
+    public ResponseEntity<String> deleteUser(@PathVariable String uid) {
+        // 根据uid查找用户
+        AppUser user = userRepository.findByUid(uid)
+                .orElseThrow(() -> new ApiException(404, "User not found"));
+
+        // 检查是否有桶或文件依赖（例如删除用户前需要处理相关文件和桶）
+        // 如果有依赖关系，可以根据需要进行相应的逻辑处理
+        // 例如：如果删除用户前需要清理其相关文件和桶，可以添加清理逻辑
+
+        // 删除用户
+        userRepository.delete(user);
+
+        return ResponseEntity.ok("User with uid " + uid + " has been deleted.");
     }
+
 
     @Operation(summary = "获取用户详情", description = "获取指定ID的用户详情，当前用户或管理员可执行。")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
@@ -113,26 +124,33 @@ public class UserController {
         return ResponseEntity.notFound().build();
     }
 
-    @Operation(summary = "重置用户密码", description = "重置指定用户的密码，仅管理员可执行。")
+    @Operation(summary = "重置用户密码", description = "管理员重置指定用户的密码")
     @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/reset-password")
-    public ResponseEntity<?> resetPassword(@RequestParam String email, @RequestParam String newPassword, @RequestParam String libraryCode) {
-        Optional<AppUser> userOpt = userRepository.findByEmailAndLibraryCode(email, libraryCode);
-        if (userOpt.isPresent()) {
-            AppUser user = userOpt.get();
-            user.setPassword(passwordEncoder.encode(newPassword));
-            userRepository.save(user);
-            return ResponseEntity.ok("Password reset");
+    public ResponseEntity<String> resetPassword(@RequestParam String email, @RequestParam String newPassword, @RequestParam String libraryCode) {
+        // 根据 email 和 libraryCode 查找用户
+        AppUser user = userRepository.findByEmailAndLibraryCode(email, libraryCode)
+                .orElseThrow(() -> new ApiException(404, "User not found"));
+
+        // 验证新密码是否为空或不符合密码规则（可选）
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            throw new ApiException(400, "Password cannot be empty");
         }
-        return ResponseEntity.badRequest().body("User not found");
+
+        // 重置密码并保存
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        return ResponseEntity.ok("Password reset successfully for user with email " + email);
     }
+
 
     @Operation(summary = "为用户分配角色", description = "管理员为用户分配角色")
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/{userId}/role") // 去掉 '/user'，与控制器的前缀配合
-    public ResponseEntity<String> assignRoleToUser(@PathVariable Long userId, @RequestBody String role) {
-        // 获取目标用户
-        AppUser user = userRepository.findById(userId)
+    @PostMapping("/{uid}/role") // 使用uid作为路径参数
+    public ResponseEntity<String> assignRoleToUser(@PathVariable String uid, @RequestBody String role) {
+        // 获取目标用户，根据uid查找
+        AppUser user = userRepository.findByUid(uid) // 根据uid查找用户
                 .orElseThrow(() -> new ApiException(404, "User not found"));
 
         // 判断角色是否合法（LIBRARIAN 或 READER 或 ADMIN）
@@ -146,6 +164,7 @@ public class UserController {
 
         return ResponseEntity.ok("Role " + role + " assigned to user successfully.");
     }
+
 
 
     @Operation(summary = "管理员权限测试接口", description = "仅管理员权限")

@@ -4,6 +4,7 @@ import com.github.sdms.dto.RolePermissionDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.PermissionResource;
 import com.github.sdms.model.RolePermission;
+import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.PermissionResourceRepository;
 import com.github.sdms.repository.RolePermissionRepository;
 import com.github.sdms.service.PermissionService;
@@ -74,7 +75,7 @@ public class PermissionServiceImpl implements PermissionService {
 
             // 创建 RolePermission 关系
             RolePermission rp = RolePermission.builder()
-                    .role(role)
+                    .role(Role.valueOf(role))
                     .resource(resource)
                     .permission(dto.getPermission())
                     .build();

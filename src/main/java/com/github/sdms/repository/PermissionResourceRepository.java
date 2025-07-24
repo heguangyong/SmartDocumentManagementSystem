@@ -9,4 +9,7 @@ public interface PermissionResourceRepository extends JpaRepository<PermissionRe
     Optional<PermissionResource> findByResourceTypeAndResourceKey(String resourceType, String resourceKey);
 
     boolean existsByResourceKey(String resourceKey);
+
+    Optional<PermissionResource> findByResourceKey(String id);
+
 }
