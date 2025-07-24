@@ -7,7 +7,6 @@ import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CustomerUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
@@ -16,9 +15,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -37,7 +33,7 @@ public class OnlyOfficeController {
     /**
      * 获取OnlyOffice编辑配置
      */
-    @Operation(summary = "获取OnlyOffice编辑配置")
+    @Operation(summary = "获取OnlyOffice文档编辑配置", description = "获取用户有权限编辑的文档配置，包括文档的URL、权限等信息。")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @GetMapping("/edit-config/{docId}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getEditConfig(
@@ -79,6 +75,7 @@ public class OnlyOfficeController {
         return ResponseEntity.ok(ApiResponse.success(config));
     }
 
+    @Operation(summary = "OnlyOffice文档编辑保存回调", description = "接收OnlyOffice编辑器的回调，保存文档的新版本。")
     @PostMapping("/onlyofficeCallback")
     public ResponseEntity<String> onlyofficeCallback(@RequestBody Map<String, Object> callbackData,
                                                      @AuthenticationPrincipal CustomerUserDetails userDetails,
@@ -100,7 +97,7 @@ public class OnlyOfficeController {
 
                 // 调用UserFileService上传新版本
                 MultipartFile multipartFile = convertUrlToMultipartFile(docUrl); // 需实现转换方法，或者调整逻辑
-                userFileService.uploadNewVersion(multipartFile, uid, libraryCode, docId, "OnlyOffice自动保存",folderId);
+                userFileService.uploadNewVersion(multipartFile, uid, libraryCode, docId, "OnlyOffice自动保存", folderId);
 
                 log.info("OnlyOffice文档保存成功，新对象名：{}", objectName);
             } catch (Exception e) {

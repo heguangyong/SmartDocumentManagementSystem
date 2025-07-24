@@ -7,5 +7,8 @@ import java.util.List;
 
 public interface RolePermissionRepository extends JpaRepository<RolePermission, Long> {
     List<RolePermission> findByRole(String role);
+
     void deleteByRoleAndResource_Id(String role, Long resourceId);
+
+    boolean existsByRoleAndResourceId(String role, Long id);
 }

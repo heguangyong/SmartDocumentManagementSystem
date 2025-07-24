@@ -7,4 +7,6 @@ import java.util.Optional;
 
 public interface PermissionResourceRepository extends JpaRepository<PermissionResource, Long> {
     Optional<PermissionResource> findByResourceTypeAndResourceKey(String resourceType, String resourceKey);
+
+    boolean existsByResourceKey(String resourceKey);
 }

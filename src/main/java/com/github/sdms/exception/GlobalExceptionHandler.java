@@ -3,6 +3,7 @@ package com.github.sdms.exception;
 import com.github.sdms.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.annotation.*;
 
 @RestControllerAdvice
@@ -16,6 +17,16 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(ex.getStatus())
                 .body(ApiResponse.failure(ex.getMessage()));
+    }
+
+    /**
+     * 处理权限不足异常
+     */
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN)
+                .body(ApiResponse.failure("权限不足，只有管理员可以执行此操作"));
     }
 
     /**

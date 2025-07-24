@@ -8,8 +8,13 @@ import java.util.List;
 
 public interface PermissionService {
     List<PermissionResource> listAllResources();
+
     List<RolePermission> getPermissionsByRole(String role);
+
     void assignPermissions(String role, List<RolePermissionDTO> permissions);
+
     void removePermission(String role, Long resourceId);
+
+    PermissionResource addResource(PermissionResource permissionResource);
 }
 
