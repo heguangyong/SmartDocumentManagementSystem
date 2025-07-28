@@ -4,9 +4,12 @@ import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.dto.BucketPermissionDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.*;
+import com.github.sdms.model.enums.PermissionType;
 import com.github.sdms.repository.*;
 import com.github.sdms.service.BucketService;
+import com.github.sdms.service.MinioService;
 import com.github.sdms.util.AuthUtils;
+import com.github.sdms.util.BucketUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +30,7 @@ public class BucketController {
     private final BucketPermissionRepository bucketPermissionRepository;
     private final UserRepository userRepository;
     private final RolePermissionRepository rolePermissionRepository;
+    private final MinioService minioService;
 
     // ========================= 管理员操作 =========================
 
@@ -34,6 +38,21 @@ public class BucketController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/create")
     public ResponseEntity<Bucket> createBucket(@RequestBody Bucket bucket) {
+        if (bucket.getOwnerUid() == null || bucket.getOwnerUid().isEmpty()) {
+            throw new ApiException("必须指定 ownerUid");
+        }
+
+        if (bucket.getLibraryCode() == null || bucket.getLibraryCode().isEmpty()) {
+            // 从用户表查找该 uid 对应的用户，补充其 libraryCode
+            AppUser user = userRepository.findByUid(bucket.getOwnerUid())
+                    .orElseThrow(() -> new ApiException(404, "ownerUid 无效，未找到对应用户"));
+            bucket.setLibraryCode(user.getLibraryCode());
+        }
+
+        // 根据统一规则构造桶名
+        String bucketName = BucketUtil.getBucketName(bucket.getOwnerUid(), bucket.getLibraryCode());
+        bucket.setName(bucketName);
+
         // 创建存储桶
         Bucket createdBucket = bucketService.createBucket(bucket);
 
@@ -83,19 +102,19 @@ public class BucketController {
                 .orElseThrow(() -> new ApiException(404, "PermissionResource not found"));
 
         // 查找并更新角色权限记录
-        RolePermission rolePermission = rolePermissionRepository.findByRoleAndResource(user.getRole(), permissionResource)
+        RolePermission rolePermission = rolePermissionRepository.findByRoleTypeAndResource(user.getRoleType(), permissionResource)
                 .orElse(null); // 如果没有记录，则为 null
 
         if (rolePermission != null) {
             // 如果记录存在，更新权限
-            rolePermission.setPermission(dto.getPermission());
+            rolePermission.setPermission(PermissionType.fromString(dto.getPermission()));
             rolePermissionRepository.save(rolePermission);
         } else {
             // 如果记录不存在，创建新的角色权限记录
             RolePermission newRolePermission = RolePermission.builder()
-                    .role(user.getRole())  // 使用用户的角色
+                    .roleType(user.getRoleType())  // 使用用户的角色
                     .resource(permissionResource)  // 关联存储桶的资源
-                    .permission(dto.getPermission())  // 分配的权限
+                    .permission(PermissionType.fromString(dto.getPermission()))  // 分配的权限
                     .build();
             rolePermissionRepository.save(newRolePermission);
         }

@@ -13,4 +13,7 @@ public interface PermissionValidator {
     boolean isAdmin(String uid);
 
     boolean isLibrarian(String uid);
+
+    boolean hasWritePermission(String uid, String bucketName);
+
 }

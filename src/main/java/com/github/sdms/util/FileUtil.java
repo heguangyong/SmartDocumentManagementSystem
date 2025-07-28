@@ -5,6 +5,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.UUID;
 
 public class FileUtil {
 
@@ -45,6 +48,31 @@ public class FileUtil {
 
             return new MultipartFileImpl("file", fileName, contentType, inputStream);
         }
+    }
+
+    public static String generateObjectName(String originalFilename) {
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        String extension = "";
+
+        int dotIndex = originalFilename.lastIndexOf(".");
+        if (dotIndex != -1) {
+            extension = originalFilename.substring(dotIndex);
+        }
+
+        return uuid + extension;
+    }
+
+    public static String generateObjectName(String originalFilename, String uid) {
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        String extension = "";
+
+        int dotIndex = originalFilename.lastIndexOf(".");
+        if (dotIndex != -1) {
+            extension = originalFilename.substring(dotIndex);
+        }
+
+        String datePath = new SimpleDateFormat("yyyy/MM/dd").format(new Date());
+        return String.format("%s/%s/%s%s", uid, datePath, uuid, extension);
     }
 
 }

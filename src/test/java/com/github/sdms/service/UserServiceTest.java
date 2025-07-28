@@ -2,12 +2,9 @@ package com.github.sdms.service;
 
 import com.github.sdms.config.SecurityTestConfig;
 import com.github.sdms.model.AppUser;
-import com.github.sdms.model.enums.Role;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
-import com.github.sdms.service.impl.UserServiceImpl;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
@@ -39,7 +36,7 @@ public class UserServiceTest {
                 .username("testuser")
                 .email("test@example.com")
                 .password("encryptedPwd")
-                .role(Role.READER)
+                .roleType(RoleType.READER)
                 .libraryCode("123456")
                 .build();
 
@@ -68,7 +65,7 @@ public class UserServiceTest {
                 .username("newuser")
                 .email("newuser@example.com")
                 .password("pwd")
-                .role(Role.ADMIN)
+                .roleType(RoleType.ADMIN)
                 .build();
 
         when(userRepository.save(user)).thenReturn(user);

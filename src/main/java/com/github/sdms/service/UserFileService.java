@@ -1,6 +1,8 @@
 package com.github.sdms.service;
 
+import com.github.sdms.model.Bucket;
 import com.github.sdms.model.UserFile;
+import com.github.sdms.util.CustomerUserDetails;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
@@ -10,7 +12,7 @@ public interface UserFileService {
 
     void saveUserFile(UserFile file);
 
-    List<UserFile> getActiveFiles(String uid, String libraryCode);
+    List<UserFile> listFilesByRole(CustomerUserDetails userDetails);
 
     void softDeleteFiles(String uid, List<String> filenames, String libraryCode);
 
@@ -32,7 +34,7 @@ public interface UserFileService {
 
     UserFile getFileById(Long fileId, String libraryCode);
 
-    UserFile uploadNewDocument(MultipartFile file, String uid, String libraryCode, String notes, Long folderId) throws Exception;
+    UserFile uploadNewDocument(MultipartFile file, String uid, Bucket targetBucket, String notes, Long folderId) throws Exception;
 
     UserFile uploadFileAndCreateRecord(String uid, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception;
 
@@ -43,4 +45,8 @@ public interface UserFileService {
     UserFile getFileByDocIdAndUid(Long docId, String uid, String libraryCode);
 
     UserFile getFileByDocIdAndUid(Long docId, String uid);
+
+    void softDeleteFile(UserFile file);
+
+    UserFile getFileByName(String filename, String uid, String libraryCode);
 }

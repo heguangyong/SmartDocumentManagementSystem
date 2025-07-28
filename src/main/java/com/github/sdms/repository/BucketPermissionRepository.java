@@ -19,4 +19,8 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
     List<BucketPermission> findAllByUid(String uid);
 
     BucketPermission findByUidAndBucketId(String uid, Long bucketId);
+
+    List<BucketPermission> findByUid(String uid);
+
+    List<Long> findBucketIdsByUid(String uid);
 }

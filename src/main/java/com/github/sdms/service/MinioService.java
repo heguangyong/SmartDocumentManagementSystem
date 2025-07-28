@@ -41,6 +41,8 @@ public interface MinioService {
      */
     List<String> getUserFiles(String username);
 
+    String uploadFile(String bucketName, String uid, MultipartFile file);
+
     /**
      * 上传文件
      * @param uid 用户ID
@@ -50,8 +52,6 @@ public interface MinioService {
      * @throws Exception 上传过程中抛出的异常
      */
     String uploadFile(String uid, MultipartFile file, String libraryCode) throws Exception;
-
-    String getBucketName(String uid, String libraryCode);
 
     /**
      * 生成下载链接
@@ -108,7 +108,7 @@ public interface MinioService {
     /**
      * 根据用户ID和馆代码，获取对应桶的数据库主键ID
      */
-    Long getBucketId(String uid, String libraryCode);
+    Long getBucketIdForUpload(String uid, String libraryCode);
 
 
 }

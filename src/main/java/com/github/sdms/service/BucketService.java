@@ -3,6 +3,7 @@ package com.github.sdms.service;
 import com.github.sdms.model.Bucket;
 
 import java.util.List;
+import java.util.Set;
 
 public interface BucketService {
     Bucket createBucket(Bucket bucket);
@@ -17,4 +18,7 @@ public interface BucketService {
 
     List<Bucket> getAccessibleBuckets(String uid);
 
+    Bucket getUserDefaultBucket(String uid, String libraryCode);
+
+    List<String> findBucketNamesByIds(Set<Long> allBucketIds);
 }

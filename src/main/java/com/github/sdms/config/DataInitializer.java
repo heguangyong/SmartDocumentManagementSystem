@@ -1,7 +1,7 @@
 package com.github.sdms.config;
 
 import com.github.sdms.model.AppUser;
-import com.github.sdms.model.enums.Role;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -23,9 +23,9 @@ public class DataInitializer {
 
         // 对每个馆进行初始化
         for (String libraryCode : libraryCodes) {
-            createUserIfNotExists("admin", "admin_" + libraryCode + "@example.com", "admin123", Role.ADMIN, libraryCode);
-            createUserIfNotExists("librarian", "librarian_" + libraryCode + "@example.com", "librarian123", Role.LIBRARIAN, libraryCode);
-            createUserIfNotExists("reader", "reader_" + libraryCode + "@example.com", "reader123", Role.READER, libraryCode);
+            createUserIfNotExists("admin", "admin_" + libraryCode + "@example.com", "admin123", RoleType.ADMIN, libraryCode);
+            createUserIfNotExists("librarian", "librarian_" + libraryCode + "@example.com", "librarian123", RoleType.LIBRARIAN, libraryCode);
+            createUserIfNotExists("reader", "reader_" + libraryCode + "@example.com", "reader123", RoleType.READER, libraryCode);
         }
     }
 
@@ -34,10 +34,10 @@ public class DataInitializer {
      * @param username 用户名
      * @param email 用户邮箱
      * @param rawPassword 原始密码
-     * @param role 用户角色
+     * @param roleType 用户角色
      * @param libraryCode 租户馆代码
      */
-    private void createUserIfNotExists(String username, String email, String rawPassword, Role role, String libraryCode) {
+    private void createUserIfNotExists(String username, String email, String rawPassword, RoleType roleType, String libraryCode) {
         // 检查邮箱和libraryCode是否已存在
         if (!userRepository.existsByEmailAndLibraryCode(email, libraryCode)) {
             // 生成唯一的uid
@@ -48,14 +48,14 @@ public class DataInitializer {
                     .username(username)  // username不做唯一性检查
                     .email(email)
                     .password(passwordEncoder.encode(rawPassword))
-                    .role(role)
+                    .roleType(roleType)
                     .libraryCode(libraryCode)
                     .build();
 
             userRepository.save(user);
-            System.out.printf("✅ [%s] 用户已创建: %s / %s / %s / %s%n", role, email, rawPassword, libraryCode, uid);
+            System.out.printf("✅ [%s] 用户已创建: %s / %s / %s / %s%n", roleType, email, rawPassword, libraryCode, uid);
         } else {
-            System.out.printf("ℹ️ [%s] 用户已存在: %s / %s%n", role, email, libraryCode);
+            System.out.printf("ℹ️ [%s] 用户已存在: %s / %s%n", roleType, email, libraryCode);
         }
     }
 }

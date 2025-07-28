@@ -1,11 +1,11 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.util.JwtUtil;
 import com.github.sdms.dto.LoginResponse;
 import com.github.sdms.dto.RegisterRequest;
 import com.github.sdms.model.AppUser;
-import com.github.sdms.model.enums.Role;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.CustomUserDetailsServices;
 import io.swagger.v3.oas.annotations.Operation;
@@ -63,9 +63,9 @@ public class AuthController {
             }
 
             // 校验传入角色是否有效（READER, LIBRARIAN, ADMIN）
-            Role role;
+            RoleType roleType;
             try {
-                role = Role.valueOf(request.getRole().toUpperCase());
+                roleType = RoleType.valueOf(request.getRole().toUpperCase());
             } catch (IllegalArgumentException ex) {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("Invalid role: " + request.getRole()));
             }
@@ -82,7 +82,7 @@ public class AuthController {
                     .username(request.getUsername())
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))
-                    .role(role)
+                    .roleType(roleType)
                     .libraryCode(libraryCode)  // 保存 libraryCode 字段
                     .build();
 
@@ -146,7 +146,7 @@ public class AuthController {
     @GetMapping("/admin/roles")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<String>>> getAllRoles() {
-        List<String> roles = Arrays.stream(Role.values())
+        List<String> roles = Arrays.stream(RoleType.values())
                 .map(Enum::name)
                 .toList();
         return ResponseEntity.ok(ApiResponse.success(roles));

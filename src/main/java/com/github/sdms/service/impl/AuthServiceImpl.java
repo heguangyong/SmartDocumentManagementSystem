@@ -4,7 +4,7 @@ import cn.hutool.core.util.URLUtil;
 import com.github.sdms.dto.UUserReq;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.AppUser;
-import com.github.sdms.model.enums.Role;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.AuthService;
 import com.github.sdms.service.MinioService;
@@ -25,7 +25,6 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 @Service
 @Slf4j
@@ -99,9 +98,9 @@ public class AuthServiceImpl implements AuthService {
             user = new AppUser();
             user.setUid(uid);
             user.setUsername(username != null ? username : "");
-            user.setRole(Role.valueOf(rolesFromFolio.get(0))); // 只保留主角色
+            user.setRoleType(RoleType.valueOf(rolesFromFolio.get(0))); // 只保留主角色
         } else {
-            user.setRole(Role.valueOf(rolesFromFolio.get(0)));
+            user.setRoleType(RoleType.valueOf(rolesFromFolio.get(0)));
         }
         userRepository.save(user);
 

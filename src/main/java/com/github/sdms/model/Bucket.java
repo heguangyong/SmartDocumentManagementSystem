@@ -23,6 +23,10 @@ public class Bucket {
     @Column(name = "owner_uid", nullable = false, length = 64)
     private String ownerUid;
 
+    // 新增馆代码字段
+    @Column(nullable = true)
+    private String libraryCode;
+
     @Column(name = "created_at", updatable = false)
     @Temporal(TemporalType.TIMESTAMP)
     private Date createdAt = new Date();

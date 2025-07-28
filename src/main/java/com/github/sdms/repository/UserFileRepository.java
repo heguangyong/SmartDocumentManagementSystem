@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface UserFileRepository extends JpaRepository<UserFile, Long> {
@@ -54,4 +55,13 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
     int markAllOldVersionsNotLatest(@Param("docId") Long docId, @Param("libraryCode") String libraryCode);
 
     List<UserFile> findByFolderIdAndUidAndLibraryCode(Long id, String ownerId, String libraryCode);
+
+    List<UserFile> findByBucketInAndDeleteFlagFalse(Set<String> bucketNames);
+
+    List<UserFile> findByDeleteFlagFalse();
+
+    List<UserFile> findByLibraryCodeAndDeleteFlagFalse(String libraryCode);
+
+    List<UserFile> findByUidAndLibraryCodeAndDeleteFlagFalse(String uid, String libraryCode);
+
 }

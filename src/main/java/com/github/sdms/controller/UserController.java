@@ -3,7 +3,7 @@ package com.github.sdms.controller;
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.AppUser;
-import com.github.sdms.model.enums.Role;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.MinioService;
 import com.github.sdms.service.ShareAccessLogService;
@@ -159,7 +159,7 @@ public class UserController {
         }
 
         // 分配角色
-        user.setRole(Role.valueOf(role));
+        user.setRoleType(RoleType.valueOf(role));
         userRepository.save(user);
 
         return ResponseEntity.ok("Role " + role + " assigned to user successfully.");

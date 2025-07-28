@@ -253,7 +253,7 @@ Authorization: Bearer <jwt_token>
 - **Layered Architecture**: Controller → Service → Repository pattern
 - **Cloud-Native**: Designed for containerized deployment
 - **Scalable**: Horizontal scaling support with load balancing
-- **Secure**: Multi-layer security with JWT and role-based access
+- **Secure**: Multi-layer security with JWT and roleType-based access
 - **Resilient**: Comprehensive error handling and recovery
 
 ---

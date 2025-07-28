@@ -6,6 +6,7 @@ import com.github.sdms.repository.BucketRepository;
 import com.github.sdms.service.BucketPermissionService;
 import com.github.sdms.service.BucketService;
 import com.github.sdms.service.MinioService;
+import com.github.sdms.util.BucketUtil;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -15,9 +16,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -188,5 +191,24 @@ public class BucketServiceImpl implements BucketService {
             }
         }).toList();
     }
+
+    @Override
+    public Bucket getUserDefaultBucket(String uid, String libraryCode) {
+        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
+        return bucketRepository.findByName(bucketName)
+                .orElseThrow(() -> new ApiException(404, "未找到用户默认桶: " + bucketName));
+    }
+
+    @Override
+    public List<String> findBucketNamesByIds(Set<Long> bucketIds) {
+        if (bucketIds == null || bucketIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return bucketRepository.findAllById(bucketIds)
+                .stream()
+                .map(Bucket::getName)
+                .collect(Collectors.toList());
+    }
+
 
 }

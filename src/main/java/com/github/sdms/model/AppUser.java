@@ -1,7 +1,7 @@
 package com.github.sdms.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import com.github.sdms.model.enums.Role;
+import com.github.sdms.model.enums.RoleType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
@@ -141,7 +141,7 @@ public class AppUser {
     @Enumerated(EnumType.STRING)
     @Column(name = "role",nullable = false)
     @Builder.Default // 默认构造时自动使用 READER
-    private Role role = Role.READER;// READER, LIBRARIAN, ADMIN
+    private RoleType roleType = RoleType.READER;// READER, LIBRARIAN, ADMIN
 
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)

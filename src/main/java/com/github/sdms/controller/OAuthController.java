@@ -144,7 +144,7 @@ public class OAuthController {
                 .uid(user.getUid())
                 .username(user.getUsername())
                 .email(user.getEmail())
-                .role(user.getRole().toString())
+                .role(user.getRoleType().toString())
                 .build();
 
         return ResponseEntity.ok(ApiResponse.success(dto));

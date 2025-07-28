@@ -2,7 +2,7 @@ package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.AppUser;
-import com.github.sdms.model.enums.Role;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.PermissionValidator;
 import lombok.RequiredArgsConstructor;
@@ -19,10 +19,10 @@ public class PermissionValidatorImpl implements PermissionValidator {
     @Override
     public boolean canReadBucket(String uid, String bucketId) {
         AppUser user = findUserOrThrow(uid);
-        Role role = user.getRole();
+        RoleType roleType = user.getRoleType();
 
-        if (role == Role.ADMIN) return true;
-        if (role == Role.LIBRARIAN) {
+        if (roleType == RoleType.ADMIN) return true;
+        if (roleType == RoleType.LIBRARIAN) {
             return extractLibraryCode(bucketId).equalsIgnoreCase(user.getLibraryCode());
         }
         return isOwnBucket(uid, bucketId);
@@ -47,12 +47,12 @@ public class PermissionValidatorImpl implements PermissionValidator {
 
     @Override
     public boolean isAdmin(String uid) {
-        return findUserOrThrow(uid).getRole() == Role.ADMIN;
+        return findUserOrThrow(uid).getRoleType() == RoleType.ADMIN;
     }
 
     @Override
     public boolean isLibrarian(String uid) {
-        return findUserOrThrow(uid).getRole() == Role.LIBRARIAN;
+        return findUserOrThrow(uid).getRoleType() == RoleType.LIBRARIAN;
     }
 
     private AppUser findUserOrThrow(String uid) {
@@ -71,7 +71,21 @@ public class PermissionValidatorImpl implements PermissionValidator {
     }
 
     private String extractLibraryCodeFromUid(String uid) {
-        // TODO: 从 uid 中提取 libraryCode，当前为默认实现
-        return "defaultlib";
+        return userRepository.findByUid(uid)
+                .map(AppUser::getLibraryCode)
+                .orElseThrow(() -> new ApiException("无法根据 UID 找到用户：" + uid));
     }
+
+    @Override
+    public boolean hasWritePermission(String uid, String bucketId) {
+        AppUser user = findUserOrThrow(uid);
+        RoleType roleType = user.getRoleType();
+
+        if (roleType == RoleType.ADMIN) return true;
+        if (roleType == RoleType.LIBRARIAN) {
+            return extractLibraryCode(bucketId).equalsIgnoreCase(user.getLibraryCode());
+        }
+        return isOwnBucket(uid, bucketId);
+    }
+
 }

@@ -3,7 +3,7 @@ package com.github.sdms.service.impl;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.AppUser;
 import com.github.sdms.model.UserFile;
-import com.github.sdms.model.enums.Role;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.StorageQuotaService;
@@ -35,11 +35,11 @@ public class StorageQuotaServiceImpl implements StorageQuotaService {
      */
     @Override
     public long getMaxQuota(String uid, String libraryCode) {
-        Role role = userRepository.findByUidAndLibraryCode(uid, libraryCode)
-                .map(AppUser::getRole)
+        RoleType roleType = userRepository.findByUidAndLibraryCode(uid, libraryCode)
+                .map(AppUser::getRoleType)
                 .orElseThrow(() -> new ApiException(403, "用户未找到或无权限"));
 
-        return ROLE_QUOTA.getOrDefault(role.toString().toUpperCase(), 0L);
+        return ROLE_QUOTA.getOrDefault(roleType.toString().toUpperCase(), 0L);
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.github.sdms.util;
 
 import com.github.sdms.model.AppUser;
+import com.github.sdms.model.enums.RoleType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import org.springframework.security.core.GrantedAuthority;
@@ -19,7 +20,7 @@ public class CustomerUserDetails implements UserDetails {
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         // ✅ 角色需要加上 "ROLE_" 前缀，Spring Security 默认约定
-        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRole()));
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + user.getRoleType()));
     }
 
     @Override
@@ -60,6 +61,11 @@ public class CustomerUserDetails implements UserDetails {
     public String getLibraryCode() {
         return user.getLibraryCode();  // 假设 user 对象中包含 libraryCode 字段
     }
+
+    public RoleType getRoleType() {
+        return user.getRoleType();
+    }
+
 
     public boolean hasRole(String role) {
         if (role == null || role.isEmpty()) {

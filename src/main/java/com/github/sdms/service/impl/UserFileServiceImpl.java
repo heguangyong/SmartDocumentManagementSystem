@@ -1,15 +1,15 @@
 package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
+import com.github.sdms.model.Bucket;
 import com.github.sdms.model.UserFile;
+import com.github.sdms.model.enums.PermissionType;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.BucketPermissionRepository;
+import com.github.sdms.repository.RolePermissionRepository;
 import com.github.sdms.repository.UserFileRepository;
-import com.github.sdms.service.MinioService;
-import com.github.sdms.service.PermissionValidator;
-import com.github.sdms.service.StorageQuotaService;
-import com.github.sdms.service.UserFileService;
-import com.github.sdms.util.AuthUtils;
-import com.github.sdms.util.CachedIdGenerator;
+import com.github.sdms.service.*;
+import com.github.sdms.util.*;
 import io.minio.MinioClient;
 import io.minio.errors.MinioException;
 import lombok.extern.slf4j.Slf4j;
@@ -20,9 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 @Slf4j
@@ -55,15 +53,49 @@ public class UserFileServiceImpl implements UserFileService {
     @Autowired
     private BucketPermissionRepository bucketPermissionRepository;
 
+    @Autowired
+    private PermissionService permissionService;
+
+    @Autowired
+    private RolePermissionRepository rolePermissionRepository;
+
+    @Autowired
+    private BucketService bucketService;
+
     @Override
     public void saveUserFile(UserFile file) {
         userFileRepository.save(file);
     }
 
     @Override
-    public List<UserFile> getActiveFiles(String uid, String libraryCode) {
-        return userFileRepository.findByUidAndDeleteFlagFalseAndLibraryCode(uid, libraryCode);
+    public List<UserFile> listFilesByRole(CustomerUserDetails userDetails) {
+        String uid = userDetails.getUid();
+        String libraryCode = userDetails.getLibraryCode();
+        RoleType role = userDetails.getRoleType();
+
+        switch (role) {
+            case ADMIN:
+                return userFileRepository.findByDeleteFlagFalse(); // 所有文件（忽略馆号）
+
+            case LIBRARIAN:
+                // 本馆所有上传文件
+                List<UserFile> librarianFiles = userFileRepository.findByLibraryCodeAndDeleteFlagFalse(libraryCode);
+
+                // 获取该用户额外有访问权限的文件
+                List<UserFile> accessibleByPermission = getPermissionGrantedFiles(uid, libraryCode, role);
+                return mergeWithoutDuplicates(librarianFiles, accessibleByPermission);
+
+            case READER:
+            default:
+                // 自己上传的
+                List<UserFile> ownFiles = userFileRepository.findByUidAndLibraryCodeAndDeleteFlagFalse(uid, libraryCode);
+
+                // 获取该用户通过权限访问到的其他文件
+                List<UserFile> sharedFiles = getPermissionGrantedFiles(uid, libraryCode, role);
+                return mergeWithoutDuplicates(ownFiles, sharedFiles);
+        }
     }
+
 
     @Override
     public void softDeleteFiles(String uid, List<String> filenames, String libraryCode) {
@@ -151,23 +183,52 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public UserFile uploadNewDocument(MultipartFile file, String uid, String libraryCode, String notes, Long folderId) throws Exception {
-        if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
-            throw new ApiException(403, "上传失败：存储配额不足");
+    public UserFile uploadNewDocument(MultipartFile file, String uid, Bucket targetBucket, String notes, Long folderId) {
+        String bucketName = targetBucket.getName();
+        String libraryCode = targetBucket.getLibraryCode();
+
+        // 1. 构建 MinIO 对象名
+        String objectName = FileUtil.generateObjectName(file.getOriginalFilename());
+
+        // 2. 上传文件至 MinIO
+        minioService.uploadFile(bucketName, objectName, file);
+
+        // 3. 构建 UserFile 实体对象（版本默认 1，首次上传）
+        UserFile userFile = buildFileRecord(
+                uid,
+                libraryCode,
+                file,
+                objectName,
+                1,         // 初始版本号
+                null,      // 首次上传无 docId
+                notes,
+                true,      // 是最新版本
+                bucketName,
+                folderId
+        );
+
+        // 4. 保存数据库记录
+        userFileRepository.save(userFile);
+
+        // 5. 自动授权上传者权限（如果需要）
+        if (!permissionValidator.hasWritePermission(uid, bucketName)) {
+            permissionService.addBucketPermission(uid, bucketName, PermissionType.WRITE);
         }
 
-        return uploadFileAndCreateRecord(uid, file, libraryCode, notes, folderId);
+        return userFile;
     }
+
+
 
     @Override
     public UserFile uploadFileAndCreateRecord(String uid, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception {
-        Long bucketId = minioService.getBucketId(uid, libraryCode);
+        Long bucketId = minioService.getBucketIdForUpload(uid, libraryCode);
 
         if (!hasBucketPermission(uid, bucketId, "write")) {
             throw new ApiException(403, "无权限上传文件到该桶");
         }
         String originalFilename = file.getOriginalFilename();
-        String bucketName = minioService.getBucketName(uid, libraryCode);
+        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
 
         if (!minioClient.bucketExists(io.minio.BucketExistsArgs.builder().bucket(bucketName).build())) {
             minioClient.makeBucket(io.minio.MakeBucketArgs.builder().bucket(bucketName).build());
@@ -224,7 +285,7 @@ public class UserFileServiceImpl implements UserFileService {
             throw new ApiException(500, "上传新版本失败：" + e.getMessage());
         }
 
-        String bucketName = minioService.getBucketName(uid, libraryCode);
+        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
         UserFile newVersion = buildFileRecord(uid, libraryCode, file, objectName, nextVersion, docId, notes, true, bucketName, folderId);
         return userFileRepository.save(newVersion);
     }
@@ -251,6 +312,25 @@ public class UserFileServiceImpl implements UserFileService {
                 .orElse(null);
     }
 
+    @Override
+    public UserFile getFileByName(String filename, String uid, String libraryCode) {
+        UserFile file = userFileRepository.findByUidAndNameAndLibraryCode(uid, filename, libraryCode);
+        if (file == null || file.getDeleteFlag()) {
+            throw new ApiException(404, "文件不存在或已被删除");
+        }
+        if (!permissionValidator.canReadFile(uid, file.getId())) {
+            throw new ApiException(403, "无权限访问该文件");
+        }
+        return file;
+    }
+
+    @Override
+    public void softDeleteFile(UserFile file) {
+        file.setDeleteFlag(true);
+        userFileRepository.save(file);
+    }
+
+
     private UserFile buildFileRecord(String uid, String libraryCode, MultipartFile file, String objectName,
                                      int version, Long docId, String notes, boolean isLatest, String bucketName, Long folderId) {
         UserFile userFile = new UserFile();
@@ -271,6 +351,38 @@ public class UserFileServiceImpl implements UserFileService {
         userFile.setUrl(objectName);
         return userFile;
     }
+
+    private List<UserFile> getPermissionGrantedFiles(String uid, String libraryCode, RoleType roleType) {
+        // Step 1: 获取用户权限中的桶 ID
+        List<Long> permittedBucketIds = bucketPermissionRepository.findBucketIdsByUid(uid);
+
+        // Step 2: 获取该角色被授权的桶 ID
+        List<Long> roleBucketIds = rolePermissionRepository.findBucketResourceIdsByRoleType(roleType);
+
+        // 合并
+        Set<Long> allBucketIds = new HashSet<>();
+        allBucketIds.addAll(permittedBucketIds);
+        allBucketIds.addAll(roleBucketIds);
+
+        if (allBucketIds.isEmpty()) return Collections.emptyList();
+
+        // 查询桶名
+        List<String> bucketNames = bucketService.findBucketNamesByIds(allBucketIds);
+        if (bucketNames.isEmpty()) return Collections.emptyList();
+
+        // 查询这些桶中的文件
+        return userFileRepository.findByBucketInAndDeleteFlagFalse(new HashSet<>(bucketNames));
+    }
+
+
+
+    private List<UserFile> mergeWithoutDuplicates(List<UserFile> a, List<UserFile> b) {
+        Map<Long, UserFile> map = new HashMap<>();
+        for (UserFile f : a) map.put(f.getId(), f);
+        for (UserFile f : b) map.put(f.getId(), f);
+        return new ArrayList<>(map.values());
+    }
+
 
     private boolean hasBucketPermission(String uid, Long bucketId, String permission) {
         return bucketPermissionRepository.hasPermission(uid, bucketId, permission);

@@ -1,6 +1,7 @@
 package com.github.sdms.model;
 
-import com.github.sdms.model.enums.Role;
+import com.github.sdms.model.enums.PermissionType;
+import com.github.sdms.model.enums.RoleType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -21,12 +22,13 @@ public class RolePermission {
 
     @Enumerated(EnumType.STRING)  // 使用枚举类型，存储为字符串
     @Column(nullable = false)
-    private Role role; // LIBRARIAN, ADMIN, etc.
+    private RoleType roleType; // LIBRARIAN, ADMIN, etc.
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "resource_id", nullable = false)
     private PermissionResource resource;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String permission; // READ, WRITE, DELETE
+    private PermissionType permission; // READ, WRITE, DELETE
 }
