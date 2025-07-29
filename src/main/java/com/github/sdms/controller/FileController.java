@@ -3,9 +3,12 @@ package com.github.sdms.controller;
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
+import com.github.sdms.model.BucketPermission;
 import com.github.sdms.model.UserFile;
+import com.github.sdms.repository.BucketPermissionRepository;
 import com.github.sdms.repository.FilePermissionRepository;
 import com.github.sdms.service.*;
+import com.github.sdms.util.BucketUtil;
 import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
@@ -21,6 +24,7 @@ import java.io.InputStream;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 @Slf4j
 @RestController
@@ -35,6 +39,7 @@ public class FileController {
     private final PermissionValidator permissionValidator;
     private final StorageQuotaService storageQuotaService;
     private final FilePermissionRepository filePermissionRepository;
+    private final BucketPermissionRepository bucketPermissionRepository;
 
 
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
@@ -61,9 +66,36 @@ public class FileController {
                 throw new ApiException(403, "您无权限上传至该桶：" + bucketName);
             }
         } else {
-            targetBucket = bucketService.getUserDefaultBucket(uid, userDetails.getLibraryCode());
-            if (targetBucket == null) {
-                throw new ApiException(403, "您没有默认上传桶，请联系管理员");
+            // 获取默认桶名
+            String bucketName = BucketUtil.getBucketName(uid, userDetails.getLibraryCode());
+
+            // 如果默认桶不存在，则自动创建并授权
+            Optional<Bucket> optionalBucket = bucketService.getOptionalBucketByName(bucketName);
+            if (optionalBucket.isEmpty()) {
+                // 创建桶
+                Bucket newBucket = Bucket.builder()
+                        .name(bucketName)
+                        .libraryCode(userDetails.getLibraryCode())
+                        .ownerUid(uid)
+                        .description("用户默认桶")
+                        .build();
+                targetBucket = bucketService.createBucket(newBucket);
+
+                // 写入默认权限
+                BucketPermission permission = BucketPermission.builder()
+                        .uid(uid)
+                        .bucketId(targetBucket.getId())
+                        .permission("write") // 可根据需求调整为 "read,write" 等
+                        .createdAt(new Date())
+                        .build();
+                bucketPermissionRepository.save(permission);
+
+            } else {
+                targetBucket = optionalBucket.get();
+
+                if (!permissionValidator.canWriteBucket(uid, bucketName)) {
+                    throw new ApiException(403, "您没有该桶的写权限：" + bucketName);
+                }
             }
         }
 
@@ -74,6 +106,7 @@ public class FileController {
             throw new ApiException(500, "文件上传失败：" + e.getMessage());
         }
     }
+
 
     @PostMapping("/uploadVersion")
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN', 'ADMIN')")

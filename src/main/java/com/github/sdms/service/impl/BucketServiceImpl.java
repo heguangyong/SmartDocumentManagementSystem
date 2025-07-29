@@ -2,6 +2,7 @@ package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
+import com.github.sdms.repository.BucketPermissionRepository;
 import com.github.sdms.repository.BucketRepository;
 import com.github.sdms.service.BucketPermissionService;
 import com.github.sdms.service.BucketService;
@@ -16,10 +17,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -31,6 +29,7 @@ public class BucketServiceImpl implements BucketService {
     private final MinioClient minioClient;
     private final MinioService minioService;
     private final BucketPermissionService bucketPermissionService;
+    private final BucketPermissionRepository bucketPermissionRepository;
 
     /**
      * 创建存储桶（同时在数据库和 MinIO 创建）
@@ -61,7 +60,6 @@ public class BucketServiceImpl implements BucketService {
             log.error("未知错误：MinIO 创建桶失败", e);
             throw new ApiException(500, "MinIO 创建桶异常：" + e.getMessage());
         }
-
         return bucketRepository.save(bucket);
     }
 
@@ -208,6 +206,11 @@ public class BucketServiceImpl implements BucketService {
                 .stream()
                 .map(Bucket::getName)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public Optional<Bucket> getOptionalBucketByName(String name) {
+        return bucketRepository.findByName(name);
     }
 
 

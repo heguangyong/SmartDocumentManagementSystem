@@ -3,6 +3,7 @@ package com.github.sdms.service.impl;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.model.UserFile;
+import com.github.sdms.model.enums.IdType;
 import com.github.sdms.model.enums.PermissionType;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.BucketPermissionRepository;
@@ -193,30 +194,34 @@ public class UserFileServiceImpl implements UserFileService {
         // 2. 上传文件至 MinIO
         minioService.uploadFile(bucketName, objectName, file);
 
-        // 3. 构建 UserFile 实体对象（版本默认 1，首次上传）
+        // ✅ 3. 生成新的 docId（首次上传）
+        long docId = cachedIdGenerator.nextId(IdType.DOC_ID.name());
+
+        // 4. 构建 UserFile 实体对象（版本默认 1，首次上传）
         UserFile userFile = buildFileRecord(
                 uid,
                 libraryCode,
                 file,
                 objectName,
                 1,         // 初始版本号
-                null,      // 首次上传无 docId
+                docId,     // ✅ 设置新生成的 docId
                 notes,
                 true,      // 是最新版本
                 bucketName,
                 folderId
         );
 
-        // 4. 保存数据库记录
+        // 5. 保存数据库记录
         userFileRepository.save(userFile);
 
-        // 5. 自动授权上传者权限（如果需要）
+        // 6. 自动授权上传者权限（如果需要）
         if (!permissionValidator.hasWritePermission(uid, bucketName)) {
             permissionService.addBucketPermission(uid, bucketName, PermissionType.WRITE);
         }
 
         return userFile;
     }
+
 
 
 

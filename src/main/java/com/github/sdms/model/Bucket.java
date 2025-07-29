@@ -1,13 +1,17 @@
 package com.github.sdms.model;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.*;
 
 import java.util.Date;
 
 @Entity
 @Table(name = "bucket")
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class Bucket {
 
     @Id
