@@ -22,5 +22,6 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
 
     List<BucketPermission> findByUid(String uid);
 
+    @Query("select bp.bucketId from BucketPermission bp where bp.uid = :uid")
     List<Long> findBucketIdsByUid(String uid);
 }
