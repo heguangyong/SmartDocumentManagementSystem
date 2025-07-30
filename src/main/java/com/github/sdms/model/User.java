@@ -1,13 +1,14 @@
 package com.github.sdms.model;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.github.sdms.model.enums.RoleType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.Date;
-import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -143,9 +144,4 @@ public class User {
     @Builder.Default // 默认构造时自动使用 READER
     private RoleType roleType = RoleType.READER;// READER, LIBRARIAN, ADMIN
 
-
-    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL)
-    @JsonIgnore
-    @Schema(description = "关联的文档列表")
-    private List<Document> documents;
 }
