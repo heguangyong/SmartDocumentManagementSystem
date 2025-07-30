@@ -1,7 +1,7 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.config.SecurityTestConfig;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,7 +44,7 @@ public class UserControllerIntegrationTest {
                 .andExpect(jsonPath("$.username").value("apiuser"));
 
 
-        Optional<AppUser> savedUser = userRepository.findByUsernameAndLibraryCode("apiuser","G123");
+        Optional<User> savedUser = userRepository.findByUsernameAndLibraryCode("apiuser","G123");
         assertNotNull(savedUser);
     }
 }

@@ -1,7 +1,7 @@
 package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.PermissionValidator;
@@ -18,7 +18,7 @@ public class PermissionValidatorImpl implements PermissionValidator {
 
     @Override
     public boolean canReadBucket(String uid, String bucketId) {
-        AppUser user = findUserOrThrow(uid);
+        User user = findUserOrThrow(uid);
         RoleType roleType = user.getRoleType();
 
         if (roleType == RoleType.ADMIN) return true;
@@ -55,7 +55,7 @@ public class PermissionValidatorImpl implements PermissionValidator {
         return findUserOrThrow(uid).getRoleType() == RoleType.LIBRARIAN;
     }
 
-    private AppUser findUserOrThrow(String uid) {
+    private User findUserOrThrow(String uid) {
         return userRepository.findByUidAndLibraryCode(uid, extractLibraryCodeFromUid(uid))
                 .orElseThrow(() -> new ApiException("找不到用户: " + uid));
     }
@@ -72,13 +72,13 @@ public class PermissionValidatorImpl implements PermissionValidator {
 
     private String extractLibraryCodeFromUid(String uid) {
         return userRepository.findByUid(uid)
-                .map(AppUser::getLibraryCode)
+                .map(User::getLibraryCode)
                 .orElseThrow(() -> new ApiException("无法根据 UID 找到用户：" + uid));
     }
 
     @Override
     public boolean hasWritePermission(String uid, String bucketId) {
-        AppUser user = findUserOrThrow(uid);
+        User user = findUserOrThrow(uid);
         RoleType roleType = user.getRoleType();
 
         if (roleType == RoleType.ADMIN) return true;

@@ -1,7 +1,7 @@
 package com.github.sdms.service;
 
 import com.github.sdms.config.SecurityTestConfig;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -29,13 +29,13 @@ public class UserServiceIntegrationTest {
 
     @Test
     public void testCreateAndFindUser() {
-        AppUser user = new AppUser();
+        User user = new User();
         user.setUsername("testuser");
         user.setPassword("testpass");
 
         userService.saveUser(user);
 
-        Optional<AppUser> savedUser = userRepository.findByUsernameAndLibraryCode("testuser","G123");
+        Optional<User> savedUser = userRepository.findByUsernameAndLibraryCode("testuser","G123");
         assertNotNull(savedUser);
         assertEquals("testuser", savedUser.get().getUsername());
     }

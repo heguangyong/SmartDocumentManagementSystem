@@ -3,7 +3,7 @@ package com.github.sdms.service.impl;
 import cn.hutool.core.util.URLUtil;
 import com.github.sdms.dto.UUserReq;
 import com.github.sdms.exception.ApiException;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.AuthService;
@@ -93,9 +93,9 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 修改为根据 libraryCode 查询
-        AppUser user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
+        User user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
         if (user == null) {
-            user = new AppUser();
+            user = new User();
             user.setUid(uid);
             user.setUsername(username != null ? username : "");
             user.setRoleType(RoleType.valueOf(rolesFromFolio.get(0))); // 只保留主角色
@@ -133,7 +133,7 @@ public class AuthServiceImpl implements AuthService {
         String role = jwtUtil.extractRole(jwt);
 
         // 根据 libraryCode 查询用户
-        AppUser user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
+        User user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
         String username = user != null ? user.getUsername() : "";
 
         return uid + "===" + username + "===" + jwt;
@@ -181,9 +181,9 @@ public class AuthServiceImpl implements AuthService {
         String username = userInfo.getString("nameCn");
 
         // 根据 libraryCode 查询用户
-        AppUser user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
+        User user = userRepository.findByUidAndLibraryCode(uid, libraryCode).orElse(null);
         if (user == null) {
-            user = new AppUser();
+            user = new User();
             user.setUid(uid);
             user.setUsername(username != null ? username : "");
             user.setUserinfo(null);

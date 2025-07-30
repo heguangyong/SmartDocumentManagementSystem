@@ -1,7 +1,7 @@
 package com.github.sdms.service;
 
 import com.github.sdms.config.SecurityTestConfig;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -31,7 +31,7 @@ public class UserServiceTest {
 
     @Test
     void testFindByEmail() {
-        AppUser user = AppUser.builder()
+        User user = User.builder()
                 .id(1L)
                 .username("testuser")
                 .email("test@example.com")
@@ -42,7 +42,7 @@ public class UserServiceTest {
 
         when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
 
-        Optional<AppUser> foundUser = userService.findByEmailAndLibraryCode("test@example.com","123456");
+        Optional<User> foundUser = userService.findByEmailAndLibraryCode("test@example.com","123456");
         assertTrue(foundUser.isPresent());
         assertEquals("testuser", foundUser.get().getUsername());
     }
@@ -61,7 +61,7 @@ public class UserServiceTest {
 
     @Test
     void testSaveUser() {
-        AppUser user = AppUser.builder()
+        User user = User.builder()
                 .username("newuser")
                 .email("newuser@example.com")
                 .password("pwd")
@@ -70,7 +70,7 @@ public class UserServiceTest {
 
         when(userRepository.save(user)).thenReturn(user);
 
-        AppUser savedUser = userService.saveUser(user);
+        User savedUser = userService.saveUser(user);
         assertNotNull(savedUser);
         assertEquals("newuser", savedUser.getUsername());
     }

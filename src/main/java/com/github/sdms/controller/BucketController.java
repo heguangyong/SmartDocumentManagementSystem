@@ -44,7 +44,7 @@ public class BucketController {
 
         if (bucket.getLibraryCode() == null || bucket.getLibraryCode().isEmpty()) {
             // 从用户表查找该 uid 对应的用户，补充其 libraryCode
-            AppUser user = userRepository.findByUid(bucket.getOwnerUid())
+            User user = userRepository.findByUid(bucket.getOwnerUid())
                     .orElseThrow(() -> new ApiException(404, "ownerUid 无效，未找到对应用户"));
             bucket.setLibraryCode(user.getLibraryCode());
         }
@@ -72,7 +72,7 @@ public class BucketController {
     @PostMapping("/admin/assign-bucket-permission")
     public ResponseEntity<String> assignBucketPermission(@RequestBody BucketPermissionDTO dto) {
         // 查找用户
-        AppUser user = userRepository.findByUid(dto.getUid())  // 使用 UID 查找用户
+        User user = userRepository.findByUid(dto.getUid())  // 使用 UID 查找用户
                 .orElseThrow(() -> new ApiException(404, "User not found"));
 
         // 查找存储桶

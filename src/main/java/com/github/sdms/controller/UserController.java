@@ -2,7 +2,7 @@ package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.exception.ApiException;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.MinioService;
@@ -36,7 +36,7 @@ public class UserController {
     @Operation(summary = "创建用户", description = "创建新用户，仅管理员可执行。")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/create")
-    public ResponseEntity<AppUser> createUser(@RequestBody AppUser user, @RequestParam String libraryCode) {
+    public ResponseEntity<User> createUser(@RequestBody User user, @RequestParam String libraryCode) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         return ResponseEntity.ok(userRepository.save(user));
     }
@@ -44,7 +44,7 @@ public class UserController {
     @Operation(summary = "获取所有用户列表", description = "获取所有用户列表，仅管理员可执行。")
     @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/list")
-    public ResponseEntity<List<AppUser>> getAllUsers(@RequestParam String libraryCode) {
+    public ResponseEntity<List<User>> getAllUsers(@RequestParam String libraryCode) {
         return ResponseEntity.ok(userRepository.findAll());
     }
 
@@ -53,7 +53,7 @@ public class UserController {
     @DeleteMapping("/{uid}")
     public ResponseEntity<String> deleteUser(@PathVariable String uid) {
         // 根据uid查找用户
-        AppUser user = userRepository.findByUid(uid)
+        User user = userRepository.findByUid(uid)
                 .orElseThrow(() -> new ApiException(404, "User not found"));
 
         // 检查是否有桶或文件依赖（例如删除用户前需要处理相关文件和桶）
@@ -70,8 +70,8 @@ public class UserController {
     @Operation(summary = "获取用户详情", description = "获取指定ID的用户详情，当前用户或管理员可执行。")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @GetMapping("/{id}")
-    public ResponseEntity<AppUser> getUser(@PathVariable Long id, Authentication authentication, @RequestParam String libraryCode) {
-        AppUser currentUser = userRepository.findByEmailAndLibraryCode(authentication.getName(), libraryCode).orElse(null);
+    public ResponseEntity<User> getUser(@PathVariable Long id, Authentication authentication, @RequestParam String libraryCode) {
+        User currentUser = userRepository.findByEmailAndLibraryCode(authentication.getName(), libraryCode).orElse(null);
         if (currentUser == null) {
             return ResponseEntity.status(403).build();
         }
@@ -105,8 +105,8 @@ public class UserController {
     @Operation(summary = "获取当前登录用户基本信息", description = "获取当前登录用户的基本信息，读者及以上权限可执行。")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @GetMapping("/info/summary")
-    public ResponseEntity<ApiResponse<AppUser>> getCurrentUserInfo(Authentication authentication, @RequestParam String libraryCode) {
-        AppUser user = userRepository.findByEmailAndLibraryCode(authentication.getName(), libraryCode).orElse(null);
+    public ResponseEntity<ApiResponse<User>> getCurrentUserInfo(Authentication authentication, @RequestParam String libraryCode) {
+        User user = userRepository.findByEmailAndLibraryCode(authentication.getName(), libraryCode).orElse(null);
         return ResponseEntity.ok(ApiResponse.success(user));
     }
 
@@ -114,9 +114,9 @@ public class UserController {
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @PutMapping("/me/username")
     public ResponseEntity<?> updateUsername(@RequestParam String newUsername, Authentication authentication, @RequestParam String libraryCode) {
-        Optional<AppUser> userOpt = userRepository.findByEmailAndLibraryCode(authentication.getName(), libraryCode);
+        Optional<User> userOpt = userRepository.findByEmailAndLibraryCode(authentication.getName(), libraryCode);
         if (userOpt.isPresent()) {
-            AppUser user = userOpt.get();
+            User user = userOpt.get();
             user.setUsername(newUsername);
             userRepository.save(user);
             return ResponseEntity.ok("Username updated");
@@ -129,7 +129,7 @@ public class UserController {
     @PutMapping("/reset-password")
     public ResponseEntity<String> resetPassword(@RequestParam String email, @RequestParam String newPassword, @RequestParam String libraryCode) {
         // 根据 email 和 libraryCode 查找用户
-        AppUser user = userRepository.findByEmailAndLibraryCode(email, libraryCode)
+        User user = userRepository.findByEmailAndLibraryCode(email, libraryCode)
                 .orElseThrow(() -> new ApiException(404, "User not found"));
 
         // 验证新密码是否为空或不符合密码规则（可选）
@@ -150,7 +150,7 @@ public class UserController {
     @PostMapping("/{uid}/role") // 使用uid作为路径参数
     public ResponseEntity<String> assignRoleToUser(@PathVariable String uid, @RequestBody String role) {
         // 获取目标用户，根据uid查找
-        AppUser user = userRepository.findByUid(uid) // 根据uid查找用户
+        User user = userRepository.findByUid(uid) // 根据uid查找用户
                 .orElseThrow(() -> new ApiException(404, "User not found"));
 
         // 判断角色是否合法（LIBRARIAN 或 READER 或 ADMIN）

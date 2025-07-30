@@ -58,7 +58,7 @@ public class PermissionServiceImpl implements PermissionService {
     @Override
     public void addBucketPermission(String uid, String bucketName, PermissionType type) {
         // 1. 获取用户
-        AppUser user = userRepository.findByUid(uid)
+        User user = userRepository.findByUid(uid)
                 .orElseThrow(() -> new ApiException(404, "用户不存在"));
 
         // 2. 获取桶

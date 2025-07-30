@@ -1,6 +1,6 @@
 package com.github.sdms.util;
 
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -40,7 +40,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 // 从数据库中加载用户（注意此处使用 email 查询）
-                AppUser user = userRepository.findByEmail(username).orElse(null);
+                User user = userRepository.findByEmail(username).orElse(null);
 
                 if (user != null && jwtUtil.validateToken(jwt, new org.springframework.security.core.userdetails.User(username, "", Collections.emptyList()))) {
                     CustomerUserDetails userDetails = new CustomerUserDetails(user);

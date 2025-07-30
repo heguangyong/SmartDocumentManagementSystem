@@ -1,6 +1,6 @@
 package com.github.sdms.config;
 
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import jakarta.annotation.PostConstruct;
@@ -43,7 +43,7 @@ public class DataInitializer {
             // 生成唯一的uid
             String uid = UUID.randomUUID().toString();
 
-            AppUser user = AppUser.builder()
+            User user = User.builder()
                     .uid(uid)  // 使用唯一的uid
                     .username(username)  // username不做唯一性检查
                     .email(email)

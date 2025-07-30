@@ -1,6 +1,6 @@
 package com.github.sdms.service;
 
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.util.CustomerUserDetails;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +24,7 @@ public class CustomUserDetailsServices implements UserDetailsService {
      */
     public UserDetails loadUserByUsernameAndLibraryCode(String email, String libraryCode) throws UsernameNotFoundException {
         // 通过 email 和 libraryCode 查找用户
-        AppUser user = userRepository.findByEmailAndLibraryCode(email, libraryCode)
+        User user = userRepository.findByEmailAndLibraryCode(email, libraryCode)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email + " and libraryCode: " + libraryCode));
 
         return new CustomerUserDetails(user);
@@ -33,7 +33,7 @@ public class CustomUserDetailsServices implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         // 默认使用 email 查找用户（不包括 libraryCode）
-        AppUser user = userRepository.findByEmail(email)
+        User user = userRepository.findByEmail(email)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
         return new CustomerUserDetails(user);
     }

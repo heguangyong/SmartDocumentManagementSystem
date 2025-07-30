@@ -1,7 +1,7 @@
 package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.UserService;
 import org.springframework.stereotype.Service;
@@ -18,8 +18,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<AppUser> findByEmailAndLibraryCode(String email, String libraryCode) {
-        Optional<AppUser> user = userRepository.findByEmailAndLibraryCode(email, libraryCode);
+    public Optional<User> findByEmailAndLibraryCode(String email, String libraryCode) {
+        Optional<User> user = userRepository.findByEmailAndLibraryCode(email, libraryCode);
         if (user.isEmpty()) {
             throw new ApiException(404, "用户不存在: email=" + email + ", libraryCode=" + libraryCode);
         }
@@ -27,8 +27,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<AppUser> findByUsernameAndLibraryCode(String username, String libraryCode) {
-        Optional<AppUser> user = userRepository.findByUsernameAndLibraryCode(username, libraryCode);
+    public Optional<User> findByUsernameAndLibraryCode(String username, String libraryCode) {
+        Optional<User> user = userRepository.findByUsernameAndLibraryCode(username, libraryCode);
         if (user.isEmpty()) {
             throw new ApiException(404, "用户不存在: username=" + username + ", libraryCode=" + libraryCode);
         }
@@ -41,8 +41,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<AppUser> findByUidAndLibraryCode(String uid, String libraryCode) {
-        Optional<AppUser> user = userRepository.findByUidAndLibraryCode(uid, libraryCode);
+    public Optional<User> findByUidAndLibraryCode(String uid, String libraryCode) {
+        Optional<User> user = userRepository.findByUidAndLibraryCode(uid, libraryCode);
         if (user.isEmpty()) {
             throw new ApiException(404, "用户不存在: uid=" + uid + ", libraryCode=" + libraryCode);
         }
@@ -55,8 +55,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<AppUser> findByMobileAndLibraryCode(String mobile, String libraryCode) {
-        Optional<AppUser> user = userRepository.findByMobileAndLibraryCode(mobile, libraryCode);
+    public Optional<User> findByMobileAndLibraryCode(String mobile, String libraryCode) {
+        Optional<User> user = userRepository.findByMobileAndLibraryCode(mobile, libraryCode);
         if (user.isEmpty()) {
             throw new ApiException(404, "用户不存在: mobile=" + mobile + ", libraryCode=" + libraryCode);
         }
@@ -69,8 +69,8 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Optional<AppUser> findByUsernameOrEmailAndLibraryCode(String username, String email, String libraryCode) {
-        Optional<AppUser> user = userRepository.findByUsernameOrEmailAndLibraryCode(username, email, libraryCode);
+    public Optional<User> findByUsernameOrEmailAndLibraryCode(String username, String email, String libraryCode) {
+        Optional<User> user = userRepository.findByUsernameOrEmailAndLibraryCode(username, email, libraryCode);
         if (user.isEmpty()) {
             throw new ApiException(404, "用户不存在: username=" + username + ", email=" + email + ", libraryCode=" + libraryCode);
         }
@@ -78,7 +78,7 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public AppUser saveUser(AppUser user) {
+    public User saveUser(User user) {
         if (user == null) {
             throw new ApiException(400, "保存的用户对象不能为空");
         }

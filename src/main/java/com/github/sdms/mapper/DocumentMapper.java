@@ -5,7 +5,7 @@ import com.github.sdms.dto.DocumentDTO;
 import com.github.sdms.dto.DocumentVersionDTO;
 import com.github.sdms.model.Document;
 import com.github.sdms.model.DocumentVersion;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 
 import java.time.LocalDateTime;
 
@@ -22,7 +22,7 @@ public class DocumentMapper {
                 .build();
     }
 
-    public static Document toEntity(CreateDTO dto, AppUser user ){
+    public static Document toEntity(CreateDTO dto, User user ){
         return Document.builder()
                 .name(dto.getName())
                 .path(dto.getPath())

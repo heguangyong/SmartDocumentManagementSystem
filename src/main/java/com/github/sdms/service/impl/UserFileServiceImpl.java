@@ -222,6 +222,21 @@ public class UserFileServiceImpl implements UserFileService {
         return userFile;
     }
 
+    @Override
+    public List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, String uid, Bucket targetBucket, String notes, Long folderId) {
+        List<UserFile> uploadedFiles = new ArrayList<>();
+
+        for (MultipartFile file : files) {
+            // 跳过空文件
+            if (file == null || file.isEmpty()) continue;
+
+            UserFile uploaded = uploadNewDocument(file, uid, targetBucket, notes, folderId);
+            uploadedFiles.add(uploaded);
+        }
+
+        return uploadedFiles;
+    }
+
 
 
 

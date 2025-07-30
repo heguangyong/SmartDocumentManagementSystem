@@ -2,7 +2,7 @@ package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.dto.UserProfileDto;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.AuthService;
 import com.github.sdms.dto.UUserReq;
@@ -132,7 +132,7 @@ public class OAuthController {
 
         String username = authentication.getName();
         // 使用 libraryCode 查询邮箱和 UID 进行匹配
-        AppUser user = userRepository.findByEmailAndLibraryCode(username, libraryCode)
+        User user = userRepository.findByEmailAndLibraryCode(username, libraryCode)
                 .orElseGet(() -> userRepository.findByUidAndLibraryCode(username, libraryCode).orElse(null));
 
         if (user == null) {

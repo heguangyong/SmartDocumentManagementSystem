@@ -1,6 +1,6 @@
 package com.github.sdms.util;
 
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.model.enums.RoleType;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -15,7 +15,7 @@ import java.util.Collections;
 @AllArgsConstructor
 public class CustomerUserDetails implements UserDetails {
 
-    private final AppUser user;
+    private final User user;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

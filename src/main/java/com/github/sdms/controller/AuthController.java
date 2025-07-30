@@ -5,7 +5,7 @@ import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.util.JwtUtil;
 import com.github.sdms.dto.LoginResponse;
 import com.github.sdms.dto.RegisterRequest;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.CustomUserDetailsServices;
 import io.swagger.v3.oas.annotations.Operation;
@@ -76,7 +76,7 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("libraryCode must not be empty"));
             }
             // 创建用户对象并保存到数据库
-            AppUser user = AppUser.builder()
+            User user = User.builder()
                     // 生成唯一的uid
                     .uid(UUID.randomUUID().toString())
                     .username(request.getUsername())

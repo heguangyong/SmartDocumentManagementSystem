@@ -107,6 +107,68 @@ public class FileController {
         }
     }
 
+    @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
+    @Operation(summary = "批量上传新文档")
+    @PostMapping("/upload-multiple")
+    public ApiResponse<List<UserFile>> uploadMultipleDocuments(
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
+            @RequestParam List<MultipartFile> files,
+            @RequestParam(required = false) String notes,
+            @RequestParam(required = false) Long folderId,
+            @RequestParam(required = false) Long bucketId
+    ) {
+        String uid = userDetails.getUid();
+        Bucket targetBucket;
+
+        if (bucketId != null) {
+            targetBucket = bucketService.getBucketById(bucketId);
+            if (targetBucket == null) {
+                throw new ApiException(404, "目标桶不存在");
+            }
+
+            if (!permissionValidator.canWriteBucket(uid, targetBucket.getName())) {
+                throw new ApiException(403, "您无权限上传至该桶：" + targetBucket.getName());
+            }
+
+        } else {
+            String bucketName = BucketUtil.getBucketName(uid, userDetails.getLibraryCode());
+
+            Optional<Bucket> optionalBucket = bucketService.getOptionalBucketByName(bucketName);
+            if (optionalBucket.isEmpty()) {
+                Bucket newBucket = Bucket.builder()
+                        .name(bucketName)
+                        .libraryCode(userDetails.getLibraryCode())
+                        .ownerUid(uid)
+                        .description("用户默认桶")
+                        .build();
+                targetBucket = bucketService.createBucket(newBucket);
+
+                // 初始化写权限
+                BucketPermission permission = BucketPermission.builder()
+                        .uid(uid)
+                        .bucketId(targetBucket.getId())
+                        .permission("write")
+                        .createdAt(new Date())
+                        .build();
+                bucketPermissionRepository.save(permission);
+            } else {
+                targetBucket = optionalBucket.get();
+
+                if (!permissionValidator.canWriteBucket(uid, targetBucket.getName())) {
+                    throw new ApiException(403, "您没有该桶的写权限：" + targetBucket.getName());
+                }
+            }
+        }
+
+        try {
+            List<UserFile> uploadedList = userFileService.uploadMultipleNewDocuments(files, uid, targetBucket, notes, folderId);
+            return ApiResponse.success(uploadedList);
+        } catch (Exception e) {
+            throw new ApiException(500, "批量文件上传失败：" + e.getMessage());
+        }
+    }
+
+
 
     @PostMapping("/uploadVersion")
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN', 'ADMIN')")

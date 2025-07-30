@@ -6,7 +6,7 @@ import com.github.sdms.exception.UserNotFoundException;
 import com.github.sdms.mapper.DocumentMapper;
 import com.github.sdms.model.Document;
 import com.github.sdms.model.DocumentVersion;
-import com.github.sdms.model.AppUser;
+import com.github.sdms.model.User;
 import com.github.sdms.repository.DocumentRepository;
 import com.github.sdms.repository.DocumentVersionRepository;
 import com.github.sdms.repository.UserRepository;
@@ -37,7 +37,7 @@ public class DocumentService {
         String s3Key = s3Service.uploadFile(file);
 
         // Document creation
-        AppUser user = userRepository.findById(userId)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException(userId));
 
         Document document = Document.builder()

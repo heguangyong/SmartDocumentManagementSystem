@@ -14,9 +14,9 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 @Entity
-@Table(name = "app_user")
+@Table(name = "user")
 @Schema(description = "统一用户实体类（OAuth + 本地）")
-public class AppUser {
+public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

@@ -49,4 +49,6 @@ public interface UserFileService {
     void softDeleteFile(UserFile file);
 
     UserFile getFileByName(String filename, String uid, String libraryCode);
+
+    List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, String uid, Bucket targetBucket, String notes, Long folderId);
 }

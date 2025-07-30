@@ -20,7 +20,7 @@ public class FilePermission {
 
     @ManyToOne
     @JoinColumn(name = "user_id", nullable = false)
-    private AppUser user; // 用户
+    private User user; // 用户
 
     @ManyToOne
     @JoinColumn(name = "file_id", nullable = false)
