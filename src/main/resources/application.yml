@@ -81,3 +81,25 @@ logging:
     org:
       springframework:
         security: DEBUG
+
+# 格尔数据加密配置
+svs:
+  service:
+    enabled: false  # 设置为 false 可跳过签名与验签
+    addrs: 60.247.61.98:15009
+    timeout: 20000
+    name: default
+    verify:
+      cert-flag: true
+      allow-list-flag: true
+      chain-flag: true
+      valid-flag: true
+      crl-flag: true
+
+koalii-client:
+  ribbon:
+    NFLoadBalancerPingClassName: com.koalii.svs.client.util.loadbalancer.KoalPingUrl
+    NFLoadBalancerPingInterval: 60
+    NFLoadBalancerRuleClassName: com.koalii.svs.client.util.loadbalancer.KoalRoundRobinRule
+    ConnectTimeout: 20000
+    ReadTimeout: 20000

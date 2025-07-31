@@ -37,4 +37,6 @@ public class ShareAccessLog {
     private String ownerUid;
     private String actionType; // preview, download, list
 
+    private String signature; //签名结果
+
 }

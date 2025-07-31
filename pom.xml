@@ -177,6 +177,33 @@
 			<version>8.5.3</version>
 		</dependency>
 
+		<dependency>
+			<groupId>com.koalii</groupId>
+			<artifactId>koalii-svs-client</artifactId>
+			<version>3.0.3</version>
+			<scope>system</scope>
+			<systemPath>${project.basedir}/lib/koalii_svs_client_v3.0.3_jdk1.8_20210512.jar</systemPath>
+		</dependency>
+
+		<!-- 若使用了依赖包合集，也需引入 -->
+		<dependency>
+			<groupId>com.koalii</groupId>
+			<artifactId>koalii-svs-client-deps</artifactId>
+			<version>3.0.3</version>
+			<scope>system</scope>
+			<systemPath>${project.basedir}/lib/koalii_svs_client_v3.0.3_jdk1.8_20210512-dependencies.jar</systemPath>
+		</dependency>
+
+		<!-- 加上基础依赖 -->
+		<dependency>
+			<groupId>com.geer</groupId>
+			<artifactId>kgsp-core</artifactId>
+			<version>2.1.4</version>
+			<scope>system</scope>
+			<systemPath>${project.basedir}/lib/kgsp_core-2.1.4.jar</systemPath>
+		</dependency>
+
+
 	</dependencies>
 
 	<build>
