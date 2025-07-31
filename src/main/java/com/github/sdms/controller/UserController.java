@@ -1,15 +1,17 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.dto.UserInfo;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.User;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.MinioService;
+import com.github.sdms.service.OAuthUserInfoService;
+import com.github.sdms.service.PagedResult;
 import com.github.sdms.service.ShareAccessLogService;
 import com.github.sdms.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
-import jakarta.annotation.Resource;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,8 +31,8 @@ public class UserController {
     private final PasswordEncoder passwordEncoder;
     private final MinioService minioService;
     private final JwtUtil jwtUtil;
-    @Resource
     private final ShareAccessLogService shareAccessLogService;
+    private final OAuthUserInfoService oauthUserInfoService;
 
 
     @Operation(summary = "创建用户", description = "创建新用户，仅管理员可执行。")
@@ -47,6 +49,19 @@ public class UserController {
     public ResponseEntity<List<User>> getAllUsers(@RequestParam String libraryCode) {
         return ResponseEntity.ok(userRepository.findAll());
     }
+
+    @Operation(summary = "分页查询缓存用户信息", description = "管理员分页查询缓存中的 OAuth 用户信息")
+    @PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/cached")
+    public ResponseEntity<ApiResponse<PagedResult<UserInfo>>> getCachedUsers(
+            @RequestParam(required = false) String keyword,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        PagedResult<UserInfo> result = oauthUserInfoService.searchUsersPaged(keyword, page, size);
+        return ResponseEntity.ok(ApiResponse.success("查询成功", result));
+    }
+
 
     @Operation(summary = "删除用户", description = "管理员删除用户")
     @PreAuthorize("hasRole('ADMIN')")

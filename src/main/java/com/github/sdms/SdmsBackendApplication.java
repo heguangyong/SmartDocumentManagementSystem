@@ -3,9 +3,10 @@ package com.github.sdms;
 import io.github.cdimascio.dotenv.Dotenv;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling // ✅ 启用定时任务调度支持
 public class SdmsBackendApplication {
 
 	public static void main(String[] args) {

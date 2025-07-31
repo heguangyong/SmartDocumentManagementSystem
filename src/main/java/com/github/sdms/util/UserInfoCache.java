@@ -2,20 +2,24 @@ package com.github.sdms.util;
 
 import com.github.sdms.dto.UserInfo;
 
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.*;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
- * 用于缓存通过传递参数uid，调用接口获取用户信息并缓存。
- * 设定定期（6小时）过期失效策略
+ * 带最大容量与LRU淘汰策略的用户信息缓存类
  */
 public class UserInfoCache {
 
-    private static final ConcurrentHashMap<String, CacheEntry> CACHE = new ConcurrentHashMap<>();
+    private static final int MAX_CACHE_SIZE = 2000;
     private static final long EXPIRE_MILLIS = 6 * 60 * 60 * 1000L; // 6小时
+
+    private static final Map<String, CacheEntry> CACHE = Collections.synchronizedMap(new LinkedHashMap<>(MAX_CACHE_SIZE, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, CacheEntry> eldest) {
+            return size() > MAX_CACHE_SIZE;
+        }
+    });
 
     private static class CacheEntry {
         final UserInfo userInfo;
@@ -33,20 +37,29 @@ public class UserInfoCache {
 
     public static void put(UserInfo userInfo) {
         if (userInfo == null || userInfo.uid == null) return;
-        CACHE.put(userInfo.uid, new CacheEntry(userInfo));
+        synchronized (CACHE) {
+            CACHE.put(userInfo.uid, new CacheEntry(userInfo));
+        }
     }
 
     public static UserInfo get(String uid) {
-        CacheEntry entry = CACHE.get(uid);
-        if (entry == null) return null;
-        return entry.isExpired() ? null : entry.userInfo;
+        synchronized (CACHE) {
+            CacheEntry entry = CACHE.get(uid);
+            if (entry == null || entry.isExpired()) {
+                CACHE.remove(uid);
+                return null;
+            }
+            return entry.userInfo;
+        }
     }
 
     public static List<UserInfo> listAll() {
-        return CACHE.values().stream()
-                .filter(e -> !e.isExpired())
-                .map(e -> e.userInfo)
-                .collect(Collectors.toList());
+        synchronized (CACHE) {
+            return CACHE.values().stream()
+                    .filter(e -> !e.isExpired())
+                    .map(e -> e.userInfo)
+                    .collect(Collectors.toList());
+        }
     }
 
     public static void refresh(String uid, Supplier<UserInfo> fetcher) {
@@ -59,11 +72,14 @@ public class UserInfoCache {
     }
 
     public static Set<String> allKeys() {
-        return CACHE.keySet();
+        synchronized (CACHE) {
+            return new HashSet<>(CACHE.keySet());
+        }
     }
 
     public static void clear() {
-        CACHE.clear();
+        synchronized (CACHE) {
+            CACHE.clear();
+        }
     }
 }
-

@@ -18,7 +18,9 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Optional;
 import java.util.Scanner;
 import java.util.stream.Collectors;
 
@@ -140,5 +142,21 @@ public class OAuthUserInfoService {
         return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
     }
 
+
+    public PagedResult<UserInfo> searchUsersPaged(String keyword, int page, int size) {
+        if (page < 1) page = 1;
+        if (size <= 0) size = 10;
+
+        List<UserInfo> all = searchUsers(keyword); // 已实现模糊搜索
+        int fromIndex = Math.min((page - 1) * size, all.size());
+        int toIndex = Math.min(fromIndex + size, all.size());
+
+        List<UserInfo> pageItems = all.stream()
+                .sorted(Comparator.comparing(u -> Optional.ofNullable(u.nameCn).orElse("")))
+                .collect(Collectors.toList())
+                .subList(fromIndex, toIndex);
+
+        return new PagedResult<>(pageItems, all.size());
+    }
 
 }
