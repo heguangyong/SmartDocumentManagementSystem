@@ -11,6 +11,7 @@ import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.CustomUserDetailsServices;
 import com.github.sdms.util.JwtUtil;
+import com.github.sdms.util.PasswordUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -55,19 +56,20 @@ public class AuthController {
     }
 
     /**
-     * 注册接口
+     * 管理员注册馆员
      * 一般允许匿名访问或仅ADMIN访问（这里开放匿名，若需可加 @PreAuthorize("hasRole('ADMIN')")）
      */
-    @Operation(summary = "用户注册接口")
+    @Operation(summary = "管理员注册馆员")
     @PostMapping("/register")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> register(@RequestBody RegisterRequest request) {
         try {
-            // 验证 email 和 libraryCode 组合是否已存在
+            // 检查邮箱和租户组合唯一性
             if (userRepository.existsByEmailAndLibraryCode(request.getEmail(), request.getLibraryCode())) {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("Email already exists for this libraryCode"));
             }
 
-            // 校验传入角色是否有效（READER, LIBRARIAN, ADMIN）
+            // 校验角色合法性
             RoleType roleType;
             try {
                 roleType = RoleType.valueOf(request.getRole().toUpperCase());
@@ -75,29 +77,36 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("Invalid role: " + request.getRole()));
             }
 
-            // 获取租户信息 libraryCode
+            // 校验租户代码非空
             String libraryCode = request.getLibraryCode();
             if (libraryCode == null || libraryCode.trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("libraryCode must not be empty"));
             }
-            // 创建用户对象并保存到数据库
+
+            // 新增密码强度校验
+            if (!PasswordUtil.isStrongPassword(request.getPassword())) {
+                return ResponseEntity.badRequest().body(ApiResponse.failure("Password must be at least 8 characters and include uppercase, lowercase, number, and special character."));
+            }
+
+            // 创建用户，密码加密存储
             User user = User.builder()
-                    // 生成唯一的uid
                     .uid(UUID.randomUUID().toString())
                     .username(request.getUsername())
                     .email(request.getEmail())
                     .password(passwordEncoder.encode(request.getPassword()))
                     .roleType(roleType)
-                    .libraryCode(libraryCode)  // 保存 libraryCode 字段
+                    .libraryCode(libraryCode)
                     .build();
 
             userRepository.save(user);
             return ResponseEntity.ok(ApiResponse.success("User registered successfully"));
+
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(ApiResponse.failure("Registration failed: " + e.getMessage()));
         }
     }
+
 
 
     @GetMapping("/captcha")
@@ -203,7 +212,7 @@ public class AuthController {
      * 管理员接口：获取所有角色列表
      * 只允许 ADMIN 访问
      */
-    @Operation(summary = "获取所有角色列表【权限：仅管理员】")
+    @Operation(summary = "管理员获取所有角色列表")
     @GetMapping("/admin/roles")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<List<String>>> getAllRoles() {
