@@ -60,18 +60,43 @@ public class JwtUtil {
         return buildToken(claims, uid);
     }
 
+    public String generateToken(UserDetails userDetails, String libraryCode, boolean rememberMe) {
+        String uid = userDetails.getUsername();
+        List<String> roles = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
+                .collect(Collectors.toList());
+        return generateToken(uid, roles, libraryCode, rememberMe);
+    }
+
+
+    public String generateToken(String uid, List<String> roles, String libraryCode, boolean rememberMe) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("username", uid);
+        claims.put("roles", roles);
+        claims.put("libraryCode", libraryCode);
+        claims.put("iss", determineIssuer(roles));
+        long expiration = rememberMe ? 90L * 24 * 60 * 60 * 1000 : EXPIRATION_TIME; // 90天 or 默认
+        return buildToken(claims, uid, expiration);
+    }
 
     /**
      * 核心构建逻辑
      */
-    private String buildToken(Map<String, Object> claims, String subject) {
+    // 改造原有构建逻辑为支持传入过期时间
+    private String buildToken(Map<String, Object> claims, String subject, long expirationTime) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(subject)
                 .setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME)) // 2 小时
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512) //  Kong 期望的签名算法是 HS512
+                .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
+    }
+
+    // 保留旧接口调用不变
+    private String buildToken(Map<String, Object> claims, String subject) {
+        return buildToken(claims, subject, EXPIRATION_TIME);
     }
 
     // 解析 roles 列表
