@@ -144,4 +144,8 @@ public class User {
     @Builder.Default // 默认构造时自动使用 READER
     private RoleType roleType = RoleType.READER;// READER, LIBRARIAN, ADMIN
 
+    //初次登录需修改密码
+    @Schema(description = "需修改密码")
+    private Boolean needPasswordChange = true;
+
 }

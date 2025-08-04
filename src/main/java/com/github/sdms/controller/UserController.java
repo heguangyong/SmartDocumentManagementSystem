@@ -5,12 +5,15 @@ import cn.hutool.captcha.LineCaptcha;
 import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.User;
+import com.github.sdms.model.enums.AuditActionType;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.*;
 import com.github.sdms.util.JwtUtil;
 import com.github.sdms.util.PasswordUtil;
+import com.github.sdms.util.RequestUtils;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
@@ -41,9 +44,10 @@ public class UserController {
     private final MinioService minioService;
     private final ShareAccessLogService shareAccessLogService;
     private final OAuthUserInfoService oauthUserInfoService;
-
+    private final UserAuditLogService userAuditLogService;
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final long LOCK_TIME_SECONDS = 30 * 60;
+
 
     // ====== Auth 原逻辑整合 START ======
 
@@ -61,12 +65,15 @@ public class UserController {
 
     @Operation(summary = "用户登录")
     @PostMapping("/login")
-    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
         String username = loginRequest.getEmail();
         String libraryCode = loginRequest.getLibraryCode();
         String loginKeyPrefix = username + ":" + libraryCode;
         String failedKey = "login:fail:" + loginKeyPrefix;
         String lockKey = "login:lock:" + loginKeyPrefix;
+
+        String ip = RequestUtils.getClientIp(request);
+        String userAgent = RequestUtils.getUserAgent(request);
 
         try {
             String storedCode = redisTemplate.opsForValue().get("captcha:" + loginRequest.getCaptchaId());
@@ -79,17 +86,29 @@ public class UserController {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("账号已锁定，请稍后再试"));
             }
 
-            Authentication authentication = authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, loginRequest.getPassword()));
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, loginRequest.getPassword()));
             redisTemplate.delete(failedKey);
 
             UserDetails userDetails = customUserDetailsServices.loadUserByUsernameAndLibraryCode(username, libraryCode);
+
+            User user = userRepository.findByEmailAndLibraryCode(username, libraryCode)
+                    .orElseThrow(() -> new ApiException(404, "User not found"));
+
+            if (Boolean.TRUE.equals(user.getNeedPasswordChange())) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("初次登录需修改密码"));
+            }
+
             String jwt = jwtUtil.generateToken(userDetails, libraryCode, loginRequest.isRememberMe());
-
             List<String> roles = userDetails.getAuthorities().stream().map(auth -> auth.getAuthority()).toList();
-            String key = username + libraryCode + "logintime";
-            redisTemplate.opsForValue().set(key, String.valueOf(System.currentTimeMillis() / 1000));
+            redisTemplate.opsForValue().set(username + libraryCode + "logintime", String.valueOf(System.currentTimeMillis() / 1000));
 
-            String mainRole = roles.stream().map(r -> r.replace("ROLE_", "").toLowerCase()).filter(r -> List.of("admin", "librarian", "reader").contains(r)).min(Comparator.comparingInt(r -> List.of("admin", "librarian", "reader").indexOf(r))).orElse("reader");
+            String mainRole = roles.stream().map(r -> r.replace("ROLE_", "").toLowerCase())
+                    .filter(r -> List.of("admin", "librarian", "reader").contains(r))
+                    .min(Comparator.comparingInt(r -> List.of("admin", "librarian", "reader").indexOf(r)))
+                    .orElse("reader");
+
+            // ✅ 审计日志：登录成功
+            userAuditLogService.log(user.getUid(), username, libraryCode, ip, userAgent, AuditActionType.LOGIN_SUCCESS, "登录成功");
 
             return ResponseEntity.ok(ApiResponse.success(new LoginResponse(jwt, "Bearer", roles, mainRole)));
 
@@ -101,9 +120,51 @@ public class UserController {
             } else {
                 redisTemplate.expire(failedKey, LOCK_TIME_SECONDS, TimeUnit.SECONDS);
             }
+
+            // ✅ 审计日志：登录失败
+            userAuditLogService.log(null, username, libraryCode, ip, userAgent, AuditActionType.LOGIN_FAIL, "登录失败：" + e.getMessage());
+
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("登录失败：" + e.getMessage()));
         }
     }
+
+
+    @Operation(summary = "修改当前用户密码")
+    @PutMapping("/me/password")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
+    public ResponseEntity<ApiResponse<String>> changePassword(
+            @RequestBody ChangePasswordRequest req,
+            Authentication authentication,
+            HttpServletRequest request) {
+
+        String libraryCode = jwtUtil.getCurrentLibraryCode();
+        if (libraryCode == null) {
+            return ResponseEntity.badRequest().body(ApiResponse.failure("无法识别libraryCode"));
+        }
+
+        String username = authentication.getName();
+        User user = userRepository.findByEmailAndLibraryCode(username, libraryCode)
+                .orElseThrow(() -> new ApiException(404, "User not found"));
+
+        if (!passwordEncoder.matches(req.getOldPassword(), user.getPassword())) {
+            return ResponseEntity.badRequest().body(ApiResponse.failure("旧密码不正确"));
+        }
+        if (!PasswordUtil.isStrongPassword(req.getNewPassword())) {
+            return ResponseEntity.badRequest().body(ApiResponse.failure("新密码不符合复杂度要求"));
+        }
+
+        user.setPassword(passwordEncoder.encode(req.getNewPassword()));
+        user.setNeedPasswordChange(false);
+        userRepository.save(user);
+
+        // ✅ 审计日志：密码修改
+        String ip = RequestUtils.getClientIp(request);
+        String userAgent = RequestUtils.getUserAgent(request);
+        userAuditLogService.log(user.getUid(), username, libraryCode, ip, userAgent, AuditActionType.PASSWORD_CHANGE, "用户修改密码");
+
+        return ResponseEntity.ok(ApiResponse.success("密码修改成功"));
+    }
+
 
     @Operation(summary = "注册馆员")
     @PostMapping("/register")
@@ -283,13 +344,6 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("Role " + role + " assigned to user successfully."));
     }
 
-
-    @Operation(summary = "管理员权限测试接口", description = "仅管理员权限")
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/test/ping")
-    public ResponseEntity<ApiResponse<String>> adminPing() {
-        return ResponseEntity.ok(ApiResponse.success("✅ ADMIN 权限验证成功！"));
-    }
 
     @Operation(summary = "查询所有分享访问日志", description = "仅管理员可查看")
     @PreAuthorize("hasRole('ADMIN')")
