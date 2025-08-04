@@ -1,10 +1,12 @@
 package com.github.sdms.config;
 
 import com.koalii.svs.client.Svs2ClientHelper;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
+@ConditionalOnProperty(prefix = "svs.service", name = "enabled", havingValue = "true", matchIfMissing = false)
 public class Svs2ClientHelperFactory {
 
     @Bean

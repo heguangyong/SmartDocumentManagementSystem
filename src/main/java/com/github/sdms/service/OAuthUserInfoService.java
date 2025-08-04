@@ -41,6 +41,10 @@ public class OAuthUserInfoService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
+    public OAuthUserInfoService(){
+
+    }
+
     public OAuthUserInfoService(String clientId, String clientSecret, String apiUrl) {
         this.clientId = clientId;
         this.clientSecret = clientSecret;

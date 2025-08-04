@@ -15,13 +15,14 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Date;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class ShareAccessLogServiceImpl implements ShareAccessLogService {
 
     private final ShareAccessLogRepository repository;
-    private final Svs2ClientHelper helper;
+    private final Optional<Svs2ClientHelper> helperOpt;
 
     @Value("${svs.service.enabled:true}")
     private boolean signatureEnabled;
@@ -30,7 +31,8 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
     @Transactional
     public void recordAccess(ShareAccessLog log) {
         try {
-            if (signatureEnabled) {
+            if (signatureEnabled && helperOpt.isPresent()) {
+                Svs2ClientHelper helper = helperOpt.get();
                 String data = buildSignatureData(log);
                 String b64Data = Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8));
 
@@ -60,10 +62,11 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
     }
 
     public boolean verifyAccessLogSignature(ShareAccessLog log) {
-        if (!signatureEnabled) {
+        if (!signatureEnabled || helperOpt.isEmpty()) {
             return true; // 跳过验签
         }
         try {
+            Svs2ClientHelper helper = helperOpt.get();
             String data = buildSignatureData(log);
             String b64Data = Base64.getEncoder().encodeToString(data.getBytes(StandardCharsets.UTF_8));
 
