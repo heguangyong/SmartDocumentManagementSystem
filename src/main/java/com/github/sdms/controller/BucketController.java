@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Objects;
+import java.util.Optional;
 
 @RestController
 @RequestMapping("/api/bucket")
@@ -44,36 +44,38 @@ public class BucketController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    @Operation(summary = "查询指定桶的用户权限列表")
-    @GetMapping("/admin/{bucketId}/permissions")
+    @Operation(summary = "列出某个桶的用户权限绑定列表")
+    @GetMapping("/admin/{bucketId}/users")
     public ApiResponse<List<BucketUserPermissionDTO>> listBucketUserPermissions(@PathVariable Long bucketId) {
-        // 查找桶是否存在
+
+        // 1. 查桶是否存在
         Bucket bucket = bucketRepository.findById(bucketId)
                 .orElseThrow(() -> new ApiException(404, "桶不存在"));
 
-        // 查找该桶所有权限配置记录
-        List<BucketPermission> permissionList = bucketPermissionRepository.findAllByBucketId(bucketId);
+        // 2. 获取权限绑定记录
+        List<BucketPermission> permissions = bucketPermissionRepository.findByBucketId(bucketId);
 
-        List<BucketUserPermissionDTO> result = permissionList.stream().map(permission -> {
-            // 根据 uid 查用户（REQUIRED: uid → user）
-            User user = userRepository.findById(permission.getUserId())
-                    .orElse(null); // 如果找不到用户也不会终止
+        // 3. 构建返回列表
+        List<BucketUserPermissionDTO> result = permissions.stream().map(bp -> {
+            User user = userRepository.findById(bp.getUserId())
+                    .orElse(null); // 用户可能已被删除
+
+            BucketUserPermissionDTO dto = new BucketUserPermissionDTO();
+            dto.setUserId(bp.getUserId());
+            dto.setPermission(bp.getPermission());
+            dto.setUpdatedAt(bp.getUpdatedAt());
 
             if (user != null) {
-                return BucketUserPermissionDTO.builder()
-                        .userId(user.getId())
-                        .username(user.getUsername())
-                        .roleType(user.getRoleType().name())
-                        .permission(permission.getPermission())
-                        .build();
-            } else {
-                // 如果 user 查询不到，说明是系统异常数据
-                return null;
+                dto.setUsername(user.getUsername());
+                dto.setRoleType(user.getRoleType());
             }
-        }).filter(Objects::nonNull).toList();
+
+            return dto;
+        }).toList();
 
         return ApiResponse.success(result);
     }
+
 
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "为桶分配用户权限（使用 userId）")
@@ -135,39 +137,99 @@ public class BucketController {
         return ApiResponse.success();
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "移除用户对桶的访问权限（使用 userId）")
+    @PostMapping("/admin/remove-permission")
+    public ApiResponse<Void> removeBucketPermissionByUserId(@RequestBody RemoveBucketPermissionRequest request) {
 
-    @Operation(summary = "创建存储桶", description = "管理员创建新的存储桶")
+        // 1. 查找用户
+        User user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new ApiException(404, "用户不存在"));
+
+        // 2. 查找桶
+        Bucket bucket = bucketRepository.findById(request.getBucketId())
+                .orElseThrow(() -> new ApiException(404, "桶不存在"));
+
+        // 3. 删除 BucketPermission（桶 + 用户ID）
+        BucketPermission permission = bucketPermissionRepository.findByUserIdAndBucketId(user.getId(), bucket.getId());
+        if (permission != null) {
+            bucketPermissionRepository.delete(permission);
+        }
+
+        // 4. 删除 RolePermission（如果存在）
+        PermissionResource resource = permissionResourceRepository.findByResourceKey(bucket.getId().toString())
+                .orElse(null);
+
+        if (resource != null) {
+            Optional<RolePermission> rolePermission = rolePermissionRepository.findByRoleTypeAndResource(user.getRoleType(), resource);
+            if (rolePermission.isPresent()) {
+                rolePermissionRepository.delete(rolePermission);
+            }
+        }
+
+        return ApiResponse.success();
+    }
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "更新桶容量配置")
+    @PutMapping("/admin/{bucketId}/capacity")
+    public ApiResponse<Void> updateBucketCapacity(
+            @PathVariable Long bucketId,
+            @RequestBody UpdateBucketCapacityRequest request) {
+
+        Bucket bucket = bucketRepository.findById(bucketId)
+                .orElseThrow(() -> new ApiException(404, "桶不存在"));
+
+        bucket.setMaxCapacity(request.getMaxCapacity());
+        bucket.setUpdatedAt(new Date());
+
+        bucketRepository.save(bucket);
+
+        return ApiResponse.success();
+    }
+
+
+    @Operation(summary = "管理员创建新的存储桶")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/create")
-    public ResponseEntity<Bucket> createBucket(@RequestBody Bucket bucket) {
-        if (bucket.getOwnerId() == null) {
+    public ApiResponse<Bucket> createBucket(@RequestBody CreateBucketRequest request) {
+
+        if (request.getOwnerId() == null) {
             throw new ApiException("必须指定 ownerId");
         }
 
-        if (bucket.getLibraryCode() == null || bucket.getLibraryCode().isEmpty()) {
-            // 从用户表查找该 ownerId 对应的用户，补充其 libraryCode
-            User user = userRepository.findById(bucket.getOwnerId())
-                    .orElseThrow(() -> new ApiException(404, "ownerId 无效，未找到对应用户"));
-            bucket.setLibraryCode(user.getLibraryCode());
-        }
+        User user = userRepository.findById(request.getOwnerId())
+                .orElseThrow(() -> new ApiException(404, "ownerId 无效，未找到对应用户"));
 
-        // 根据统一规则构造桶名
-        String bucketName = BucketUtil.getBucketName(bucket.getOwnerId(), bucket.getLibraryCode());
-        bucket.setName(bucketName);
+        String libraryCode = user.getLibraryCode();
 
-        // 创建存储桶
+        // 构造桶名
+        String bucketName = BucketUtil.getBucketName(request.getOwnerId(), libraryCode);
+
+        Bucket bucket = Bucket.builder()
+                .name(bucketName)
+                .ownerId(user.getId())   // 为读者桶设置 UID
+                .ownerId(user.getId())     // 支持馆员创建自定义桶
+                .libraryCode(libraryCode)
+                .description(request.getDescription())
+                .maxCapacity(request.getMaxCapacity())
+                .createdAt(new Date())
+                .updatedAt(new Date())
+                .build();
+
         Bucket createdBucket = bucketService.createBucket(bucket);
 
-        // 创建对应的权限资源记录
+        // 创建权限资源
         PermissionResource permissionResource = PermissionResource.builder()
-                .name(bucket.getName()) // 例如，存储桶的名称
-                .resourceKey(createdBucket.getId().toString()) // 存储桶的 ID 作为资源标识
-                .resourceType("BUCKET") // 资源类型是 BUCKET
+                .name(createdBucket.getName())
+                .resourceKey(createdBucket.getId().toString())
+                .resourceType("BUCKET")
                 .build();
-        permissionResourceRepository.save(permissionResource); // 插入权限资源记录
+        permissionResourceRepository.save(permissionResource);
 
-        return ResponseEntity.ok(createdBucket);
+        return ApiResponse.success(createdBucket);
     }
+
 
 
     @Operation(summary = "为用户分配存储桶权限", description = "管理员为用户分配存储桶权限")
