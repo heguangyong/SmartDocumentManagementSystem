@@ -75,6 +75,66 @@ public class BucketController {
         return ApiResponse.success(result);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "为桶分配用户权限（使用 userId）")
+    @PostMapping("/admin/assign-permission")
+    public ApiResponse<Void> assignBucketPermissionByUserId(@RequestBody AssignBucketPermissionRequest request) {
+
+        // 1. 查找用户
+        User user = userRepository.findById(request.getUserId())
+                .orElseThrow(() -> new ApiException(404, "用户不存在"));
+
+        // 2. 查找桶
+        Bucket bucket = bucketRepository.findById(request.getBucketId())
+                .orElseThrow(() -> new ApiException(404, "桶不存在"));
+
+        // 3. 查找并处理 BucketPermission（bucketId + uid）
+        Long userId = user.getId(); // 若该用户无 uid（本地账户），该字段可为空
+        if (userId == null) {
+            throw new ApiException("该用户不支持分配桶权限（无 UID）");
+        }
+
+        BucketPermission existing = bucketPermissionRepository.findByUserIdAndBucketId(userId, request.getBucketId());
+
+        if (existing != null) {
+            // 更新已有权限
+            existing.setPermission(request.getPermission());
+            existing.setUpdatedAt(new Date());
+            bucketPermissionRepository.save(existing);
+        } else {
+            // 新建权限记录
+            BucketPermission newPermission = BucketPermission.builder()
+                    .userId(userId)
+                    .bucketId(request.getBucketId())
+                    .permission(request.getPermission())
+                    .build();
+            bucketPermissionRepository.save(newPermission);
+        }
+
+        // 4. 同步权限资源 → RolePermission（可选处理）
+        PermissionResource permissionResource = permissionResourceRepository
+                .findByResourceKey(bucket.getId().toString())
+                .orElseThrow(() -> new ApiException(404, "桶权限资源未注册"));
+
+        RolePermission rolePermission = rolePermissionRepository
+                .findByRoleTypeAndResource(user.getRoleType(), permissionResource)
+                .orElse(null);
+
+        if (rolePermission != null) {
+            rolePermission.setPermission(PermissionType.fromString(request.getPermission()));
+            rolePermissionRepository.save(rolePermission);
+        } else {
+            RolePermission newRolePermission = RolePermission.builder()
+                    .roleType(user.getRoleType())
+                    .resource(permissionResource)
+                    .permission(PermissionType.fromString(request.getPermission()))
+                    .build();
+            rolePermissionRepository.save(newRolePermission);
+        }
+
+        return ApiResponse.success();
+    }
+
 
     @Operation(summary = "创建存储桶", description = "管理员创建新的存储桶")
     @PreAuthorize("hasRole('ADMIN')")
