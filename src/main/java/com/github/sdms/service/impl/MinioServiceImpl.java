@@ -119,7 +119,7 @@ public class MinioServiceImpl implements MinioService {
     }
 
     @Override
-    public String uploadFile(String bucketName, String uid, MultipartFile file) {
+    public String uploadFile(Long userId,String bucketName,  MultipartFile file) {
         try {
             // 检查桶是否存在
             boolean found = minioClient.bucketExists(
@@ -142,7 +142,7 @@ public class MinioServiceImpl implements MinioService {
                                 .contentType(file.getContentType())
                                 .build()
                 );
-                log.info("User {} uploaded file to bucket {}: {}", uid, bucketName, objectName);
+                log.info("User {} uploaded file to bucket {}: {}", userId, bucketName, objectName);
                 return objectName;
             }
         } catch (Exception e) {
@@ -153,10 +153,10 @@ public class MinioServiceImpl implements MinioService {
 
 
     @Override
-    public String uploadFile(String uid, MultipartFile file, String libraryCode) {
-        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
+    public String uploadFile(Long userId, MultipartFile file, String libraryCode) {
+        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
 
-        if (!permissionValidator.canWriteBucket(uid, bucketName)) {
+        if (!permissionValidator.canWriteBucket(userId, bucketName)) {
             throw new ApiException("无权限上传至桶：" + bucketName);
         }
 
@@ -181,7 +181,7 @@ public class MinioServiceImpl implements MinioService {
                                 .contentType(file.getContentType())
                                 .build()
                 );
-                log.info("User {} uploaded file to bucket {}: {}", uid, bucketName, objectName);
+                log.info("User {} uploaded file to bucket {}: {}", userId, bucketName, objectName);
                 return objectName;
             }
         } catch (Exception e) {
@@ -191,10 +191,10 @@ public class MinioServiceImpl implements MinioService {
     }
 
     @Override
-    public String generatePresignedDownloadUrl(String uid, String libraryCode, String objectName) {
-        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
+    public String generatePresignedDownloadUrl(Long userId, String libraryCode, String objectName) {
+        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
 
-        if (!permissionValidator.canReadBucket(uid, bucketName)) {
+        if (!permissionValidator.canReadBucket(userId, bucketName)) {
             throw new ApiException("无权限访问桶：" + bucketName);
         }
 
@@ -233,7 +233,7 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public InputStream getObject(String bucket, String objectName) {
-        if (!permissionValidator.canReadBucket(AuthUtils.getUid(), bucket)) {
+        if (!permissionValidator.canReadBucket(AuthUtils.getCurrentUserId(), bucket)) {
             throw new ApiException("无权限访问桶：" + bucket);
         }
 
@@ -253,7 +253,7 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public void deleteObject(String bucketName, String objectName) {
-        if (!permissionValidator.canWriteBucket(AuthUtils.getUid(), bucketName)) {
+        if (!permissionValidator.canWriteBucket(AuthUtils.getCurrentUserId(), bucketName)) {
             throw new ApiException("无权限删除桶中的文件：" + bucketName);
         }
 
@@ -289,10 +289,10 @@ public class MinioServiceImpl implements MinioService {
     }
 
     @Override
-    public String uploadFileFromUrl(String uid, String libraryCode, Long docId, String fileUrl) {
-        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
+    public String uploadFileFromUrl(Long userId, String libraryCode, Long docId, String fileUrl) {
+        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
 
-        if (!permissionValidator.canWriteBucket(uid, bucketName)) {
+        if (!permissionValidator.canWriteBucket(userId, bucketName)) {
             throw new ApiException("无权限上传至桶：" + bucketName);
         }
 
@@ -315,10 +315,10 @@ public class MinioServiceImpl implements MinioService {
     }
 
     @Override
-    public Long getBucketIdForUpload(String uid, String libraryCode) {
+    public Long getBucketIdForUpload(Long userId, String libraryCode) {
         // 只处理桶归属，不处理权限
         return bucketRepository
-                .findFirstByOwnerUidAndLibraryCode(uid, libraryCode)
+                .findFirstByOwnerIdAndLibraryCode(userId, libraryCode)
                 .map(Bucket::getId)
                 .orElseThrow(() -> new ApiException("用户无桶可上传，未找到归属桶"));
     }

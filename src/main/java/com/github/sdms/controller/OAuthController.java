@@ -131,8 +131,8 @@ public class OAuthController {
         }
 
         String username = authentication.getName();
-        // 使用 libraryCode 查询邮箱和 UID 进行匹配
-        User user = userRepository.findByEmailAndLibraryCode(username, libraryCode)
+        // 使用 libraryCode 查询username和 UID 进行匹配
+        User user = userRepository.findByUsernameAndLibraryCode(username, libraryCode)
                 .orElseGet(() -> userRepository.findByUidAndLibraryCode(username, libraryCode).orElse(null));
 
         if (user == null) {

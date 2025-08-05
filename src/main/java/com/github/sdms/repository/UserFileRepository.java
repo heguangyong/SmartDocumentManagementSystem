@@ -17,22 +17,23 @@ import java.util.Set;
 public interface UserFileRepository extends JpaRepository<UserFile, Long> {
 
     // 根据用户ID和deleteFlag查询文件列表
-    List<UserFile> findByUidAndDeleteFlagFalseAndLibraryCode(String uid, String libraryCode);
+    List<UserFile> findByUserIdAndDeleteFlagFalseAndLibraryCode(Long userId, String libraryCode);
 
     // 批量删除文件
-    void deleteByUidAndNameInAndLibraryCode(String uid, List<String> names, String libraryCode);
+    void deleteByUserIdAndNameInAndLibraryCode(Long userId, List<String> names, String libraryCode);
 
     // 查询被标记为删除的文件
-    List<UserFile> findByUidAndDeleteFlagTrueAndCreatedDateAfterAndLibraryCode(String uid, Date after, String libraryCode);
+    List<UserFile> findByUserIdAndDeleteFlagTrueAndCreatedDateAfterAndLibraryCode(Long userId, Date after, String libraryCode);
 
-    // 根据UID和文件名查询文件
-    UserFile findByUidAndNameAndLibraryCode(String uid, String name, String libraryCode);
+    // 根据UserId和文件名查询文件
+    UserFile findByUserIdAndNameAndLibraryCode(Long userId, String name, String libraryCode);
+
 
     // 查询被删除且创建时间在指定日期之前的文件
     List<UserFile> findByDeleteFlagTrueAndCreatedDateBeforeAndLibraryCode(Date before, String libraryCode);
 
-    // 根据UID和文件夹ID查询文件列表
-    List<UserFile> findByUidAndFolderIdAndDeleteFlagFalseAndLibraryCode(String uid, Long folderId, String libraryCode);
+    // 根据UserId和文件夹ID查询文件列表
+    List<UserFile> findByUserIdAndFolderIdAndDeleteFlagFalseAndLibraryCode(Long userId, Long folderId, String libraryCode);
 
     // 根据文件ID查询文件
     Optional<UserFile> findByIdAndDeleteFlagFalseAndLibraryCode(Long fileId, String libraryCode);
@@ -42,11 +43,11 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
 
     Optional<UserFile> findByNameAndLibraryCode(String name, String libraryCode);
 
-    Optional<UserFile> findFirstByDocIdAndUidAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(Long docId, String uid, String libraryCode);
+    Optional<UserFile> findFirstByDocIdAndUserIdAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(Long docId, Long userId, String libraryCode);
 
-    Optional<UserFile> findFirstByDocIdAndUidAndIsLatestTrue(Long docId, String uid);
+    Optional<UserFile> findFirstByDocIdAndUserIdAndIsLatestTrue(Long docId, Long userId);
 
-    Optional<UserFile> findByUidAndOriginFilenameAndDeleteFlagFalse(String uid, String originFilename);
+    Optional<UserFile> findByUserIdAndOriginFilenameAndDeleteFlagFalse(Long userId, String originFilename);
 
 
     @Modifying
@@ -54,7 +55,7 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
     @Query("UPDATE UserFile uf SET uf.isLatest = false WHERE uf.docId = :docId AND uf.isLatest = true AND uf.libraryCode = :libraryCode")
     int markAllOldVersionsNotLatest(@Param("docId") Long docId, @Param("libraryCode") String libraryCode);
 
-    List<UserFile> findByFolderIdAndUidAndLibraryCode(Long id, String ownerId, String libraryCode);
+    List<UserFile> findByFolderIdAndUserIdAndLibraryCode(Long id, Long ownerId, String libraryCode);
 
     List<UserFile> findByBucketInAndDeleteFlagFalse(Set<String> bucketNames);
 
@@ -62,6 +63,6 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
 
     List<UserFile> findByLibraryCodeAndDeleteFlagFalse(String libraryCode);
 
-    List<UserFile> findByUidAndLibraryCodeAndDeleteFlagFalse(String uid, String libraryCode);
+    List<UserFile> findByUserIdAndLibraryCodeAndDeleteFlagFalse(Long userId, String libraryCode);
 
 }

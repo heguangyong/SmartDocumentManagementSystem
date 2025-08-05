@@ -3,10 +3,9 @@ package com.github.sdms.model;
 import jakarta.persistence.*;
 import lombok.*;
 import java.util.Date;
-
 @Entity
 @Table(name = "bucket_permission", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"uid", "bucket_id"})
+        @UniqueConstraint(columnNames = {"user_id", "bucket_id"})
 })
 @Getter
 @Setter
@@ -19,8 +18,9 @@ public class BucketPermission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String uid;
+    // 将 uid 改为 userId，存储用户表主键ID
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     @Column(name = "bucket_id", nullable = false)
     private Long bucketId;

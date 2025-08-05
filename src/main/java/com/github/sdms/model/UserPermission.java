@@ -5,7 +5,7 @@ import lombok.*;
 
 @Entity
 @Table(name = "user_permission", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"uid", "permission_type", "resource_id"})
+        @UniqueConstraint(columnNames = {"user_id", "permission_type", "resource_id"})
 })
 @Getter
 @Setter
@@ -18,11 +18,11 @@ public class UserPermission {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false)
-    private String uid;
+    @Column(name = "user_id", nullable = false)
+    private Long userId; // 用户表主键 ID
 
     @Column(name = "permission_type", nullable = false)
-    private String permissionType; // READ / WRITE / DELETE 等
+    private String permissionType; // READ / WRITE / DELETE 等权限类型
 
     @Column(name = "resource_id", nullable = false)
     private Long resourceId; // 对应 permission_resource.id

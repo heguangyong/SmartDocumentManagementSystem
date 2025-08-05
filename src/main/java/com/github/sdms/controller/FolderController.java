@@ -28,13 +28,13 @@ public class FolderController {
     @Operation(summary = "创建文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ApiResponse<Folder> createFolder(
-            @RequestParam String uid,
+            @RequestParam Long userId,
             @RequestParam @NotBlank String name,
             @RequestParam(required = false) Long parentId,
             @RequestParam String libraryCode
     ) {
-        permissionChecker.checkAccess(uid, libraryCode);
-        Folder folder = folderService.createFolder(uid, name, parentId, libraryCode);
+        permissionChecker.checkAccess(userId, libraryCode);
+        Folder folder = folderService.createFolder(userId, name, parentId, libraryCode);
         return ApiResponse.success("创建成功", folder);
     }
 
@@ -42,13 +42,13 @@ public class FolderController {
     @Operation(summary = "重命名文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ApiResponse<Folder> renameFolder(
-            @RequestParam String uid,
+            @RequestParam Long userId,
             @RequestParam Long folderId,
             @RequestParam @NotBlank String newName,
             @RequestParam String libraryCode
     ) {
-        permissionChecker.checkAccess(uid, libraryCode);
-        Folder folder = folderService.renameFolder(uid, folderId, newName, libraryCode);
+        permissionChecker.checkAccess(userId, libraryCode);
+        Folder folder = folderService.renameFolder(userId, folderId, newName, libraryCode);
         return ApiResponse.success("重命名成功", folder);
     }
 
@@ -56,35 +56,35 @@ public class FolderController {
     @Operation(summary = "删除文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ApiResponse<Void> deleteFolder(
-            @RequestParam String uid,
+            @RequestParam Long userId,
             @RequestParam Long folderId,
             @RequestParam String libraryCode
     ) {
-        permissionChecker.checkAccess(uid, libraryCode);
-        folderService.deleteFolder(uid, folderId, libraryCode);
+        permissionChecker.checkAccess(userId, libraryCode);
+        folderService.deleteFolder(userId, folderId, libraryCode);
         return ApiResponse.success("删除成功", null);
     }
 
     @GetMapping("/list")
     @Operation(summary = "列出指定目录下子文件夹")
     public ApiResponse<List<Folder>> listFolders(
-            @RequestParam String uid,
+            @RequestParam Long userId,
             @RequestParam(required = false) Long parentId,
             @RequestParam String libraryCode
     ) {
-        permissionChecker.checkAccess(uid, libraryCode);
-        List<Folder> list = folderService.listFolders(uid, parentId, libraryCode);
+        permissionChecker.checkAccess(userId, libraryCode);
+        List<Folder> list = folderService.listFolders(userId, parentId, libraryCode);
         return ApiResponse.success("查询成功", list);
     }
 
     @GetMapping("/tree")
     @Operation(summary = "获取完整目录树")
     public ApiResponse<List<FolderNode>> folderTree(
-            @RequestParam String uid,
+            @RequestParam Long userId,
             @RequestParam String libraryCode
     ) {
-        permissionChecker.checkAccess(uid, libraryCode);
-        List<Folder> all = folderService.listAllFolders(uid, libraryCode);
+        permissionChecker.checkAccess(userId, libraryCode);
+        List<Folder> all = folderService.listAllFolders(userId, libraryCode);
         List<FolderNode> tree = buildTree(all);
         return ApiResponse.success("查询成功", tree);
     }
@@ -93,13 +93,13 @@ public class FolderController {
     @Operation(summary = "移动文件夹到新的父目录")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ApiResponse<Void> moveFolder(
-            @RequestParam String uid,
+            @RequestParam Long userId,
             @RequestParam Long folderId,
             @RequestParam Long newParentId,
             @RequestParam String libraryCode
     ) {
-        permissionChecker.checkAccess(uid, libraryCode);
-        folderService.moveFolder(uid, folderId, newParentId, libraryCode);
+        permissionChecker.checkAccess(userId, libraryCode);
+        folderService.moveFolder(userId, folderId, newParentId, libraryCode);
         return ApiResponse.success("移动成功", null);
     }
 

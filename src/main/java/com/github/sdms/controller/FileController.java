@@ -52,7 +52,8 @@ public class FileController {
             @RequestParam(required = false) Long folderId,
             @RequestParam(required = false) Long bucketId
     ) {
-        String uid = userDetails.getUid();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
         Bucket targetBucket;
 
         if (bucketId != null) {
@@ -62,30 +63,26 @@ public class FileController {
             }
 
             String bucketName = targetBucket.getName();
-            if (!permissionValidator.canWriteBucket(uid, bucketName)) {
+            if (!permissionValidator.canWriteBucket(userId, bucketName)) {
                 throw new ApiException(403, "您无权限上传至该桶：" + bucketName);
             }
         } else {
-            // 获取默认桶名
-            String bucketName = BucketUtil.getBucketName(uid, userDetails.getLibraryCode());
+            String bucketName = BucketUtil.getBucketName(userId, libraryCode);
 
-            // 如果默认桶不存在，则自动创建并授权
             Optional<Bucket> optionalBucket = bucketService.getOptionalBucketByName(bucketName);
             if (optionalBucket.isEmpty()) {
-                // 创建桶
                 Bucket newBucket = Bucket.builder()
                         .name(bucketName)
-                        .libraryCode(userDetails.getLibraryCode())
-                        .ownerUid(uid)
+                        .libraryCode(libraryCode)
+                        .ownerId(userId)
                         .description("用户默认桶")
                         .build();
                 targetBucket = bucketService.createBucket(newBucket);
 
-                // 写入默认权限
                 BucketPermission permission = BucketPermission.builder()
-                        .uid(uid)
+                        .userId(userId)
                         .bucketId(targetBucket.getId())
-                        .permission("write") // 可根据需求调整为 "read,write" 等
+                        .permission("write")
                         .createdAt(new Date())
                         .build();
                 bucketPermissionRepository.save(permission);
@@ -93,14 +90,14 @@ public class FileController {
             } else {
                 targetBucket = optionalBucket.get();
 
-                if (!permissionValidator.canWriteBucket(uid, bucketName)) {
+                if (!permissionValidator.canWriteBucket(userId, bucketName)) {
                     throw new ApiException(403, "您没有该桶的写权限：" + bucketName);
                 }
             }
         }
 
         try {
-            UserFile savedFile = userFileService.uploadNewDocument(file, uid, targetBucket, notes, folderId);
+            UserFile savedFile = userFileService.uploadNewDocument(file, userId, targetBucket, notes, folderId);
             return ApiResponse.success(savedFile);
         } catch (Exception e) {
             throw new ApiException(500, "文件上传失败：" + e.getMessage());
@@ -117,7 +114,8 @@ public class FileController {
             @RequestParam(required = false) Long folderId,
             @RequestParam(required = false) Long bucketId
     ) {
-        String uid = userDetails.getUid();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
         Bucket targetBucket;
 
         if (bucketId != null) {
@@ -126,26 +124,25 @@ public class FileController {
                 throw new ApiException(404, "目标桶不存在");
             }
 
-            if (!permissionValidator.canWriteBucket(uid, targetBucket.getName())) {
+            if (!permissionValidator.canWriteBucket(userId, targetBucket.getName())) {
                 throw new ApiException(403, "您无权限上传至该桶：" + targetBucket.getName());
             }
 
         } else {
-            String bucketName = BucketUtil.getBucketName(uid, userDetails.getLibraryCode());
+            String bucketName = BucketUtil.getBucketName(userId, libraryCode);
 
             Optional<Bucket> optionalBucket = bucketService.getOptionalBucketByName(bucketName);
             if (optionalBucket.isEmpty()) {
                 Bucket newBucket = Bucket.builder()
                         .name(bucketName)
-                        .libraryCode(userDetails.getLibraryCode())
-                        .ownerUid(uid)
+                        .libraryCode(libraryCode)
+                        .ownerId(userId)
                         .description("用户默认桶")
                         .build();
                 targetBucket = bucketService.createBucket(newBucket);
 
-                // 初始化写权限
                 BucketPermission permission = BucketPermission.builder()
-                        .uid(uid)
+                        .userId(userId)
                         .bucketId(targetBucket.getId())
                         .permission("write")
                         .createdAt(new Date())
@@ -154,19 +151,20 @@ public class FileController {
             } else {
                 targetBucket = optionalBucket.get();
 
-                if (!permissionValidator.canWriteBucket(uid, targetBucket.getName())) {
+                if (!permissionValidator.canWriteBucket(userId, targetBucket.getName())) {
                     throw new ApiException(403, "您没有该桶的写权限：" + targetBucket.getName());
                 }
             }
         }
 
         try {
-            List<UserFile> uploadedList = userFileService.uploadMultipleNewDocuments(files, uid, targetBucket, notes, folderId);
+            List<UserFile> uploadedList = userFileService.uploadMultipleNewDocuments(files, userId, targetBucket, notes, folderId);
             return ApiResponse.success(uploadedList);
         } catch (Exception e) {
             throw new ApiException(500, "批量文件上传失败：" + e.getMessage());
         }
     }
+
 
 
 
@@ -181,7 +179,7 @@ public class FileController {
             @RequestParam(required = false) Long folderId // 👈 新增目录ID参数
     ) {
         try {
-            UserFile newVersion = userFileService.uploadNewVersion(file, userDetails.getUid(), userDetails.getLibraryCode(), docId, notes,folderId);
+            UserFile newVersion = userFileService.uploadNewVersion(file, userDetails.getUserId(), userDetails.getLibraryCode(), docId, notes,folderId);
             return ApiResponse.success(newVersion);
         } catch (Exception e) {
             log.error("上传文档新版本失败", e);
@@ -196,7 +194,7 @@ public class FileController {
             @AuthenticationPrincipal CustomerUserDetails userDetails,
             @PathVariable Long docId
     ) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
         List<UserFile> versions = userFileService.getVersionsByDocId(docId, userDetails.getLibraryCode());
         return ApiResponse.success(versions);
     }
@@ -204,7 +202,7 @@ public class FileController {
     @GetMapping("/list")
     @Operation(summary = "获取当前用户文件列表")
     public ApiResponse<List<UserFile>> list(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
         List<UserFile> files = userFileService.listFilesByRole(userDetails);
         return ApiResponse.success(files);
     }
@@ -217,10 +215,10 @@ public class FileController {
         try {
             for (String filename : filenames) {
                 // 查找文件
-                UserFile file = userFileService.getFileByName(filename, userDetails.getUid(), userDetails.getLibraryCode());
+                UserFile file = userFileService.getFileByName(filename, userDetails.getUserId(), userDetails.getLibraryCode());
 
                 // 校验文件权限：确保用户有删除权限
-                permissionChecker.checkFileAccess(userDetails.getUid(), file.getId(), "DELETE");
+                permissionChecker.checkFileAccess(userDetails.getUserId(), file.getId(), "DELETE");
 
                 // 删除文件逻辑
                 userFileService.softDeleteFile(file);
@@ -238,8 +236,8 @@ public class FileController {
     @Operation(summary = "恢复最近删除的文件")
     public ApiResponse<Void> restoreFiles(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                           @RequestBody List<String> filenames) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
-        userFileService.restoreFiles(userDetails.getUid(), filenames, userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
+        userFileService.restoreFiles(userDetails.getUserId(), filenames, userDetails.getLibraryCode());
         return ApiResponse.success("文件已恢复", null);
     }
 
@@ -251,10 +249,10 @@ public class FileController {
                          HttpServletResponse response) {
         try {
             // 查找文件
-            UserFile file = userFileService.getFileByName(filename, userDetails.getUid(), userDetails.getLibraryCode());
+            UserFile file = userFileService.getFileByName(filename, userDetails.getUserId(), userDetails.getLibraryCode());
 
             // 校验文件权限：确保用户有下载权限
-            permissionChecker.checkFileAccess(userDetails.getUid(), file.getId(), "READ");
+            permissionChecker.checkFileAccess(userDetails.getUserId(), file.getId(), "READ");
 
             // 文件下载逻辑
             response.setContentType(file.getType());
@@ -274,7 +272,7 @@ public class FileController {
     @GetMapping("/usage")
     @Operation(summary = "获取当前用户已使用空间（单位：字节）")
     public ApiResponse<Long> getUserStorageUsage(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
         long usage = userFileService.listFilesByRole(userDetails).stream()
                 .mapToLong(UserFile::getSize)
                 .sum();
@@ -285,8 +283,8 @@ public class FileController {
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN', 'ADMIN')")
     @Operation(summary = "获取当前用户最近删除的文件（7天内）")
     public ApiResponse<List<UserFile>> getDeletedFiles(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
-        List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
+        List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(userDetails.getUserId(), userDetails.getLibraryCode());
         return ApiResponse.success(deletedFiles);
     }
 
@@ -295,7 +293,7 @@ public class FileController {
     @Operation(summary = "获取指定文件的临时下载链接")
     public ApiResponse<String> getPresignedUrl(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                                @PathVariable String filename) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
 
         UserFile file = userFileService.listFilesByRole(userDetails).stream()
                 .filter(f -> f.getName().equals(filename))
@@ -310,7 +308,7 @@ public class FileController {
     @Operation(summary = "获取指定文件详情")
     public ApiResponse<UserFile> getFileInfo(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                              @PathVariable String filename) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
 
         UserFile file = userFileService.listFilesByRole(userDetails).stream()
                 .filter(f -> f.getName().equals(filename))
@@ -323,7 +321,7 @@ public class FileController {
     @Operation(summary = "批量获取文件详情")
     public ApiResponse<List<UserFile>> getBatchFileInfo(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                                         @RequestBody List<String> filenames) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
 
         List<UserFile> files = userFileService.listFilesByRole(userDetails).stream()
                 .filter(f -> filenames.contains(f.getName()))
@@ -337,7 +335,7 @@ public class FileController {
     public ApiResponse<Void> renameFile(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                         @RequestParam String oldName,
                                         @RequestParam String newName) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
 
         List<UserFile> files = userFileService.listFilesByRole(userDetails);
         UserFile file = files.stream()
@@ -359,7 +357,7 @@ public class FileController {
     @Operation(summary = "彻底删除指定文件")
     public ApiResponse<Void> purgeFile(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                        @RequestParam String filename) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
 
         UserFile file = userFileService.listFilesByRole(userDetails).stream()
                 .filter(f -> f.getName().equals(filename))
@@ -377,7 +375,7 @@ public class FileController {
     @Operation(summary = "批量物理删除用户文件")
     public ApiResponse<Void> purgeFiles(@AuthenticationPrincipal CustomerUserDetails userDetails,
                                         @RequestBody List<String> filenames) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
 
         List<UserFile> files = userFileService.listFilesByRole(userDetails).stream()
                 .filter(f -> filenames.contains(f.getName()))
@@ -395,9 +393,9 @@ public class FileController {
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN', 'ADMIN')")
     @Operation(summary = "清空当前用户回收站")
     public ApiResponse<Void> emptyTrash(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
 
-        List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(userDetails.getUid(), userDetails.getLibraryCode());
+        List<UserFile> deletedFiles = userFileService.getDeletedFilesWithin7Days(userDetails.getUserId(), userDetails.getLibraryCode());
         for (UserFile file : deletedFiles) {
             try {
                 minioService.deleteObject(file.getBucket(), file.getName());
@@ -432,10 +430,10 @@ public class FileController {
     @GetMapping("/quota")
     @Operation(summary = "获取当前用户存储配额信息")
     public ApiResponse<Map<String, Long>> getQuota(@AuthenticationPrincipal CustomerUserDetails userDetails) {
-        permissionChecker.checkAccess(userDetails.getUid(), userDetails.getLibraryCode());
+        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
 
-        long used = userFileService.getUserStorageUsage(userDetails.getUid(), userDetails.getLibraryCode());
-        long max = storageQuotaService.getMaxQuota(userDetails.getUid(), userDetails.getLibraryCode());
+        long used = userFileService.getUserStorageUsage(userDetails.getUserId(), userDetails.getLibraryCode());
+        long max = storageQuotaService.getMaxQuota(userDetails.getUserId(), userDetails.getLibraryCode());
         long remaining = max - used;
 
         Map<String, Long> result = Map.of(

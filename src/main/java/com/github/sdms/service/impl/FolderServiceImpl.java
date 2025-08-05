@@ -4,7 +4,6 @@ import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.repository.FolderRepository;
 import com.github.sdms.service.FolderService;
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -19,17 +18,17 @@ public class FolderServiceImpl implements FolderService {
     private final FolderRepository folderRepository;
 
     @Override
-    public Folder createFolder(String uid, String name, Long parentId, String libraryCode) {
+    public Folder createFolder(Long userId, String name, Long parentId, String libraryCode) {
         List<Folder> siblings = (parentId == null)
-                ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
-                : folderRepository.findByUidAndParentIdAndLibraryCode(uid, parentId, libraryCode);
+                ? folderRepository.findByUserIdAndParentIdIsNullAndLibraryCode(userId, libraryCode)
+                : folderRepository.findByUserIdAndParentIdAndLibraryCode(userId, parentId, libraryCode);
 
         if (siblings.stream().anyMatch(f -> f.getName().equals(name))) {
             throw new ApiException(400, "该目录下已存在同名文件夹");
         }
 
         Folder folder = Folder.builder()
-                .uid(uid)
+                .userId(userId)
                 .name(name)
                 .parentId(parentId)
                 .libraryCode(libraryCode)
@@ -40,12 +39,12 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public Folder renameFolder(String uid, Long folderId, String newName, String libraryCode) {
-        Folder folder = getFolderById(uid, folderId, libraryCode);
+    public Folder renameFolder(Long userId, Long folderId, String newName, String libraryCode) {
+        Folder folder = getFolderById(userId, folderId, libraryCode);
 
         List<Folder> siblings = (folder.getParentId() == null)
-                ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
-                : folderRepository.findByUidAndParentIdAndLibraryCode(uid, folder.getParentId(), libraryCode);
+                ? folderRepository.findByUserIdAndParentIdIsNullAndLibraryCode(userId, libraryCode)
+                : folderRepository.findByUserIdAndParentIdAndLibraryCode(userId, folder.getParentId(), libraryCode);
 
         if (siblings.stream().anyMatch(f -> !f.getId().equals(folderId) && f.getName().equals(newName))) {
             throw new ApiException(400, "该目录下已存在同名文件夹");
@@ -57,8 +56,8 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public void deleteFolder(String uid, Long folderId, String libraryCode) {
-        Folder folder = getFolderById(uid, folderId, libraryCode);
+    public void deleteFolder(Long userId, Long folderId, String libraryCode) {
+        Folder folder = getFolderById(userId, folderId, libraryCode);
         if (Boolean.TRUE.equals(folder.getSystemFolder())) {
             throw new ApiException(403, "系统内置目录禁止删除");
         }
@@ -66,20 +65,20 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public List<Folder> listFolders(String uid, Long parentId, String libraryCode) {
+    public List<Folder> listFolders(Long userId, Long parentId, String libraryCode) {
         return (parentId == null)
-                ? folderRepository.findByUidAndParentIdIsNullAndLibraryCode(uid, libraryCode)
-                : folderRepository.findByUidAndParentIdAndLibraryCode(uid, parentId, libraryCode);
+                ? folderRepository.findByUserIdAndParentIdIsNullAndLibraryCode(userId, libraryCode)
+                : folderRepository.findByUserIdAndParentIdAndLibraryCode(userId, parentId, libraryCode);
     }
 
     @Override
-    public List<Folder> listAllFolders(String uid, String libraryCode) {
-        return folderRepository.findByUidAndLibraryCode(uid, libraryCode);
+    public List<Folder> listAllFolders(Long userId, String libraryCode) {
+        return folderRepository.findByUserIdAndLibraryCode(userId, libraryCode);
     }
 
     @Override
-    public Folder getFolderById(String uid, Long folderId, String libraryCode) {
-        Folder folder = folderRepository.findByIdAndUidAndLibraryCode(folderId, uid, libraryCode);
+    public Folder getFolderById(Long userId, Long folderId, String libraryCode) {
+        Folder folder = folderRepository.findByIdAndUserIdAndLibraryCode(folderId, userId, libraryCode);
         if (folder == null) {
             throw new ApiException(404, "目录不存在或无权限访问");
         }
@@ -87,14 +86,14 @@ public class FolderServiceImpl implements FolderService {
     }
 
     @Override
-    public void moveFolder(String uid, Long folderId, Long newParentId, String libraryCode) {
+    public void moveFolder(Long userId, Long folderId, Long newParentId, String libraryCode) {
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new ApiException(404, "待移动目录不存在"));
 
         Folder newParent = folderRepository.findById(newParentId)
                 .orElseThrow(() -> new ApiException(404, "目标父目录不存在"));
 
-        if (!folder.getUid().equals(uid) || !newParent.getUid().equals(uid)) {
+        if (!folder.getUserId().equals(userId) || !newParent.getUserId().equals(userId)) {
             throw new ApiException(403, "无权限操作该目录");
         }
 

@@ -18,7 +18,7 @@ public interface PermissionService {
 
     PermissionResource addResource(PermissionResource permissionResource);
 
-    void addBucketPermission(String uid, String bucketName, PermissionType type);
+    void addBucketPermission(Long userId, String bucketName, PermissionType type);
 
 }
 

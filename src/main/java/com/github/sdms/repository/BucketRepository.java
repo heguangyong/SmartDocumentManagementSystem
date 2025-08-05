@@ -15,12 +15,14 @@ public interface BucketRepository extends JpaRepository<Bucket, Long> {
 
     Optional<Bucket> findByName(String name);
 
-    List<Bucket> findByOwnerUid(String uid);
+    List<Bucket> findByOwnerId(Long userId);
 
-    Optional<Bucket> findFirstByOwnerUidAndLibraryCode(String uid, String libraryCode);
+    Optional<Bucket> findFirstByOwnerIdAndLibraryCode(Long userId, String libraryCode);
 
     @Query("SELECT b FROM Bucket b WHERE " +
-            "(:keyword IS NULL OR b.name LIKE %:keyword% OR b.ownerUid LIKE %:keyword%)")
-    Page<Bucket> findByNameOrOwnerUidLike(@Param("keyword") String keyword, Pageable pageable);
+            "(:keyword IS NULL OR b.name LIKE %:keyword%)")
+    Page<Bucket> findByNameLike(@Param("keyword") String keyword, Pageable pageable);
+
+
 
 }

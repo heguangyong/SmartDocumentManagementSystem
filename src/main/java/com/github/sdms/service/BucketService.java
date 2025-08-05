@@ -2,6 +2,7 @@ package com.github.sdms.service;
 
 import com.github.sdms.dto.BucketPageRequest;
 import com.github.sdms.dto.BucketSummaryDTO;
+import com.github.sdms.dto.BucketUserPermissionDTO;
 import com.github.sdms.model.Bucket;
 import org.springframework.data.domain.Page;
 
@@ -20,13 +21,15 @@ public interface BucketService {
 
     void deleteBucket(Long id);
 
-    List<Bucket> getAccessibleBuckets(String uid);
+    List<Bucket> getAccessibleBuckets(Long userId);
 
-    Bucket getUserDefaultBucket(String uid, String libraryCode);
+    Bucket getUserDefaultBucket(Long userId, String libraryCode);
 
     List<String> findBucketNamesByIds(Set<Long> allBucketIds);
 
     Optional<Bucket> getOptionalBucketByName(String bucketName);
 
     Page<BucketSummaryDTO> pageBuckets(BucketPageRequest request);
+
+    List<BucketUserPermissionDTO> getBucketUserPermissions(Long bucketId);
 }

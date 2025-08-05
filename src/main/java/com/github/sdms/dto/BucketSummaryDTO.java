@@ -14,7 +14,7 @@ import java.util.Date;
 public class BucketSummaryDTO {
     private Long id;
     private String name;
-    private String ownerUid;
+    private Long ownerId;
     private Date createTime;
     private Integer accessUserCount;
     private Long usedCapacity; // 单位：Byte

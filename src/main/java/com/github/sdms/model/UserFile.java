@@ -17,8 +17,11 @@ public class UserFile {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(name = "user_id", nullable = false)
+    private Long userId; // 对应用户表主键 ID
+
     @Column(nullable = false)
-    private String uid; // 上传用户 ID
+    private String uid; // 上传用户 ID,来自于用户api接口同步数据
 
     @Column(nullable = false)
     private String name; // 用于存储 MinIO 的 objectName

@@ -9,17 +9,11 @@ import java.util.Optional;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
-    // 根据邮箱查询用户
-    Optional<User> findByEmail(String email);
-
-    // 根据邮箱查询用户
-    Optional<User> findByEmailAndLibraryCode(@Param("email") String email, @Param("libraryCode") String libraryCode);
+    // 根据用户名查询用户
+    Optional<User> findByUsername(String username);
 
     // 根据用户名查询用户
     Optional<User> findByUsernameAndLibraryCode(@Param("username") String username, @Param("libraryCode") String libraryCode);
-
-    // 判断邮箱是否已存在
-    boolean existsByEmailAndLibraryCode(@Param("email") String email, @Param("libraryCode") String libraryCode);
 
     // 判断用户名是否已存在
     boolean existsByUsernameAndLibraryCode(@Param("username") String username, @Param("libraryCode") String libraryCode);
@@ -39,5 +33,4 @@ public interface UserRepository extends JpaRepository<User, Long> {
     // 根据用户名或邮箱查询用户，满足任一条件即可
     Optional<User> findByUsernameOrEmailAndLibraryCode(@Param("username") String username, @Param("email") String email, @Param("libraryCode") String libraryCode);
 
-    Optional<User> findByUid(String uid);
 }

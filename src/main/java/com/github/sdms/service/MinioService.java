@@ -41,27 +41,27 @@ public interface MinioService {
      */
     List<String> getUserFiles(String username);
 
-    String uploadFile(String bucketName, String uid, MultipartFile file);
+    String uploadFile(Long userId,String bucketName,  MultipartFile file);
 
     /**
      * 上传文件
-     * @param uid 用户ID
+     * @param userId 用户ID
      * @param file 上传的文件
      * @param libraryCode 租户代码（多租户支持）
      * @return 文件的名称或其他标识
      * @throws Exception 上传过程中抛出的异常
      */
-    String uploadFile(String uid, MultipartFile file, String libraryCode) throws Exception;
+    String uploadFile(Long userId, MultipartFile file, String libraryCode) throws Exception;
 
     /**
      * 生成下载链接
-     * @param uid 用户ID
+     * @param userId 用户ID
      * @param libraryCode 租户代码（多租户支持）
      * @param objectName 文件名
      * @return 预签名的下载链接
      * @throws Exception 生成链接过程中抛出的异常
      */
-    String generatePresignedDownloadUrl(String uid, String libraryCode, String objectName) throws Exception;
+    String generatePresignedDownloadUrl(Long userId, String libraryCode, String objectName) throws Exception;
 
     /**
      * 获取公共下载链接
@@ -97,18 +97,18 @@ public interface MinioService {
 
     /**
      * 从URL下载文件并上传的功能（辅助OnlyOffice回调）
-     * @param uid 用户ID
+     * @param userId 用户ID
      * @param libraryCode 馆点码
      * @param docId 文档ID
      * @param fileUrl 文件URL
      * @return 带有时间戳的更新标记
      */
-    String uploadFileFromUrl(String uid, String libraryCode, Long docId, String fileUrl)  throws Exception;
+    String uploadFileFromUrl(Long userId, String libraryCode, Long docId, String fileUrl)  throws Exception;
 
     /**
      * 根据用户ID和馆代码，获取对应桶的数据库主键ID
      */
-    Long getBucketIdForUpload(String uid, String libraryCode);
+    Long getBucketIdForUpload(Long userId, String libraryCode);
 
 
     long calculateUsedCapacity(String name);

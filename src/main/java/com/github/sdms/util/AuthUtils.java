@@ -17,7 +17,7 @@ public class AuthUtils {
         if (principal instanceof CustomerUserDetails userDetails) {
             return userDetails.getUid(); // 从自定义 UserDetails 里取真实 uid
         } else if (principal instanceof UserDetails userDetails) {
-            return userDetails.getUsername(); // 退回到username（邮箱）
+            return userDetails.getUsername(); // 退回到username
         } else if (principal instanceof String) {
             return (String) principal;
         } else {
@@ -26,12 +26,12 @@ public class AuthUtils {
     }
 
     /**
-     * 获取当前登录用户的 UID（通常为 email 或 OAuth uid）
+     * 获取当前登录用户的 UID（通常为 username 或 OAuth uid）
      */
     public static String getCurrentUid() {
         Object principal = getAuthentication().getPrincipal();
         if (principal instanceof UserDetails userDetails) {
-            return userDetails.getUsername(); // username 实际是 uid 或 email
+            return userDetails.getUsername(); // username 实际是 uid
         }
         return null;
     }
@@ -65,5 +65,27 @@ public class AuthUtils {
         return auth != null && auth.isAuthenticated()
                 && !"anonymousUser".equals(auth.getPrincipal());
     }
+
+
+    public static Long getCurrentUserId() {
+        Authentication authentication = getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new RuntimeException("用户未认证");
+        }
+        Object principal = authentication.getPrincipal();
+
+        if (principal instanceof CustomerUserDetails userDetails) {
+            return userDetails.getUserId(); // 新增方法，返回Long类型用户ID
+        } else if (principal instanceof UserDetails) {
+            // 如果UserDetails中无userId，抛异常或返回null，根据实际实现
+            throw new RuntimeException("无法获取用户ID");
+        } else if (principal instanceof String) {
+            // 无法获取ID，抛异常或返回null
+            throw new RuntimeException("无法获取用户ID");
+        } else {
+            throw new RuntimeException("无法获取用户身份信息");
+        }
+    }
+
 }
 

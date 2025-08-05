@@ -6,8 +6,8 @@ import lombok.Data;
 @Data
 public class LoginRequest {
 
-    @Schema(description = "邮箱", example = "user@example.com")
-    private String email;
+    @Schema(description = "用户名", example = "admin01")
+    private String username; // ✅ 改名并替换 email
 
     @Schema(description = "密码", example = "password123")
     private String password;
@@ -24,3 +24,4 @@ public class LoginRequest {
     @Schema(description = "是否记住我", example = "false")
     private boolean rememberMe;
 }
+

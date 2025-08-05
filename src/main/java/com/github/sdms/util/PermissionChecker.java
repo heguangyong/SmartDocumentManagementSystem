@@ -21,7 +21,7 @@ public class PermissionChecker {
     private final FilePermissionRepository filePermissionRepository;
     private final UserFileRepository userFileRepository;
 
-    public void checkFileAccess(String targetUid, Long fileId, String requiredPermission) {
+    public void checkFileAccess(Long targetUserId, Long fileId, String requiredPermission) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new ApiException(401, "无效会话：无法识别当前登录用户");
@@ -32,14 +32,16 @@ public class PermissionChecker {
             throw new ApiException(401, "当前会话用户无效");
         }
 
-        String currentUid = userDetails.getUid();
+        Long currentUserId = userDetails.getUser().getId();
         String currentRole = userDetails.getUser().getRoleType().toString();
         String currentLibraryCode = userDetails.getLibraryCode();
 
-        if (currentUid == null || currentRole == null || currentLibraryCode == null) {
+        if (currentUserId == null || currentRole == null || currentLibraryCode == null) {
             throw new ApiException(401, "当前用户信息不完整，无法进行权限校验");
         }
-        UserFile file = userFileRepository.findById(fileId).orElseThrow(null);
+
+        UserFile file = userFileRepository.findById(fileId)
+                .orElseThrow(() -> new ApiException(404, "文件不存在"));
 
         FilePermission filePermission = filePermissionRepository.findByUserAndFile(userDetails.getUser(), file);
         if (filePermission == null) {
@@ -51,7 +53,7 @@ public class PermissionChecker {
         }
     }
 
-    public void checkAccess(String targetUid, String targetLibraryCode) {
+    public void checkAccess(Long targetUserId, String targetLibraryCode) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new ApiException(401, "无效会话：无法识别当前登录用户");
@@ -62,11 +64,11 @@ public class PermissionChecker {
             throw new ApiException(401, "当前会话用户无效");
         }
 
-        String currentUid = userDetails.getUid();
+        Long currentUserId = userDetails.getUser().getId();
         String currentRole = userDetails.getUser().getRoleType().toString();
         String currentLibraryCode = userDetails.getLibraryCode();
 
-        if (currentUid == null || currentRole == null || currentLibraryCode == null) {
+        if (currentUserId == null || currentRole == null || currentLibraryCode == null) {
             throw new ApiException(401, "当前用户信息不完整，无法进行权限校验");
         }
 
@@ -79,7 +81,7 @@ public class PermissionChecker {
                 }
                 return;
             case "READER":
-                if (!currentUid.equals(targetUid) || !currentLibraryCode.equals(targetLibraryCode)) {
+                if (!currentUserId.equals(targetUserId) || !currentLibraryCode.equals(targetLibraryCode)) {
                     throw new ApiException(403, "越权访问：无权访问其他用户或其他馆点资源");
                 }
                 return;
@@ -88,14 +90,31 @@ public class PermissionChecker {
         }
     }
 
-    public void checkAccess(String targetUid) {
-        String currentUid = jwtUtil.getCurrentUsername();
-        if (currentUid == null) {
+    public void checkAccess(Long targetUserId) {
+        Long currentUserId = AuthUtils.getCurrentUserId();
+        if (currentUserId == null) {
             throw new ApiException(401, "无效会话：无法识别当前登录用户");
         }
-        if (!Objects.equals(targetUid, currentUid) && !jwtUtil.isAdmin()) {
+        if (!Objects.equals(targetUserId, currentUserId) && !jwtUtil.isAdmin()) {
             throw new ApiException(403, "越权访问：无权访问其他用户资源");
         }
+    }
+
+    public void checkFolderOwnership(Folder folder) {
+        Long currentUserId = AuthUtils.getCurrentUserId();
+        if (currentUserId == null) {
+            throw new ApiException(401, "无效会话：无法识别当前登录用户");
+        }
+        if (!currentUserId.equals(folder.getUserId()) && !jwtUtil.isAdmin()) {
+            throw new ApiException(403, "越权访问：无权操作该目录");
+        }
+    }
+
+    public void checkFolderEditable(Folder folder) {
+        if (Boolean.TRUE.equals(folder.getSystemFolder())) {
+            throw new ApiException(403, "系统目录不可编辑");
+        }
+        checkFolderOwnership(folder);
     }
 
     public void requireAdmin() {
@@ -109,22 +128,5 @@ public class PermissionChecker {
         if (currentRole == null || !currentRole.equalsIgnoreCase(requiredRole)) {
             throw new ApiException(403, "权限不足，需角色：" + requiredRole);
         }
-    }
-
-    public void checkFolderOwnership(Folder folder) {
-        String currentUid = jwtUtil.getCurrentUsername();
-        if (currentUid == null) {
-            throw new ApiException(401, "无效会话：无法识别当前登录用户");
-        }
-        if (!currentUid.equals(folder.getUid()) && !jwtUtil.isAdmin()) {
-            throw new ApiException(403, "越权访问：无权操作该目录");
-        }
-    }
-
-    public void checkFolderEditable(Folder folder) {
-        if (Boolean.TRUE.equals(folder.getSystemFolder())) {
-            throw new ApiException(403, "系统目录不可编辑");
-        }
-        checkFolderOwnership(folder);
     }
 }

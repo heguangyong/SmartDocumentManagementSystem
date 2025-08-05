@@ -2,8 +2,10 @@ package com.github.sdms.service.impl;
 
 import com.github.sdms.dto.BucketPageRequest;
 import com.github.sdms.dto.BucketSummaryDTO;
+import com.github.sdms.dto.BucketUserPermissionDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
+import com.github.sdms.model.BucketPermission;
 import com.github.sdms.repository.BucketPermissionRepository;
 import com.github.sdms.repository.BucketRepository;
 import com.github.sdms.service.BucketPermissionService;
@@ -173,12 +175,12 @@ public class BucketServiceImpl implements BucketService {
     }
 
     @Override
-    public List<Bucket> getAccessibleBuckets(String uid) {
+    public List<Bucket> getAccessibleBuckets(Long userId) {
         // 获取用户拥有权限的桶ID列表
-        List<Long> accessibleBucketIds = bucketPermissionService.getAccessibleBucketIds(uid);
+        List<Long> accessibleBucketIds = bucketPermissionService.getAccessibleBucketIds(userId);
 
         // 获取用户自己拥有的桶
-        List<Bucket> ownBuckets = bucketRepository.findByOwnerUid(uid);
+        List<Bucket> ownBuckets = bucketRepository.findByOwnerId(userId);
 
         // 查询所有桶，合并并去重
         List<Bucket> authorizedBuckets = bucketRepository.findAllById(accessibleBucketIds);
@@ -200,8 +202,8 @@ public class BucketServiceImpl implements BucketService {
     }
 
     @Override
-    public Bucket getUserDefaultBucket(String uid, String libraryCode) {
-        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
+    public Bucket getUserDefaultBucket(Long userId, String libraryCode) {
+        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
         return bucketRepository.findByName(bucketName)
                 .orElseThrow(() -> new ApiException(404, "未找到用户默认桶: " + bucketName));
     }
@@ -226,7 +228,7 @@ public class BucketServiceImpl implements BucketService {
     public Page<BucketSummaryDTO> pageBuckets(BucketPageRequest request) {
         Pageable pageable = PageRequest.of(request.getPage() - 1, request.getSize());
 
-        Page<Bucket> page = bucketRepository.findByNameOrOwnerUidLike(request.getKeyword(), pageable);
+        Page<Bucket> page = bucketRepository.findByNameLike(request.getKeyword(), pageable);
 
         List<BucketSummaryDTO> dtos = page.getContent().stream().map(bucket -> {
             int userCount = bucketPermissionRepository.countByBucketId(bucket.getId());
@@ -234,7 +236,7 @@ public class BucketServiceImpl implements BucketService {
             return BucketSummaryDTO.builder()
                     .id(bucket.getId())
                     .name(bucket.getName())
-                    .ownerUid(bucket.getOwnerUid())
+                    .ownerId(bucket.getOwnerId())
                     .createTime(bucket.getCreatedAt())
                     .maxCapacity(bucket.getMaxCapacity())
                     .usedCapacity(usedCapacity)
@@ -244,5 +246,24 @@ public class BucketServiceImpl implements BucketService {
 
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
+
+    @Override
+    public List<BucketUserPermissionDTO> getBucketUserPermissions(Long bucketId) {
+        List<BucketPermission> permissions = bucketPermissionRepository.findByBucketId(bucketId);
+        List<BucketUserPermissionDTO> result = new ArrayList<>();
+
+//        for (BucketPermission perm : permissions) {
+//            userRepository.findByUid(perm.getUid()).ifPresent(user -> {
+//                result.add(BucketUserPermissionDTO.builder()
+//                        .uid(user.getUid())
+//                        .username(user.getUsername())
+//                        .nickname(user.getNickname())
+//                        .permission(perm.getPermission())
+//                        .build());
+//            });
+//        }
+        return result;
+    }
+
 
 }

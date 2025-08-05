@@ -14,13 +14,13 @@ public interface UserFileService {
 
     List<UserFile> listFilesByRole(CustomerUserDetails userDetails);
 
-    void softDeleteFiles(String uid, List<String> filenames, String libraryCode);
+    void softDeleteFiles(Long userId, List<String> filenames, String libraryCode);
 
-    void restoreFiles(String uid, List<String> filenames, String libraryCode);
+    void restoreFiles(Long userId, List<String> filenames, String libraryCode);
 
-    void markUploadOk(String uid, String filename, String libraryCode);
+    void markUploadOk(Long userId, String filename, String libraryCode);
 
-    List<UserFile> getDeletedFilesWithin7Days(String uid, String libraryCode);
+    List<UserFile> getDeletedFilesWithin7Days(Long userId, String libraryCode);
 
     void deletePermanently(Long fileId, String libraryCode);
 
@@ -28,27 +28,27 @@ public interface UserFileService {
 
     void deleteFiles(List<UserFile> files);
 
-    long getUserStorageUsage(String uid, String libraryCode);
+    long getUserStorageUsage(Long userId, String libraryCode);
 
-    List<UserFile> listFilesByFolder(String uid, Long folderId, String libraryCode);
+    List<UserFile> listFilesByFolder(Long userId, Long folderId, String libraryCode);
 
     UserFile getFileById(Long fileId, String libraryCode);
 
-    UserFile uploadNewDocument(MultipartFile file, String uid, Bucket targetBucket, String notes, Long folderId) throws Exception;
+    UserFile uploadNewDocument(MultipartFile file, Long userId, Bucket targetBucket, String notes, Long folderId) throws Exception;
 
-    UserFile uploadFileAndCreateRecord(String uid, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception;
+    UserFile uploadFileAndCreateRecord(Long userId, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception;
 
-    UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes, Long folderId) throws Exception;
+    UserFile uploadNewVersion(MultipartFile file, Long userId, String libraryCode, Long docId, String notes, Long folderId) throws Exception;
 
     List<UserFile> getVersionsByDocId(Long docId, String libraryCode);
 
-    UserFile getFileByDocIdAndUid(Long docId, String uid, String libraryCode);
+    UserFile getFileByDocIdAndUid(Long docId, Long userId, String libraryCode);
 
-    UserFile getFileByDocIdAndUid(Long docId, String uid);
+    UserFile getFileByDocIdAndUid(Long docId, Long userId);
 
     void softDeleteFile(UserFile file);
 
-    UserFile getFileByName(String filename, String uid, String libraryCode);
+    UserFile getFileByName(String filename, Long userId, String libraryCode);
 
-    List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, String uid, Bucket targetBucket, String notes, Long folderId);
+    List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, Long userId, Bucket targetBucket, String notes, Long folderId);
 }

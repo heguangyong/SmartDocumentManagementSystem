@@ -41,17 +41,17 @@ public class OnlyOfficeController {
             @PathVariable Long docId,
             HttpServletRequest request) throws Exception {
 
-        String uid = userDetails.getUid();
+        Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
 
         // 校验用户权限，确保用户有权编辑该文档
-        UserFile userFile = userFileService.getFileByDocIdAndUid(docId, uid, libraryCode);
+        UserFile userFile = userFileService.getFileByDocIdAndUid(docId, userId, libraryCode);
         if (userFile == null) {
             return ResponseEntity.status(403).body(ApiResponse.failure("无权限访问该文档"));
         }
 
         // 获取文档访问下载链接（带签名）
-        String downloadUrl = minioService.generatePresignedDownloadUrl(userFile.getUid(), libraryCode, userFile.getName());
+        String downloadUrl = minioService.generatePresignedDownloadUrl(userFile.getUserId(), libraryCode, userFile.getName());
 
         // 构造OnlyOffice编辑器配置
         Map<String, Object> config = new HashMap<>();
@@ -67,7 +67,7 @@ public class OnlyOfficeController {
         config.put("editorConfig", Map.of(
                 "callbackUrl", getBaseUrl(request) + "/api/onlyoffice/onlyofficeCallback",
                 "user", Map.of(
-                        "id", uid,
+                        "id", userId,
                         "name", userDetails.getUsername()
                 )
         ));
@@ -88,16 +88,16 @@ public class OnlyOfficeController {
             String key = (String) callbackData.get("key");
             Long docId = parseDocIdFromKey(key); // 自定义方法，根据版本key找到docId
 
-            String uid = userDetails.getUid();
+            Long userId = userDetails.getUserId();
             String libraryCode = userDetails.getLibraryCode();
 
             try {
                 // 先通过下载URL保存到MinIO，再保存新版本
-                String objectName = minioService.uploadFileFromUrl(uid, libraryCode, docId, docUrl);
+                String objectName = minioService.uploadFileFromUrl(userId, libraryCode, docId, docUrl);
 
                 // 调用UserFileService上传新版本
                 MultipartFile multipartFile = convertUrlToMultipartFile(docUrl); // 需实现转换方法，或者调整逻辑
-                userFileService.uploadNewVersion(multipartFile, uid, libraryCode, docId, "OnlyOffice自动保存", folderId);
+                userFileService.uploadNewVersion(multipartFile, userId, libraryCode, docId, "OnlyOffice自动保存", folderId);
 
                 log.info("OnlyOffice文档保存成功，新对象名：{}", objectName);
             } catch (Exception e) {

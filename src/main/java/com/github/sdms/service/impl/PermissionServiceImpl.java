@@ -56,9 +56,9 @@ public class PermissionServiceImpl implements PermissionService {
     }
 
     @Override
-    public void addBucketPermission(String uid, String bucketName, PermissionType type) {
+    public void addBucketPermission(Long userId, String bucketName, PermissionType type) {
         // 1. 获取用户
-        User user = userRepository.findByUid(uid)
+        User user = userRepository.findById(userId)
                 .orElseThrow(() -> new ApiException(404, "用户不存在"));
 
         // 2. 获取桶
@@ -78,12 +78,12 @@ public class PermissionServiceImpl implements PermissionService {
                 });
 
         // 4. 检查用户是否已有该资源的权限
-        boolean alreadyHasPermission = userPermissionRepository.existsByUidAndPermissionTypeAndResourceId(
-                uid, type.name(), resource.getId());
+        boolean alreadyHasPermission = userPermissionRepository.existsByUserIdAndPermissionTypeAndResourceId(
+                userId, type.name(), resource.getId());
 
         if (!alreadyHasPermission) {
             UserPermission permission = UserPermission.builder()
-                    .uid(uid)
+                    .userId(userId)
                     .permissionType(type.name())
                     .resourceId(resource.getId())
                     .build();

@@ -17,14 +17,6 @@ public class UserServiceImpl implements UserService {
         this.userRepository = userRepository;
     }
 
-    @Override
-    public Optional<User> findByEmailAndLibraryCode(String email, String libraryCode) {
-        Optional<User> user = userRepository.findByEmailAndLibraryCode(email, libraryCode);
-        if (user.isEmpty()) {
-            throw new ApiException(404, "用户不存在: email=" + email + ", libraryCode=" + libraryCode);
-        }
-        return user;
-    }
 
     @Override
     public Optional<User> findByUsernameAndLibraryCode(String username, String libraryCode) {
@@ -33,11 +25,6 @@ public class UserServiceImpl implements UserService {
             throw new ApiException(404, "用户不存在: username=" + username + ", libraryCode=" + libraryCode);
         }
         return user;
-    }
-
-    @Override
-    public boolean existsByEmailAndLibraryCode(String email, String libraryCode) {
-        return userRepository.existsByEmailAndLibraryCode(email, libraryCode);
     }
 
     @Override

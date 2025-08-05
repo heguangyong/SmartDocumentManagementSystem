@@ -6,11 +6,7 @@ import java.util.Optional;
 
 public interface UserService {
 
-    Optional<User> findByEmailAndLibraryCode(String email, String libraryCode);
-
     Optional<User> findByUsernameAndLibraryCode(String username, String libraryCode);
-
-    boolean existsByEmailAndLibraryCode(String email, String libraryCode);
 
     Optional<User> findByUidAndLibraryCode(String uid, String libraryCode);
 

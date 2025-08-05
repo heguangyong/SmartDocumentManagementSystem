@@ -11,19 +11,23 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
 
     // 判断用户对某桶是否具备某权限（读/写等），使用LIKE模糊匹配权限字符串
     @Query("select case when count(bp) > 0 then true else false end from BucketPermission bp " +
-            "where bp.uid = :uid and bp.bucketId = :bucketId and bp.permission like %:permission%")
-    boolean hasPermission(@Param("uid") String uid,
+            "where bp.userId = :userId and bp.bucketId = :bucketId and bp.permission like %:permission%")
+    boolean hasPermission(@Param("userId") Long userId,
                           @Param("bucketId") Long bucketId,
                           @Param("permission") String permission);
 
-    List<BucketPermission> findAllByUid(String uid);
+    List<BucketPermission> findAllByUserId(Long userId);
 
-    BucketPermission findByUidAndBucketId(String uid, Long bucketId);
+    BucketPermission findByUserIdAndBucketId(Long userId, Long bucketId);
 
-    List<BucketPermission> findByUid(String uid);
+    List<BucketPermission> findByUserId(Long userId);
 
-    @Query("select bp.bucketId from BucketPermission bp where bp.uid = :uid")
-    List<Long> findBucketIdsByUid(String uid);
+    @Query("select bp.bucketId from BucketPermission bp where bp.userId = :userId")
+    List<Long> findBucketIdsByUserId(Long userId);
 
     int countByBucketId(Long bucketId);
+
+    List<BucketPermission> findByBucketId(Long bucketId);
+
+    List<BucketPermission> findAllByBucketId(Long bucketId);
 }

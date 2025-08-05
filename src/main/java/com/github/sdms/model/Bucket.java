@@ -24,8 +24,8 @@ public class Bucket {
     @Column(length = 255)
     private String description;
 
-    @Column(name = "owner_uid", nullable = false, length = 64)
-    private String ownerUid;
+    @Column(name = "owner_id", nullable = false)
+    private Long ownerId;  // 关联User表的主键ID
 
     // 新增馆代码字段
     @Column(nullable = true)
@@ -41,5 +41,5 @@ public class Bucket {
 
     @Column(name = "max_capacity")
     private Long maxCapacity; // 单位：Byte
-
 }
+

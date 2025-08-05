@@ -27,8 +27,8 @@ public class Folder {
     private String libraryCode;
 
     // 所属用户 ID（私有目录用）
-    @Column(nullable = false)
-    private String uid;
+    @Column(name = "user_id", nullable = false)
+    private Long userId;
 
     // 父目录 ID，根目录为 null
     private Long parentId;
@@ -48,14 +48,12 @@ public class Folder {
     @Column(name = "shared")
     private Boolean shared = false;
 
-
     @Temporal(TemporalType.TIMESTAMP)
     @Column(name = "share_expire_at")
     private Date shareExpireAt; // 分享链接过期时间（可空 = 永不过期）
 
-
-    public String getOwnerId() {
-        return this.uid;
+    public Long getOwnerId() {
+        return this.userId;
     }
 
 }

@@ -5,5 +5,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface UserPermissionRepository extends JpaRepository<UserPermission, Long> {
 
-    boolean existsByUidAndPermissionTypeAndResourceId(String uid, String permissionType, Long resourceId);
+    boolean existsByUserIdAndPermissionTypeAndResourceId(Long userId, String permissionType, Long resourceId);
 }

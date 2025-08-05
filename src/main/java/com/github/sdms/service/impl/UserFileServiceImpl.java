@@ -70,7 +70,7 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Override
     public List<UserFile> listFilesByRole(CustomerUserDetails userDetails) {
-        String uid = userDetails.getUid();
+        Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
         RoleType role = userDetails.getRoleType();
 
@@ -83,24 +83,24 @@ public class UserFileServiceImpl implements UserFileService {
                 List<UserFile> librarianFiles = userFileRepository.findByLibraryCodeAndDeleteFlagFalse(libraryCode);
 
                 // 获取该用户额外有访问权限的文件
-                List<UserFile> accessibleByPermission = getPermissionGrantedFiles(uid, libraryCode, role);
+                List<UserFile> accessibleByPermission = getPermissionGrantedFiles(userId, libraryCode, role);
                 return mergeWithoutDuplicates(librarianFiles, accessibleByPermission);
 
             case READER:
             default:
                 // 自己上传的
-                List<UserFile> ownFiles = userFileRepository.findByUidAndLibraryCodeAndDeleteFlagFalse(uid, libraryCode);
+                List<UserFile> ownFiles = userFileRepository.findByUserIdAndLibraryCodeAndDeleteFlagFalse(userId, libraryCode);
 
                 // 获取该用户通过权限访问到的其他文件
-                List<UserFile> sharedFiles = getPermissionGrantedFiles(uid, libraryCode, role);
+                List<UserFile> sharedFiles = getPermissionGrantedFiles(userId, libraryCode, role);
                 return mergeWithoutDuplicates(ownFiles, sharedFiles);
         }
     }
 
 
     @Override
-    public void softDeleteFiles(String uid, List<String> filenames, String libraryCode) {
-        List<UserFile> files = userFileRepository.findByUidAndDeleteFlagFalseAndLibraryCode(uid, libraryCode);
+    public void softDeleteFiles(Long userId, List<String> filenames, String libraryCode) {
+        List<UserFile> files = userFileRepository.findByUserIdAndDeleteFlagFalseAndLibraryCode(userId, libraryCode);
         files.stream()
                 .filter(f -> filenames.contains(f.getName()))
                 .forEach(f -> {
@@ -110,9 +110,9 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public void restoreFiles(String uid, List<String> filenames, String libraryCode) {
+    public void restoreFiles(Long userId, List<String> filenames, String libraryCode) {
         Date sevenDaysAgo = new Date(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000);
-        List<UserFile> files = userFileRepository.findByUidAndDeleteFlagTrueAndCreatedDateAfterAndLibraryCode(uid, sevenDaysAgo, libraryCode);
+        List<UserFile> files = userFileRepository.findByUserIdAndDeleteFlagTrueAndCreatedDateAfterAndLibraryCode(userId, sevenDaysAgo, libraryCode);
         files.stream()
                 .filter(f -> filenames.contains(f.getName()))
                 .forEach(f -> {
@@ -122,8 +122,8 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public void markUploadOk(String uid, String filename, String libraryCode) {
-        UserFile file = userFileRepository.findByUidAndNameAndLibraryCode(uid, filename, libraryCode);
+    public void markUploadOk(Long userId, String filename, String libraryCode) {
+        UserFile file = userFileRepository.findByUserIdAndNameAndLibraryCode(userId, filename, libraryCode);
         if (file != null) {
             file.setUperr(0);
             userFileRepository.save(file);
@@ -131,9 +131,9 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public List<UserFile> getDeletedFilesWithin7Days(String uid, String libraryCode) {
+    public List<UserFile> getDeletedFilesWithin7Days(Long userId, String libraryCode) {
         Date sevenDaysAgo = new Date(System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000);
-        return userFileRepository.findByUidAndDeleteFlagTrueAndCreatedDateAfterAndLibraryCode(uid, sevenDaysAgo, libraryCode);
+        return userFileRepository.findByUserIdAndDeleteFlagTrueAndCreatedDateAfterAndLibraryCode(userId, sevenDaysAgo, libraryCode);
     }
 
     @Override
@@ -157,25 +157,25 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public long getUserStorageUsage(String uid, String libraryCode) {
-        return userFileRepository.findByUidAndDeleteFlagFalseAndLibraryCode(uid, libraryCode)
+    public long getUserStorageUsage(Long userId, String libraryCode) {
+        return userFileRepository.findByUserIdAndDeleteFlagFalseAndLibraryCode(userId, libraryCode)
                 .stream()
                 .mapToLong(UserFile::getSize)
                 .sum();
     }
 
     @Override
-    public List<UserFile> listFilesByFolder(String uid, Long folderId, String libraryCode) {
-        return userFileRepository.findByUidAndFolderIdAndDeleteFlagFalseAndLibraryCode(uid, folderId, libraryCode);
+    public List<UserFile> listFilesByFolder(Long userId, Long folderId, String libraryCode) {
+        return userFileRepository.findByUserIdAndFolderIdAndDeleteFlagFalseAndLibraryCode(userId, folderId, libraryCode);
     }
 
     @Override
     public UserFile getFileById(Long fileId, String libraryCode) {
         // 从上下文获取uid，或者通过参数传入（这里示范参数传入方式）
         // 如无上下文，需在调用处补充uid传递
-        String uid = AuthUtils.getUid(); // 需自行实现或传入参数
+        Long userId = AuthUtils.getCurrentUserId(); // 需自行实现或传入参数
 
-        if (!permissionValidator.canReadFile(uid, fileId)) {
+        if (!permissionValidator.canReadFile(userId, fileId)) {
             throw new ApiException(403, "无权限访问该文件");
         }
 
@@ -184,7 +184,7 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public UserFile uploadNewDocument(MultipartFile file, String uid, Bucket targetBucket, String notes, Long folderId) {
+    public UserFile uploadNewDocument(MultipartFile file, Long userId, Bucket targetBucket, String notes, Long folderId) {
         String bucketName = targetBucket.getName();
         String libraryCode = targetBucket.getLibraryCode();
 
@@ -192,14 +192,14 @@ public class UserFileServiceImpl implements UserFileService {
         String objectName = FileUtil.generateObjectName(file.getOriginalFilename());
 
         // 2. 上传文件至 MinIO
-        minioService.uploadFile(bucketName, objectName, file);
+        minioService.uploadFile(userId,bucketName,  file);
 
         // ✅ 3. 生成新的 docId（首次上传）
         long docId = cachedIdGenerator.nextId(IdType.DOC_ID.name());
 
         // 4. 构建 UserFile 实体对象（版本默认 1，首次上传）
         UserFile userFile = buildFileRecord(
-                uid,
+                userId,
                 libraryCode,
                 file,
                 objectName,
@@ -215,22 +215,22 @@ public class UserFileServiceImpl implements UserFileService {
         userFileRepository.save(userFile);
 
         // 6. 自动授权上传者权限（如果需要）
-        if (!permissionValidator.hasWritePermission(uid, bucketName)) {
-            permissionService.addBucketPermission(uid, bucketName, PermissionType.WRITE);
+        if (!permissionValidator.hasWritePermission(userId, bucketName)) {
+            permissionService.addBucketPermission(userId, bucketName, PermissionType.WRITE);
         }
 
         return userFile;
     }
 
     @Override
-    public List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, String uid, Bucket targetBucket, String notes, Long folderId) {
+    public List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, Long userId, Bucket targetBucket, String notes, Long folderId) {
         List<UserFile> uploadedFiles = new ArrayList<>();
 
         for (MultipartFile file : files) {
             // 跳过空文件
             if (file == null || file.isEmpty()) continue;
 
-            UserFile uploaded = uploadNewDocument(file, uid, targetBucket, notes, folderId);
+            UserFile uploaded = uploadNewDocument(file, userId, targetBucket, notes, folderId);
             uploadedFiles.add(uploaded);
         }
 
@@ -241,14 +241,14 @@ public class UserFileServiceImpl implements UserFileService {
 
 
     @Override
-    public UserFile uploadFileAndCreateRecord(String uid, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception {
-        Long bucketId = minioService.getBucketIdForUpload(uid, libraryCode);
+    public UserFile uploadFileAndCreateRecord(Long userId, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception {
+        Long bucketId = minioService.getBucketIdForUpload(userId, libraryCode);
 
-        if (!hasBucketPermission(uid, bucketId, "write")) {
+        if (!hasBucketPermission(userId, bucketId, "write")) {
             throw new ApiException(403, "无权限上传文件到该桶");
         }
         String originalFilename = file.getOriginalFilename();
-        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
+        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
 
         if (!minioClient.bucketExists(io.minio.BucketExistsArgs.builder().bucket(bucketName).build())) {
             minioClient.makeBucket(io.minio.MakeBucketArgs.builder().bucket(bucketName).build());
@@ -264,31 +264,31 @@ public class UserFileServiceImpl implements UserFileService {
                     .stream(inputStream, file.getSize(), -1)
                     .contentType(file.getContentType())
                     .build());
-            log.info("User {} uploaded file to bucket {}: {}", uid, bucketName, objectName);
+            log.info("User {} uploaded file to bucket {}: {}", userId, bucketName, objectName);
         } catch (MinioException e) {
             log.error("MinIO upload error: ", e);
             throw new ApiException(500, "文件上传失败：" + e.getMessage());
         }
 
         Long docId = cachedIdGenerator.nextId("doc_id");
-        UserFile fileRecord = buildFileRecord(uid, libraryCode, file, objectName, 1, docId, notes, true, bucketName, folderId);
+        UserFile fileRecord = buildFileRecord(userId, libraryCode, file, objectName, 1, docId, notes, true, bucketName, folderId);
         return userFileRepository.save(fileRecord);
     }
 
     @Transactional
     @Override
-    public UserFile uploadNewVersion(MultipartFile file, String uid, String libraryCode, Long docId, String notes, Long folderId) throws Exception {
+    public UserFile uploadNewVersion(MultipartFile file, Long userId, String libraryCode, Long docId, String notes, Long folderId) throws Exception {
         // 获取文件最新版本id，用于权限校验
-        UserFile originFile = getFileByDocIdAndUid(docId, uid, libraryCode);
+        UserFile originFile = getFileByDocIdAndUid(docId, userId, libraryCode);
         if (originFile == null) {
             throw new ApiException(403, "无权限上传该文档新版本");
         }
 
-        if (!permissionValidator.canWriteFile(uid, originFile.getId())) {
+        if (!permissionValidator.canWriteFile(userId, originFile.getId())) {
             throw new ApiException(403, "无权限上传该文档新版本");
         }
 
-        if (!storageQuotaService.canUpload(uid, file.getSize(), libraryCode)) {
+        if (!storageQuotaService.canUpload(userId, file.getSize(), libraryCode)) {
             throw new ApiException(403, "上传失败：存储配额不足");
         }
 
@@ -299,14 +299,14 @@ public class UserFileServiceImpl implements UserFileService {
 
         String objectName;
         try {
-            objectName = minioService.uploadFile(uid, file, libraryCode);
+            objectName = minioService.uploadFile(userId, file, libraryCode);
         } catch (Exception e) {
             log.error("上传新版本失败: ", e);
             throw new ApiException(500, "上传新版本失败：" + e.getMessage());
         }
 
-        String bucketName = BucketUtil.getBucketName(uid, libraryCode);
-        UserFile newVersion = buildFileRecord(uid, libraryCode, file, objectName, nextVersion, docId, notes, true, bucketName, folderId);
+        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
+        UserFile newVersion = buildFileRecord(userId, libraryCode, file, objectName, nextVersion, docId, notes, true, bucketName, folderId);
         return userFileRepository.save(newVersion);
     }
 
@@ -316,29 +316,29 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public UserFile getFileByDocIdAndUid(Long docId, String uid, String libraryCode) {
-        UserFile file = userFileRepository.findFirstByDocIdAndUidAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(docId, uid, libraryCode)
+    public UserFile getFileByDocIdAndUid(Long docId, Long userId, String libraryCode) {
+        UserFile file = userFileRepository.findFirstByDocIdAndUserIdAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(docId, userId, libraryCode)
                 .orElse(null);
 
-        if (file != null && !permissionValidator.canReadFile(uid, file.getId())) {
+        if (file != null && !permissionValidator.canReadFile(userId, file.getId())) {
             throw new ApiException(403, "无权限访问该文件");
         }
         return file;
     }
 
     @Override
-    public UserFile getFileByDocIdAndUid(Long docId, String uid) {
-        return userFileRepository.findFirstByDocIdAndUidAndIsLatestTrue(docId, uid)
+    public UserFile getFileByDocIdAndUid(Long docId, Long userId) {
+        return userFileRepository.findFirstByDocIdAndUserIdAndIsLatestTrue(docId, userId)
                 .orElse(null);
     }
 
     @Override
-    public UserFile getFileByName(String filename, String uid, String libraryCode) {
-        UserFile file = userFileRepository.findByUidAndNameAndLibraryCode(uid, filename, libraryCode);
+    public UserFile getFileByName(String filename, Long userId, String libraryCode) {
+        UserFile file = userFileRepository.findByUserIdAndNameAndLibraryCode(userId, filename, libraryCode);
         if (file == null || file.getDeleteFlag()) {
             throw new ApiException(404, "文件不存在或已被删除");
         }
-        if (!permissionValidator.canReadFile(uid, file.getId())) {
+        if (!permissionValidator.canReadFile(userId, file.getId())) {
             throw new ApiException(403, "无权限访问该文件");
         }
         return file;
@@ -351,10 +351,10 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
 
-    private UserFile buildFileRecord(String uid, String libraryCode, MultipartFile file, String objectName,
+    private UserFile buildFileRecord(Long userId, String libraryCode, MultipartFile file, String objectName,
                                      int version, Long docId, String notes, boolean isLatest, String bucketName, Long folderId) {
         UserFile userFile = new UserFile();
-        userFile.setUid(uid);
+        userFile.setUserId(userId);
         userFile.setLibraryCode(libraryCode);
         userFile.setName(objectName);
         userFile.setOriginFilename(file.getOriginalFilename());
@@ -372,9 +372,9 @@ public class UserFileServiceImpl implements UserFileService {
         return userFile;
     }
 
-    private List<UserFile> getPermissionGrantedFiles(String uid, String libraryCode, RoleType roleType) {
+    private List<UserFile> getPermissionGrantedFiles(Long userId, String libraryCode, RoleType roleType) {
         // Step 1: 获取用户权限中的桶 ID
-        List<Long> permittedBucketIds = bucketPermissionRepository.findBucketIdsByUid(uid);
+        List<Long> permittedBucketIds = bucketPermissionRepository.findBucketIdsByUserId(userId);
 
         // Step 2: 获取该角色被授权的桶 ID
         List<Long> roleBucketIds = rolePermissionRepository.findBucketResourceIdsByRoleType(roleType);
@@ -404,7 +404,7 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
 
-    private boolean hasBucketPermission(String uid, Long bucketId, String permission) {
-        return bucketPermissionRepository.hasPermission(uid, bucketId, permission);
+    private boolean hasBucketPermission(Long userId, Long bucketId, String permission) {
+        return bucketPermissionRepository.hasPermission(userId, bucketId, permission);
     }
 }

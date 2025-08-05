@@ -148,13 +148,13 @@ public class ShareAccessServiceImpl implements ShareAccessService {
 
     @Override
     public List<UserFile> listFilesByFolder(Folder folder) {
-        return userFileRepository.findByFolderIdAndUidAndLibraryCode(
+        return userFileRepository.findByFolderIdAndUserIdAndLibraryCode(
                 folder.getId(), folder.getOwnerId(), folder.getLibraryCode());
     }
 
     @Override
     public List<Folder> listChildFolders(Folder folder) {
-        return folderRepository.findByParentIdAndUidAndLibraryCode(
+        return folderRepository.findByParentIdAndUserIdAndLibraryCode(
                 folder.getId(), folder.getOwnerId(), folder.getLibraryCode());
     }
 

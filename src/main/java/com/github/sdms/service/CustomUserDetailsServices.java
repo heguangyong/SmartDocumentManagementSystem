@@ -17,24 +17,24 @@ public class CustomUserDetailsServices implements UserDetailsService {
 
     /**
      * 根据 email 和 libraryCode 加载用户信息
-     * @param email 用户邮箱
+     * @param username 用户名
      * @param libraryCode 租户标识
      * @return UserDetails
      * @throws UsernameNotFoundException 用户未找到异常
      */
-    public UserDetails loadUserByUsernameAndLibraryCode(String email, String libraryCode) throws UsernameNotFoundException {
+    public UserDetails loadUserByUsernameAndLibraryCode(String username, String libraryCode) throws UsernameNotFoundException {
         // 通过 email 和 libraryCode 查找用户
-        User user = userRepository.findByEmailAndLibraryCode(email, libraryCode)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email + " and libraryCode: " + libraryCode));
+        User user = userRepository.findByUsernameAndLibraryCode(username, libraryCode)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username + " and libraryCode: " + libraryCode));
 
         return new CustomerUserDetails(user);
     }
 
     @Override
-    public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
-        // 默认使用 email 查找用户（不包括 libraryCode）
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found with email: " + email));
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        // 默认使用 username 查找用户（不包括 libraryCode）
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with username: " + username));
         return new CustomerUserDetails(user);
     }
 }

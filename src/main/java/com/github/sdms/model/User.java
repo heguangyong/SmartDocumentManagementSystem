@@ -28,7 +28,7 @@ public class User {
     @Schema(description = "上图统一用户UID，OAuth唯一标识")
     private String uid;
 
-    @Column(nullable = false)
+    @Column(unique = true)
     @Schema(description = "用户名，唯一")
     private String username;
 
@@ -46,7 +46,6 @@ public class User {
     @Schema(description = "密码盐")
     private String salt;
 
-    @Column(unique = true)
     @Schema(description = "电子邮箱，唯一")
     private String email;
 

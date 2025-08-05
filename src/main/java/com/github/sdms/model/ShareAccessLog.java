@@ -34,9 +34,12 @@ public class ShareAccessLog {
     private Date accessTime = new Date();
 
     private String libraryCode;
-    private String ownerUid;
+
+    @Column(name = "owner_id")
+    private Long ownerId; // 用户表 user.id
+
     private String actionType; // preview, download, list
 
-    private String signature; //签名结果
+    private String signature; // 签名结果
 
 }

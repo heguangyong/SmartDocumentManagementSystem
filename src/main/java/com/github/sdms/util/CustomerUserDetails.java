@@ -57,6 +57,8 @@ public class CustomerUserDetails implements UserDetails {
         return user.getUid();
     }
 
+    public Long getUserId(){ return user.getId(); }
+
     // 新增：获取租户信息 libraryCode
     public String getLibraryCode() {
         return user.getLibraryCode();  // 假设 user 对象中包含 libraryCode 字段

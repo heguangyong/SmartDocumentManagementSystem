@@ -19,24 +19,24 @@ public class BucketPermissionServiceImpl implements BucketPermissionService {
     }
 
     @Override
-    public boolean canRead(String uid, Long bucketId) {
-        boolean result = bucketPermissionRepository.hasPermission(uid, bucketId, "read")
-                || bucketPermissionRepository.hasPermission(uid, bucketId, "admin");
-        log.debug("权限校验 - 用户 [{}] 对桶 [{}] 的读取权限: {}", uid, bucketId, result);
+    public boolean canRead(Long userId, Long bucketId) {
+        boolean result = bucketPermissionRepository.hasPermission(userId, bucketId, "read")
+                || bucketPermissionRepository.hasPermission(userId, bucketId, "admin");
+        log.debug("权限校验 - 用户 [{}] 对桶 [{}] 的读取权限: {}", userId, bucketId, result);
         return result;
     }
 
     @Override
-    public boolean canWrite(String uid, Long bucketId) {
-        boolean result = bucketPermissionRepository.hasPermission(uid, bucketId, "write")
-                || bucketPermissionRepository.hasPermission(uid, bucketId, "admin");
-        log.debug("权限校验 - 用户 [{}] 对桶 [{}] 的写入权限: {}", uid, bucketId, result);
+    public boolean canWrite(Long userId, Long bucketId) {
+        boolean result = bucketPermissionRepository.hasPermission(userId, bucketId, "write")
+                || bucketPermissionRepository.hasPermission(userId, bucketId, "admin");
+        log.debug("权限校验 - 用户 [{}] 对桶 [{}] 的写入权限: {}", userId, bucketId, result);
         return result;
     }
 
     @Override
-    public List<Long> getAccessibleBucketIds(String uid) {
-        return bucketPermissionRepository.findAllByUid(uid)
+    public List<Long> getAccessibleBucketIds(Long userId) {
+        return bucketPermissionRepository.findAllByUserId(userId)
                 .stream()
                 .map(BucketPermission::getBucketId)
                 .distinct()

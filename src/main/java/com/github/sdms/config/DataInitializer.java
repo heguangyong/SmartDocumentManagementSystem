@@ -23,9 +23,9 @@ public class DataInitializer {
 
         // 对每个馆进行初始化
         for (String libraryCode : libraryCodes) {
-            createUserIfNotExists("admin", "admin_" + libraryCode + "@example.com", "admin123", RoleType.ADMIN, libraryCode);
-            createUserIfNotExists("librarian", "librarian_" + libraryCode + "@example.com", "librarian123", RoleType.LIBRARIAN, libraryCode);
-            createUserIfNotExists("reader", "reader_" + libraryCode + "@example.com", "reader123", RoleType.READER, libraryCode);
+            createUserIfNotExists("admin"+ libraryCode, "admin_" + libraryCode + "@example.com", "admin123", RoleType.ADMIN, libraryCode);
+            createUserIfNotExists("librarian"+ libraryCode, "librarian_" + libraryCode + "@example.com", "librarian123", RoleType.LIBRARIAN, libraryCode);
+            createUserIfNotExists("reader"+ libraryCode, "reader_" + libraryCode + "@example.com", "reader123", RoleType.READER, libraryCode);
         }
     }
 
@@ -39,13 +39,13 @@ public class DataInitializer {
      */
     private void createUserIfNotExists(String username, String email, String rawPassword, RoleType roleType, String libraryCode) {
         // 检查邮箱和libraryCode是否已存在
-        if (!userRepository.existsByEmailAndLibraryCode(email, libraryCode)) {
-            // 生成唯一的uid
+        if (!userRepository.existsByUsernameAndLibraryCode(username, libraryCode)) {
+            // 生成唯一的uid：模仿第三方接口同步过来的uid
             String uid = UUID.randomUUID().toString();
 
             User user = User.builder()
                     .uid(uid)  // 使用唯一的uid
-                    .username(username)  // username不做唯一性检查
+                    .username(username)  // username做唯一性检查
                     .email(email)
                     .password(passwordEncoder.encode(rawPassword))
                     .roleType(roleType)
@@ -53,9 +53,9 @@ public class DataInitializer {
                     .build();
 
             userRepository.save(user);
-            System.out.printf("✅ [%s] 用户已创建: %s / %s / %s / %s%n", roleType, email, rawPassword, libraryCode, uid);
+            System.out.printf("✅ [%s] 用户已创建: %s / %s / %s / %s%n", roleType, username, rawPassword, libraryCode, uid);
         } else {
-            System.out.printf("ℹ️ [%s] 用户已存在: %s / %s%n", roleType, email, libraryCode);
+            System.out.printf("ℹ️ [%s] 用户已存在: %s / %s%n", roleType, username, libraryCode);
         }
     }
 }
