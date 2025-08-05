@@ -38,4 +38,8 @@ public class Bucket {
     @Column(name = "updated_at")
     @Temporal(TemporalType.TIMESTAMP)
     private Date updatedAt = new Date();
+
+    @Column(name = "max_capacity")
+    private Long maxCapacity; // 单位：Byte
+
 }

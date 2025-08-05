@@ -19,7 +19,7 @@ public class UserAuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String userId;         // uid
+    private Long  userId;         // uid
     private String username;
     private String libraryCode;
     private String ip;
@@ -30,4 +30,7 @@ public class UserAuditLog {
     private String actionDetail;   // 可存储 JSON
 
     private Date createdTime;
+
+    @Column(length = 2048)
+    private String signature; // 国密签名数据
 }

@@ -91,8 +91,12 @@ public class UserController {
 
             UserDetails userDetails = customUserDetailsServices.loadUserByUsernameAndLibraryCode(username, libraryCode);
 
+            // 登录成功后：
             User user = userRepository.findByEmailAndLibraryCode(username, libraryCode)
                     .orElseThrow(() -> new ApiException(404, "User not found"));
+
+            // 记录审计日志（登录成功）
+            userAuditLogService.log(user.getId(), username, libraryCode, ip, userAgent, AuditActionType.LOGIN_SUCCESS, "登录成功");
 
             if (Boolean.TRUE.equals(user.getNeedPasswordChange())) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("初次登录需修改密码"));
@@ -107,12 +111,12 @@ public class UserController {
                     .min(Comparator.comparingInt(r -> List.of("admin", "librarian", "reader").indexOf(r)))
                     .orElse("reader");
 
-            // ✅ 审计日志：登录成功
-            userAuditLogService.log(user.getUid(), username, libraryCode, ip, userAgent, AuditActionType.LOGIN_SUCCESS, "登录成功");
-
             return ResponseEntity.ok(ApiResponse.success(new LoginResponse(jwt, "Bearer", roles, mainRole)));
 
         } catch (Exception e) {
+            // 登录失败审计日志
+            userAuditLogService.log(null, username, loginRequest.getLibraryCode(), ip, userAgent, AuditActionType.LOGIN_FAIL, "登录失败：" + e.getMessage());
+
             Long failedCount = redisTemplate.opsForValue().increment(failedKey);
             if (failedCount != null && failedCount >= MAX_FAILED_ATTEMPTS) {
                 redisTemplate.opsForValue().set(lockKey, "LOCKED", LOCK_TIME_SECONDS, TimeUnit.SECONDS);
@@ -120,10 +124,6 @@ public class UserController {
             } else {
                 redisTemplate.expire(failedKey, LOCK_TIME_SECONDS, TimeUnit.SECONDS);
             }
-
-            // ✅ 审计日志：登录失败
-            userAuditLogService.log(null, username, libraryCode, ip, userAgent, AuditActionType.LOGIN_FAIL, "登录失败：" + e.getMessage());
-
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("登录失败：" + e.getMessage()));
         }
     }
@@ -160,7 +160,7 @@ public class UserController {
         // ✅ 审计日志：密码修改
         String ip = RequestUtils.getClientIp(request);
         String userAgent = RequestUtils.getUserAgent(request);
-        userAuditLogService.log(user.getUid(), username, libraryCode, ip, userAgent, AuditActionType.PASSWORD_CHANGE, "用户修改密码");
+        userAuditLogService.log(user.getId(), username, libraryCode, ip, userAgent, AuditActionType.PASSWORD_CHANGE, "用户修改密码");
 
         return ResponseEntity.ok(ApiResponse.success("密码修改成功"));
     }

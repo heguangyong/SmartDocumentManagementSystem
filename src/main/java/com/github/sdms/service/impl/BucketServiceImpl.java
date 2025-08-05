@@ -1,5 +1,7 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.dto.BucketPageRequest;
+import com.github.sdms.dto.BucketSummaryDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.repository.BucketPermissionRepository;
@@ -14,6 +16,10 @@ import io.minio.MinioClient;
 import io.minio.errors.MinioException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +45,9 @@ public class BucketServiceImpl implements BucketService {
     public Bucket createBucket(Bucket bucket) {
         if (bucketRepository.existsByName(bucket.getName())) {
             throw new ApiException(400, "桶名已存在");
+        }
+        if (bucket.getMaxCapacity() == null) {
+            bucket.setMaxCapacity(1073741824L); // 1GB,默认1G，需要时可调整，因为桶于用户是配置关系，这里不考虑根据角色定死最大容量。避免一个桶对应多个不同角色时出现逻辑不清的情况
         }
 
         try {
@@ -213,5 +222,27 @@ public class BucketServiceImpl implements BucketService {
         return bucketRepository.findByName(name);
     }
 
+    @Override
+    public Page<BucketSummaryDTO> pageBuckets(BucketPageRequest request) {
+        Pageable pageable = PageRequest.of(request.getPage() - 1, request.getSize());
+
+        Page<Bucket> page = bucketRepository.findByNameOrOwnerUidLike(request.getKeyword(), pageable);
+
+        List<BucketSummaryDTO> dtos = page.getContent().stream().map(bucket -> {
+            int userCount = bucketPermissionRepository.countByBucketId(bucket.getId());
+            long usedCapacity = minioService.calculateUsedCapacity(bucket.getName()); // 使用 MinioService 实现
+            return BucketSummaryDTO.builder()
+                    .id(bucket.getId())
+                    .name(bucket.getName())
+                    .ownerUid(bucket.getOwnerUid())
+                    .createTime(bucket.getCreatedAt())
+                    .maxCapacity(bucket.getMaxCapacity())
+                    .usedCapacity(usedCapacity)
+                    .accessUserCount(userCount)
+                    .build();
+        }).collect(Collectors.toList());
+
+        return new PageImpl<>(dtos, pageable, page.getTotalElements());
+    }
 
 }

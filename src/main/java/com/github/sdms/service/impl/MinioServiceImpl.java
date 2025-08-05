@@ -6,13 +6,16 @@ import com.github.sdms.repository.BucketRepository;
 import com.github.sdms.service.MinioService;
 import com.github.sdms.service.PermissionValidator;
 import com.github.sdms.util.AuthUtils;
+import com.github.sdms.util.BucketStatCache;
 import com.github.sdms.util.BucketUtil;
 import com.github.sdms.util.FileUtil;
 import io.minio.*;
 import io.minio.http.Method;
+import io.minio.messages.Item;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -318,6 +321,60 @@ public class MinioServiceImpl implements MinioService {
                 .findFirstByOwnerUidAndLibraryCode(uid, libraryCode)
                 .map(Bucket::getId)
                 .orElseThrow(() -> new ApiException("用户无桶可上传，未找到归属桶"));
+    }
+
+    @Override
+    public long calculateUsedCapacity(String bucketName) {
+        try {
+            long totalSize = 0L;
+
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                    ListObjectsArgs.builder().bucket(bucketName).recursive(true).build()
+            );
+
+            for (Result<Item> result : results) {
+                Item item = result.get();
+                totalSize += item.size();
+            }
+
+            return totalSize;
+        } catch (Exception e) {
+            log.error("统计桶 {} 使用容量失败", bucketName, e);
+            throw new ApiException("统计桶容量失败: " + e.getMessage());
+        }
+    }
+
+    @Async("taskExecutor")
+    public void refreshBucketStatAsync(String bucketName) {
+        try {
+            long totalSize = 0L;
+            int fileCount = 0;
+
+            Iterable<Result<Item>> results = minioClient.listObjects(
+                    ListObjectsArgs.builder().bucket(bucketName).recursive(true).build()
+            );
+
+            for (Result<Item> result : results) {
+                Item item = result.get();
+                totalSize += item.size();
+                fileCount++;
+            }
+
+            BucketStatCache.put(bucketName, totalSize, fileCount);
+        } catch (Exception e) {
+            log.warn("异步统计桶容量失败: {}", bucketName, e);
+        }
+    }
+
+    @Override
+    public long getUsedCapacityWithCache(String bucketName) {
+        return BucketStatCache.get(bucketName)
+                .map(BucketStatCache.CacheEntry::getSizeInBytes)
+                .orElseGet(() -> {
+                    refreshBucketStatAsync(bucketName);
+                    return -1L;
+                });
+
     }
 
 

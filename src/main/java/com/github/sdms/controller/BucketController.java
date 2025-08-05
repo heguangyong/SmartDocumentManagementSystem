@@ -1,7 +1,9 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.dto.BucketPageRequest;
 import com.github.sdms.dto.BucketPermissionDTO;
+import com.github.sdms.dto.BucketSummaryDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.*;
 import com.github.sdms.model.enums.PermissionType;
@@ -12,6 +14,7 @@ import com.github.sdms.util.AuthUtils;
 import com.github.sdms.util.BucketUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +36,15 @@ public class BucketController {
     private final MinioService minioService;
 
     // ========================= 管理员操作 =========================
+
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "分页查询所有存储桶（含容量、人数等）")
+    @PostMapping("/admin/page")
+    public ApiResponse<Page<BucketSummaryDTO>> pageBuckets(@RequestBody BucketPageRequest request) {
+        Page<BucketSummaryDTO> result = bucketService.pageBuckets(request);
+        return ApiResponse.success(result);
+    }
+
 
     @Operation(summary = "创建存储桶", description = "管理员创建新的存储桶")
     @PreAuthorize("hasRole('ADMIN')")

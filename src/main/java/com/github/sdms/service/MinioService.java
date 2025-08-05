@@ -111,4 +111,10 @@ public interface MinioService {
     Long getBucketIdForUpload(String uid, String libraryCode);
 
 
+    long calculateUsedCapacity(String name);
+
+    long getUsedCapacityWithCache(String bucketName); // 推荐添加
+
+    void refreshBucketStatAsync(String bucketName);   // 如果外部需要触发，也可以加
+
 }
