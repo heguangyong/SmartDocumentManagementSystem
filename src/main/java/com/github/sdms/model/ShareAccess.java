@@ -25,7 +25,7 @@ public class ShareAccess {
     private Long targetId;        // 对应 fileId 或 folderId
     private String targetName;    // 可选：用于前端显示
 
-    private String createdBy;     // 创建者 uid
+    private Long ownerId;     // 创建者 对应 user表id
     private String libraryCode;   // 所属库
 
     private Date expireAt;

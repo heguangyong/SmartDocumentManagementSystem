@@ -25,47 +25,47 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     private final FolderRepository folderRepository;
 
     @Override
-    public ShareAccess createFileShare(String uid, Long fileId, Integer expireMinutes, String libraryCode) {
+    public ShareAccess createFileShare(Long userId, Long fileId, Integer expireMinutes, String libraryCode) {
         UserFile file = userFileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException(404, "文件不存在"));
-        if (!file.getUid().equals(uid)) {
+        if (!file.getUid().equals(userId)) {
             throw new ApiException(403, "无权限分享该文件");
         }
 
-        ShareAccess share = buildBaseShare(uid, "file", fileId, file.getOriginFilename(), expireMinutes, libraryCode);
+        ShareAccess share = buildBaseShare(userId, "file", fileId, file.getOriginFilename(), expireMinutes, libraryCode);
         return shareAccessRepository.save(share);
     }
 
     @Override
-    public ShareAccess createFolderShare(String uid, Long folderId, Integer expireMinutes, String libraryCode) {
+    public ShareAccess createFolderShare(Long userId, Long folderId, Integer expireMinutes, String libraryCode) {
         Folder folder = folderRepository.findById(folderId)
                 .orElseThrow(() -> new ApiException(404, "目录不存在"));
-        if (!folder.getOwnerId().equals(uid)) {
+        if (!folder.getOwnerId().equals(userId)) {
             throw new ApiException(403, "无权限分享该目录");
         }
 
-        ShareAccess share = buildBaseShare(uid, "folder", folderId, folder.getName(), expireMinutes, libraryCode);
+        ShareAccess share = buildBaseShare(userId, "folder", folderId, folder.getName(), expireMinutes, libraryCode);
         return shareAccessRepository.save(share);
     }
 
     @Override
-    public String createShare(String uid, String targetType, Long targetId, Date expireAt, String libraryCode) {
+    public String createShare(Long userId, String targetType, Long targetId, Date expireAt, String libraryCode) {
         Integer expireMinutes = (expireAt != null)
                 ? (int) ((expireAt.getTime() - System.currentTimeMillis()) / 60000)
                 : null;
 
         ShareAccess share;
         if ("file".equalsIgnoreCase(targetType)) {
-            share = createFileShare(uid, targetId, expireMinutes, libraryCode);
+            share = createFileShare(userId, targetId, expireMinutes, libraryCode);
         } else if ("folder".equalsIgnoreCase(targetType)) {
-            share = createFolderShare(uid, targetId, expireMinutes, libraryCode);
+            share = createFolderShare(userId, targetId, expireMinutes, libraryCode);
         } else {
             throw new ApiException(400, "不支持的 targetType：" + targetType);
         }
         return share.getToken(); // 明文 token 返回前端
     }
 
-    private ShareAccess buildBaseShare(String uid, String type, Long targetId, String targetName, Integer expireMinutes, String libraryCode) {
+    private ShareAccess buildBaseShare(Long userId, String type, Long targetId, String targetName, Integer expireMinutes, String libraryCode) {
         String token = TokenUtils.generateToken();
         String hash = TokenUtils.hashToken(token);
 
@@ -75,7 +75,7 @@ public class ShareAccessServiceImpl implements ShareAccessService {
                 .targetType(type)
                 .targetId(targetId)
                 .targetName(targetName)
-                .createdBy(uid)
+                .ownerId(userId)
                 .libraryCode(libraryCode)
                 .createdAt(new Date())
                 .enabled(true)
@@ -90,9 +90,9 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     }
 
     @Override
-    public void revokeShare(String uid, String token, String libraryCode) {
+    public void revokeShare(Long userId, String token, String libraryCode) {
         ShareAccess share = getRawByToken(token);
-        if (!share.getCreatedBy().equals(uid) || !libraryCode.equals(share.getLibraryCode())) {
+        if (!share.getOwnerId().equals(userId) || !libraryCode.equals(share.getLibraryCode())) {
             throw new ApiException(403, "无权限撤销该分享");
         }
         share.setEnabled(false); // 逻辑禁用
@@ -166,8 +166,8 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     }
 
     @Override
-    public List<ShareAccess> listMyShares(String uid, String targetType, String libraryCode) {
-        return shareAccessRepository.findByCreatedByAndTargetTypeAndLibraryCodeAndEnabledTrue(
-                uid, targetType, libraryCode);
+    public List<ShareAccess> listMyShares(Long userId, String targetType, String libraryCode) {
+        return shareAccessRepository.findByOwnerIdAndTargetTypeAndLibraryCodeAndEnabledTrue(
+                userId, targetType, libraryCode);
     }
 }

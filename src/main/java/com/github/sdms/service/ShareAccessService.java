@@ -12,22 +12,22 @@ public interface ShareAccessService {
     /**
      * 创建文件分享
      */
-    ShareAccess createFileShare(String uid, Long fileId, Integer expireMinutes, String libraryCode);
+    ShareAccess createFileShare(Long userId, Long fileId, Integer expireMinutes, String libraryCode);
 
     /**
      * 创建目录分享
      */
-    ShareAccess createFolderShare(String uid, Long folderId, Integer expireMinutes, String libraryCode);
+    ShareAccess createFolderShare(Long userId, Long folderId, Integer expireMinutes, String libraryCode);
 
     /**
      * 统一分享创建（动态处理类型）
      */
-    String createShare(String uid, String targetType, Long targetId, Date expireAt, String libraryCode);
+    String createShare(Long userId, String targetType, Long targetId, Date expireAt, String libraryCode);
 
     /**
      * 撤销分享（逻辑删除或标记无效）
      */
-    void revokeShare(String uid, String token, String libraryCode);
+    void revokeShare(Long userId, String token, String libraryCode);
 
     /**
      * 校验token，返回分享记录（已校验过期状态）
@@ -72,5 +72,5 @@ public interface ShareAccessService {
     /**
      * 获取当前用户创建的所有分享（可筛选类型）
      */
-    List<ShareAccess> listMyShares(String uid, String targetType, String libraryCode);
+    List<ShareAccess> listMyShares(Long userId, String targetType, String libraryCode);
 }

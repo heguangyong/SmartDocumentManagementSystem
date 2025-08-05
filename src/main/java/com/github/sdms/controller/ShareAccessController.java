@@ -1,18 +1,19 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
-import com.github.sdms.model.*;
-import com.github.sdms.repository.ShareAccessRepository;
-import com.github.sdms.service.*;
-import com.github.sdms.util.ShareTokenValidator;
-import com.github.sdms.util.TokenUtils;
+import com.github.sdms.model.Folder;
+import com.github.sdms.model.ShareAccess;
+import com.github.sdms.model.ShareAccessLog;
+import com.github.sdms.model.UserFile;
+import com.github.sdms.service.MinioService;
+import com.github.sdms.service.ShareAccessLogService;
+import com.github.sdms.service.ShareAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -26,28 +27,22 @@ public class ShareAccessController {
     private final MinioService minioService;
     private final ShareAccessLogService shareAccessLogService;
     private final ShareAccessService shareAccessService;
-    private final ShareAccessRepository shareAccessRepository;
 
     @GetMapping("/view-folder")
     @Operation(summary = "通过分享 Token 访问文件夹及内容")
-    public ApiResponse<SharedFolderView> viewSharedFolder(
-            @RequestParam String token,
-            @RequestParam String libraryCode
-    ) {
+    public ApiResponse<SharedFolderView> viewSharedFolder(@RequestParam String token, @RequestParam String libraryCode) {
         Folder folder = shareAccessService.getFolderByToken(token, libraryCode);
         List<Folder> children = shareAccessService.listChildFolders(folder);
         SharedFolderView result = new SharedFolderView(folder.getName(), folder.getId(), children, folder.getLibraryCode());
         return ApiResponse.success("访问成功", result);
     }
 
-    public record SharedFolderView(String folderName, Long folderId, List<Folder> children, String libraryCode) {}
+    public record SharedFolderView(String folderName, Long folderId, List<Folder> children, String libraryCode) {
+    }
 
     @GetMapping("/files")
     @Operation(summary = "列出分享目录下的文件列表")
-    public ApiResponse<List<UserFile>> listSharedFiles(
-            @RequestParam String token,
-            @RequestParam String libraryCode
-    ) {
+    public ApiResponse<List<UserFile>> listSharedFiles(@RequestParam String token, @RequestParam String libraryCode) {
         Folder folder = shareAccessService.getFolderByToken(token, libraryCode);
         List<UserFile> files = shareAccessService.listFilesByFolder(folder);
         return ApiResponse.success("查询成功", files);
@@ -55,11 +50,7 @@ public class ShareAccessController {
 
     @GetMapping("/download")
     @Operation(summary = "通过分享链接下载文件（支持目录下的文件）")
-    public ResponseEntity<?> downloadFile(
-            @RequestParam String token,
-            @RequestParam Long fileId,
-            @RequestParam String libraryCode,
-            HttpServletRequest request) {
+    public ResponseEntity<?> downloadFile(@RequestParam String token, @RequestParam Long fileId, @RequestParam String libraryCode, HttpServletRequest request) {
 
         ShareAccess share = shareAccessService.getByToken(token, libraryCode);
 
@@ -92,19 +83,13 @@ public class ShareAccessController {
 
     @PostMapping("/create")
     @Operation(summary = "统一创建分享链接")
-    public ResponseEntity<?> createShare(
-            @RequestParam String uid,
-            @RequestParam String type,
-            @RequestParam Long targetId,
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime  expireAt,
-            @RequestParam String libraryCode
-    ) {
+    public ResponseEntity<?> createShare(@RequestParam Long userId, @RequestParam String type, @RequestParam Long targetId, @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime expireAt, @RequestParam String libraryCode) {
         // 设置默认过期时间（7天后）
         if (expireAt == null) {
             expireAt = LocalDateTime.now().plusDays(7);
         }
 
-        String token = shareAccessService.createShare(uid, type, targetId, java.sql.Timestamp.valueOf(expireAt), libraryCode);
+        String token = shareAccessService.createShare(userId, type, targetId, java.sql.Timestamp.valueOf(expireAt), libraryCode);
         return ResponseEntity.ok(Map.of("token", token));
     }
 
@@ -129,12 +114,8 @@ public class ShareAccessController {
 
     @PostMapping("/revoke")
     @Operation(summary = "撤销分享链接")
-    public ResponseEntity<?> revokeShare(
-            @RequestParam String uid,
-            @RequestParam String token,
-            @RequestParam String libraryCode
-    ) {
-        shareAccessService.revokeShare(uid, token, libraryCode);
+    public ResponseEntity<?> revokeShare(@RequestParam Long userId, @RequestParam String token, @RequestParam String libraryCode) {
+        shareAccessService.revokeShare(userId, token, libraryCode);
         return ResponseEntity.ok("已撤销分享");
     }
 
@@ -142,14 +123,7 @@ public class ShareAccessController {
         String ip = getClientIp(request);
         String ua = request.getHeader("User-Agent");
 
-        ShareAccessLog log = ShareAccessLog.builder()
-                .token(token)
-                .fileId(fileId)
-                .fileName(filename)
-                .accessIp(ip)
-                .userAgent(ua)
-                .actionType("download")
-                .build();
+        ShareAccessLog log = ShareAccessLog.builder().token(token).fileId(fileId).fileName(filename).accessIp(ip).userAgent(ua).actionType("download").build();
         shareAccessLogService.recordAccess(log);
     }
 

@@ -11,6 +11,6 @@ public interface ShareAccessRepository extends JpaRepository<ShareAccess, Long> 
 
     Optional<ShareAccess> findByTokenAndLibraryCode(String token, String libraryCode);
 
-    List<ShareAccess> findByCreatedByAndTargetTypeAndLibraryCodeAndEnabledTrue(
-            String createdBy, String targetType, String libraryCode);
+    List<ShareAccess> findByOwnerIdAndTargetTypeAndLibraryCodeAndEnabledTrue(
+            Long ownerId, String targetType, String libraryCode);
 }
