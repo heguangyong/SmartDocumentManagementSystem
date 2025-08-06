@@ -1,30 +1,41 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.dto.UserFilePageRequest;
+import com.github.sdms.dto.UserFileSummaryDTO;
+import com.github.sdms.dto.UserFileVersionDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
+import com.github.sdms.model.Folder;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.model.enums.IdType;
 import com.github.sdms.model.enums.PermissionType;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.BucketPermissionRepository;
+import com.github.sdms.repository.FolderRepository;
 import com.github.sdms.repository.RolePermissionRepository;
 import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.*;
 import com.github.sdms.util.*;
 import io.minio.MinioClient;
 import io.minio.errors.MinioException;
+import jakarta.persistence.criteria.Predicate;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
 import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 public class UserFileServiceImpl implements UserFileService {
 
     @Autowired
@@ -62,6 +73,75 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Autowired
     private BucketService bucketService;
+
+    @Autowired
+    private FolderRepository folderRepository;
+    @Autowired
+    private FolderService folderService;
+
+
+    @Override
+    public Page<UserFileSummaryDTO> pageFiles(UserFilePageRequest request, CustomerUserDetails userDetails) {
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), Sort.by(Sort.Direction.DESC, "createdDate"));
+
+        Page<UserFile> page = userFileRepository.findAll((root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            predicates.add(cb.equal(root.get("deleteFlag"), false));
+
+            switch (userDetails.getRoleType()) {
+                case ADMIN:
+                    break;
+                case LIBRARIAN:
+                case READER:
+                default:
+                    predicates.add(cb.equal(root.get("libraryCode"), userDetails.getLibraryCode()));
+                    predicates.add(cb.equal(root.get("userId"), userDetails.getUserId()));
+                    break;
+            }
+            if (request.getKeyword() != null && !request.getKeyword().isEmpty()) {
+                String likeKeyword = "%" + request.getKeyword() + "%";
+                Predicate p1 = cb.like(root.get("originFilename"), likeKeyword);
+                predicates.add(p1); // ✅ 文件名模糊搜索
+            }
+
+            if (request.getName() != null && !request.getName().isEmpty()) {
+                predicates.add(cb.like(root.get("originFilename"), "%" + request.getName() + "%"));
+            }
+            if (request.getType() != null && !request.getType().isEmpty()) {
+                predicates.add(cb.equal(root.get("type"), request.getType()));
+            }
+            if (request.getFolderId() != null) {
+                predicates.add(cb.equal(root.get("folderId"), request.getFolderId()));
+            }
+            // 其他过滤条件代码后面
+            if (request.getFolderId() != null) {
+                // 递归查询所有子目录ID
+                List<Long> folderIds = folderService.getAllSubFolderIds(request.getFolderId());
+                folderIds.add(request.getFolderId()); // 包含自身
+                predicates.add(root.get("folderId").in(folderIds));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        }, pageable);
+
+        List<UserFileSummaryDTO> dtoList = page.getContent().stream().map(file -> {
+            UserFileSummaryDTO dto = new UserFileSummaryDTO();
+            dto.setId(file.getId());
+            dto.setOriginFilename(file.getOriginFilename());
+            dto.setType(file.getType());
+            dto.setSize(file.getSize());
+            dto.setCreatedDate(file.getCreatedDate());
+            dto.setVersionNumber(file.getVersionNumber());
+            dto.setIsLatest(file.getIsLatest());
+            dto.setShared(file.getShared());
+            dto.setFolderId(file.getFolderId());
+            return dto;
+        }).toList();
+
+        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
+    }
+
 
     @Override
     public void saveUserFile(UserFile file) {
@@ -184,37 +264,50 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
+    @Transactional
     public UserFile uploadNewDocument(MultipartFile file, Long userId, Bucket targetBucket, String notes, Long folderId) {
         String bucketName = targetBucket.getName();
         String libraryCode = targetBucket.getLibraryCode();
 
-        // 1. 构建 MinIO 对象名
+        // 构建 MinIO 对象名（避免命名冲突）
         String objectName = FileUtil.generateObjectName(file.getOriginalFilename());
 
-        // 2. 上传文件至 MinIO
-        minioService.uploadFile(userId,bucketName,  file);
+        // 上传文件到 MinIO
+        minioService.uploadFile(userId, bucketName, file);
 
-        // ✅ 3. 生成新的 docId（首次上传）
+        // 提取文件名
+        String originFilename = file.getOriginalFilename();
+
+        // ===== 新增逻辑：判断版本号 =====
+        Integer maxVersion = userFileRepository.findMaxVersionNumber(originFilename, folderId, userId, libraryCode);
+        int nextVersion = (maxVersion == null ? 1 : maxVersion + 1);
+
+        // ===== 新增逻辑：标记旧版本为非最新 =====
+        if (maxVersion != null) {
+            userFileRepository.markOldVersionsNotLatest(originFilename, folderId, userId, libraryCode);
+        }
+
+        // docId：新文件使用新的 docId（即便同名也是新文档）
         long docId = cachedIdGenerator.nextId(IdType.DOC_ID.name());
 
-        // 4. 构建 UserFile 实体对象（版本默认 1，首次上传）
+        // 构建 UserFile 记录
         UserFile userFile = buildFileRecord(
                 userId,
                 libraryCode,
                 file,
                 objectName,
-                1,         // 初始版本号
-                docId,     // ✅ 设置新生成的 docId
+                nextVersion,
+                docId,
                 notes,
-                true,      // 是最新版本
+                true, // 是最新版本
                 bucketName,
                 folderId
         );
 
-        // 5. 保存数据库记录
+        // 保存数据库
         userFileRepository.save(userFile);
 
-        // 6. 自动授权上传者权限（如果需要）
+        // 自动授权
         if (!permissionValidator.hasWritePermission(userId, bucketName)) {
             permissionService.addBucketPermission(userId, bucketName, PermissionType.WRITE);
         }
@@ -223,21 +316,176 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
+    @Transactional
     public List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, Long userId, Bucket targetBucket, String notes, Long folderId) {
-        List<UserFile> uploadedFiles = new ArrayList<>();
+        String bucketName = targetBucket.getName();
+        String libraryCode = targetBucket.getLibraryCode();
+
+        List<UserFile> savedFiles = new ArrayList<>();
 
         for (MultipartFile file : files) {
-            // 跳过空文件
-            if (file == null || file.isEmpty()) continue;
+            String originFilename = file.getOriginalFilename();
 
-            UserFile uploaded = uploadNewDocument(file, userId, targetBucket, notes, folderId);
-            uploadedFiles.add(uploaded);
+            // 构建对象名（唯一标识）
+            String objectName = FileUtil.generateObjectName(originFilename);
+
+            // 上传文件
+            minioService.uploadFile(userId, bucketName, file);
+
+            // ===== 版本号处理 =====
+            Integer maxVersion = userFileRepository.findMaxVersionNumber(originFilename, folderId, userId, libraryCode);
+            int nextVersion = (maxVersion == null ? 1 : maxVersion + 1);
+
+            if (maxVersion != null) {
+                userFileRepository.markOldVersionsNotLatest(originFilename, folderId, userId, libraryCode);
+            }
+
+            // 生成新 docId（即使是同名也视作新文档版本）
+            long docId = cachedIdGenerator.nextId(IdType.DOC_ID.name());
+
+            UserFile userFile = buildFileRecord(
+                    userId,
+                    libraryCode,
+                    file,
+                    objectName,
+                    nextVersion,
+                    docId,
+                    notes,
+                    true, // 是最新版本
+                    bucketName,
+                    folderId
+            );
+
+            userFileRepository.save(userFile);
+            savedFiles.add(userFile);
+
+            // 自动授权（每个文件都检查一次，必要时优化为全局权限判断）
+            if (!permissionValidator.hasWritePermission(userId, bucketName)) {
+                permissionService.addBucketPermission(userId, bucketName, PermissionType.WRITE);
+            }
         }
 
-        return uploadedFiles;
+        return savedFiles;
     }
 
+    @Override
+    @Transactional
+    public void moveItems(List<Long> fileIds, List<Long> folderIds, Long targetFolderId, Long userId) {
+        // ===== 校验目标目录 =====
+        Folder targetFolder = folderRepository.findById(targetFolderId)
+                .orElseThrow(() -> new ApiException(404, "目标目录不存在"));
+        if (!targetFolder.getUserId().equals(userId)) {
+            throw new ApiException(403, "无权限访问目标目录");
+        }
 
+        // ===== 处理文件移动 =====
+        if (fileIds != null && !fileIds.isEmpty()) {
+            List<UserFile> files = userFileRepository.findAllById(fileIds);
+            for (UserFile file : files) {
+                if (!file.getUserId().equals(userId)) {
+                    throw new ApiException(403, "无权限移动文件 ID: " + file.getId());
+                }
+                if (file.getFolderId() != null && isSubFolder(file.getFolderId(), targetFolderId)) {
+                    throw new ApiException(400, "不能将文件移动到其子目录，文件ID: " + file.getId());
+                }
+                file.setFolderId(targetFolderId);
+            }
+            userFileRepository.saveAll(files);
+        }
+
+        // ===== 处理目录移动 =====
+        if (folderIds != null && !folderIds.isEmpty()) {
+            List<Folder> folders = folderRepository.findAllById(folderIds);
+            for (Folder folder : folders) {
+                if (!folder.getUserId().equals(userId)) {
+                    throw new ApiException(403, "无权限移动目录 ID: " + folder.getId());
+                }
+                // 防止移动到自己或子目录
+                if (folder.getId().equals(targetFolderId)) {
+                    throw new ApiException(400, "不能将目录移动到其自身");
+                }
+                if (isSubFolder(folder.getId(), targetFolderId)) {
+                    throw new ApiException(400, "不能将目录移动到其子目录 ID: " + folder.getId());
+                }
+                folder.setParentId(targetFolderId);
+            }
+            folderRepository.saveAll(folders);
+        }
+    }
+
+    private boolean isSubFolder(Long sourceFolderId, Long targetFolderId) {
+        Long currentId = targetFolderId;
+        while (currentId != null) {
+            if (currentId.equals(sourceFolderId)) {
+                return true;
+            }
+            Folder current = folderRepository.findById(currentId).orElse(null);
+            if (current == null) break;
+            currentId = current.getParentId();
+        }
+        return false;
+    }
+
+    @Override
+    public List<UserFileVersionDTO> getFileVersions(Long docId, Long userId) {
+        if (docId == null) {
+            throw new ApiException(400, "docId 不能为空");
+        }
+
+        List<UserFile> versions = userFileRepository.findByDocIdAndUserIdOrderByVersionNumberDesc(docId, userId);
+
+        if (versions.isEmpty()) {
+            throw new ApiException(404, "未找到该文档的任何版本");
+        }
+
+        return versions.stream().map(file -> {
+            UserFileVersionDTO dto = new UserFileVersionDTO();
+            dto.setId(file.getId());
+            dto.setVersionNumber(file.getVersionNumber());
+            dto.setOriginFilename(file.getOriginFilename());
+            dto.setSize(file.getSize());
+            dto.setCreatedDate(file.getCreatedDate());
+            dto.setIsLatest(file.getIsLatest());
+            dto.setVersionKey(file.getVersionKey());
+            return dto;
+        }).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public Long restoreFileVersion(Long fileId, Long userId) {
+        UserFile oldVersion = userFileRepository.findById(fileId)
+                .orElseThrow(() -> new ApiException(404, "版本文件不存在"));
+
+        if (!oldVersion.getUserId().equals(userId)) {
+            throw new ApiException(403, "无权限恢复该版本");
+        }
+
+        Long docId = oldVersion.getDocId();
+        if (docId == null) {
+            throw new ApiException(400, "非法的历史版本记录，缺失 docId");
+        }
+
+        // 查找最新版本号
+        Integer maxVersion = userFileRepository.findMaxVersionByDocId(docId);
+        if (maxVersion == null) {
+            maxVersion = 0;
+        }
+
+        // 置旧的 isLatest 为 false
+        userFileRepository.clearLatestVersionFlag(docId);
+
+        // 创建新版本记录
+        UserFile newVersion = new UserFile();
+        BeanUtils.copyProperties(oldVersion, newVersion, "id", "versionNumber", "createdDate");
+
+        newVersion.setVersionNumber(maxVersion + 1);
+        newVersion.setIsLatest(true);
+        newVersion.setCreatedDate(new Date());
+
+        userFileRepository.save(newVersion);
+        return newVersion.getId();
+    }
 
 
     @Override

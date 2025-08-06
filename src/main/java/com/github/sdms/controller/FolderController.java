@@ -1,13 +1,18 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.dto.FolderPageRequest;
+import com.github.sdms.dto.FolderSummaryDTO;
 import com.github.sdms.model.Folder;
 import com.github.sdms.service.FolderService;
+import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -22,6 +27,13 @@ public class FolderController {
 
     private final FolderService folderService;
     private final PermissionChecker permissionChecker;
+
+    @PostMapping("/page")
+    public ApiResponse<Page<FolderSummaryDTO>> pageFolders(@RequestBody FolderPageRequest request,
+                                                           @AuthenticationPrincipal CustomerUserDetails userDetails) {
+        Page<FolderSummaryDTO> result = folderService.pageFolders(request, userDetails);
+        return ApiResponse.success(result);
+    }
 
 
     @PostMapping("/create")

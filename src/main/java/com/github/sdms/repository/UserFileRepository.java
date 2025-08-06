@@ -3,6 +3,7 @@ package com.github.sdms.repository;
 import com.github.sdms.model.UserFile;
 import io.lettuce.core.dynamic.annotation.Param;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
@@ -14,7 +15,7 @@ import java.util.Optional;
 import java.util.Set;
 
 @Repository
-public interface UserFileRepository extends JpaRepository<UserFile, Long> {
+public interface UserFileRepository extends JpaRepository<UserFile, Long> , JpaSpecificationExecutor<UserFile> {
 
     // 根据用户ID和deleteFlag查询文件列表
     List<UserFile> findByUserIdAndDeleteFlagFalseAndLibraryCode(Long userId, String libraryCode);
@@ -64,5 +65,27 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> {
     List<UserFile> findByLibraryCodeAndDeleteFlagFalse(String libraryCode);
 
     List<UserFile> findByUserIdAndLibraryCodeAndDeleteFlagFalse(Long userId, String libraryCode);
+
+    @Query("SELECT MAX(f.versionNumber) FROM UserFile f WHERE f.originFilename = :originFilename AND f.folderId = :folderId AND f.userId = :userId AND f.libraryCode = :libraryCode AND f.deleteFlag = false")
+    Integer findMaxVersionNumber(@Param("originFilename") String originFilename,
+                                 @Param("folderId") Long folderId,
+                                 @Param("userId") Long userId,
+                                 @Param("libraryCode") String libraryCode);
+
+    @Modifying
+    @Query("UPDATE UserFile f SET f.isLatest = false WHERE f.originFilename = :originFilename AND f.folderId = :folderId AND f.userId = :userId AND f.libraryCode = :libraryCode AND f.deleteFlag = false")
+    void markOldVersionsNotLatest(@Param("originFilename") String originFilename,
+                                  @Param("folderId") Long folderId,
+                                  @Param("userId") Long userId,
+                                  @Param("libraryCode") String libraryCode);
+
+    List<UserFile> findByDocIdAndUserIdOrderByVersionNumberDesc(Long docId, Long userId);
+
+    @Query("SELECT MAX(u.versionNumber) FROM UserFile u WHERE u.docId = :docId")
+    Integer findMaxVersionByDocId(@Param("docId") Long docId);
+
+    @Modifying
+    @Query("UPDATE UserFile u SET u.isLatest = false WHERE u.docId = :docId AND u.isLatest = true")
+    void clearLatestVersionFlag(@Param("docId") Long docId);
 
 }

@@ -1,12 +1,18 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.dto.FolderPageRequest;
+import com.github.sdms.dto.FolderSummaryDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.repository.FolderRepository;
 import com.github.sdms.service.FolderService;
+import com.github.sdms.util.CustomerUserDetails;
+import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -16,6 +22,44 @@ import java.util.Optional;
 public class FolderServiceImpl implements FolderService {
 
     private final FolderRepository folderRepository;
+
+    @Override
+    public Page<FolderSummaryDTO> pageFolders(FolderPageRequest request, CustomerUserDetails userDetails) {
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), Sort.by(Sort.Direction.DESC, "createdDate"));
+
+        Page<Folder> page = folderRepository.findAll((root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            predicates.add(cb.equal(root.get("deleteFlag"), false));
+
+            switch (userDetails.getRoleType()) {
+                case ADMIN:
+                    break;
+                default:
+                    predicates.add(cb.equal(root.get("libraryCode"), userDetails.getLibraryCode()));
+                    predicates.add(cb.equal(root.get("userId"), userDetails.getUserId()));
+                    break;
+            }
+
+            if (request.getKeyword() != null && !request.getKeyword().isEmpty()) {
+                predicates.add(cb.like(root.get("name"), "%" + request.getKeyword() + "%"));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        }, pageable);
+
+        List<FolderSummaryDTO> dtoList = page.getContent().stream().map(folder -> {
+            FolderSummaryDTO dto = new FolderSummaryDTO();
+            dto.setId(folder.getId());
+            dto.setName(folder.getName());
+            dto.setParentId(folder.getParentId());
+            dto.setCreatedDate(folder.getCreatedDate());
+            return dto;
+        }).toList();
+
+        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
+    }
+
 
     @Override
     public Folder createFolder(Long userId, String name, Long parentId, String libraryCode) {
@@ -32,8 +76,8 @@ public class FolderServiceImpl implements FolderService {
                 .name(name)
                 .parentId(parentId)
                 .libraryCode(libraryCode)
-                .createdAt(new Date())
-                .updatedAt(new Date())
+                .createdDate(new Date())
+                .updatedDate(new Date())
                 .build();
         return folderRepository.save(folder);
     }
@@ -51,7 +95,7 @@ public class FolderServiceImpl implements FolderService {
         }
 
         folder.setName(newName);
-        folder.setUpdatedAt(new Date());
+        folder.setUpdatedDate(new Date());
         return folderRepository.save(folder);
     }
 
@@ -102,7 +146,7 @@ public class FolderServiceImpl implements FolderService {
         }
 
         folder.setParentId(newParentId);
-        folder.setUpdatedAt(new Date());
+        folder.setUpdatedDate(new Date());
         folderRepository.save(folder);
     }
 
@@ -115,5 +159,25 @@ public class FolderServiceImpl implements FolderService {
             currentId = parent.get().getParentId();
         }
         return false;
+    }
+
+    /**
+     * 递归获取指定目录ID的所有子目录ID列表
+     * @param folderId 目录ID
+     * @return 子目录ID列表，不包含自身
+     */
+    @Override
+    public List<Long> getAllSubFolderIds(Long folderId) {
+        List<Long> result = new ArrayList<>();
+        collectSubFolderIds(folderId, result);
+        return result;
+    }
+
+    private void collectSubFolderIds(Long parentId, List<Long> collector) {
+        List<Folder> children = folderRepository.findByParentId(parentId);
+        for (Folder child : children) {
+            collector.add(child.getId());
+            collectSubFolderIds(child.getId(), collector);
+        }
     }
 }

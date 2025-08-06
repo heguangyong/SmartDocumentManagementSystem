@@ -2,12 +2,13 @@ package com.github.sdms.repository;
 
 import com.github.sdms.model.Folder;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
-public interface FolderRepository extends JpaRepository<Folder, Long> {
+public interface FolderRepository extends JpaRepository<Folder, Long>, JpaSpecificationExecutor<Folder> {
 
     // 查询用户根目录
     List<Folder> findByUserIdAndParentIdIsNullAndLibraryCode(Long userId, String libraryCode);
@@ -23,5 +24,7 @@ public interface FolderRepository extends JpaRepository<Folder, Long> {
 
     // 修改这里，userId 就是 ownerId
     List<Folder> findByParentIdAndUserIdAndLibraryCode(Long parentId, Long userId, String libraryCode);
+
+    List<Folder> findByParentId(Long parentId);
 }
 

@@ -1,14 +1,26 @@
 package com.github.sdms.service;
 
+import com.github.sdms.dto.UserFilePageRequest;
+import com.github.sdms.dto.UserFileSummaryDTO;
+import com.github.sdms.dto.UserFileVersionDTO;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.util.CustomerUserDetails;
+import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Date;
 import java.util.List;
 
 public interface UserFileService {
+
+    Page<UserFileSummaryDTO> pageFiles(UserFilePageRequest request, CustomerUserDetails userDetails);
+
+    void moveItems(List<Long> fileIds, List<Long> folderIds, Long targetFolderId, Long userId);
+
+    List<UserFileVersionDTO> getFileVersions(Long docId, Long userId);
+
+    Long restoreFileVersion(Long fileId, Long userId);
 
     void saveUserFile(UserFile file);
 

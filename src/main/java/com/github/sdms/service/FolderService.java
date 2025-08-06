@@ -1,10 +1,16 @@
 package com.github.sdms.service;
 
+import com.github.sdms.dto.FolderPageRequest;
+import com.github.sdms.dto.FolderSummaryDTO;
 import com.github.sdms.model.Folder;
+import com.github.sdms.util.CustomerUserDetails;
+import org.springframework.data.domain.Page;
 
 import java.util.List;
 
 public interface FolderService {
+
+    Page<FolderSummaryDTO> pageFolders(FolderPageRequest request, CustomerUserDetails userDetails);
 
     Folder createFolder(Long userId, String name, Long parentId, String libraryCode);
 
@@ -20,4 +26,5 @@ public interface FolderService {
 
     void moveFolder(Long userId, Long folderId, Long newParentId, String libraryCode);
 
+    List<Long> getAllSubFolderIds(Long folderId);
 }

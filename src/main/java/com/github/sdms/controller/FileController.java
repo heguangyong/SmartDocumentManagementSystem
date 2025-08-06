@@ -1,6 +1,9 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.dto.MoveItemRequest;
+import com.github.sdms.dto.UserFilePageRequest;
+import com.github.sdms.dto.UserFileSummaryDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.model.BucketPermission;
@@ -15,6 +18,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -40,6 +45,16 @@ public class FileController {
     private final StorageQuotaService storageQuotaService;
     private final FilePermissionRepository filePermissionRepository;
     private final BucketPermissionRepository bucketPermissionRepository;
+
+    @PreAuthorize("hasRole('ADMIN') or hasRole('LIBRARIAN') or hasRole('READER')")
+    @Operation(summary = "分页获取用户文件")
+    @PostMapping("/page")
+    public ApiResponse<Page<UserFileSummaryDTO>> pageFiles(@RequestBody UserFilePageRequest request,
+                                                           @AuthenticationPrincipal CustomerUserDetails userDetails) {
+        Page<UserFileSummaryDTO> result = userFileService.pageFiles(request, userDetails);
+        return ApiResponse.success(result);
+    }
+
 
 
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
@@ -165,6 +180,11 @@ public class FileController {
         }
     }
 
+    @PostMapping("/move")
+    public ResponseEntity<Void> moveItems(@RequestBody MoveItemRequest request, @AuthenticationPrincipal CustomerUserDetails userDetails) {
+        userFileService.moveItems(request.getFileIds(), request.getFolderIds(), request.getTargetFolderId(), userDetails.getUserId());
+        return ResponseEntity.ok().build();
+    }
 
 
 

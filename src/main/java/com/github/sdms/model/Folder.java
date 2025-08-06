@@ -40,10 +40,10 @@ public class Folder {
     private Boolean systemFolder = false;
 
     @Temporal(TemporalType.TIMESTAMP)
-    private Date createdAt = new Date();
+    private Date createdDate = new Date();
 
     @Temporal(TemporalType.TIMESTAMP)
-    private Date updatedAt = new Date();
+    private Date updatedDate = new Date();
 
     @Column(name = "shared")
     private Boolean shared = false;
