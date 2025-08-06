@@ -43,5 +43,4 @@ public interface RolePermissionRepository extends JpaRepository<RolePermission, 
 
     List<Long> findBucketResourceIdsByRoleType(RoleType roleType);
 
-    void delete(Optional<RolePermission> rolePermission);
 }

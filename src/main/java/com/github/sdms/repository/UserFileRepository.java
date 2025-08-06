@@ -88,4 +88,5 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> , JpaS
     @Query("UPDATE UserFile u SET u.isLatest = false WHERE u.docId = :docId AND u.isLatest = true")
     void clearLatestVersionFlag(@Param("docId") Long docId);
 
+    Optional<UserFile> findByOriginFilenameAndUserIdAndLibraryCodeAndDeleteFlagFalse(String filename, Long userId, String libraryCode);
 }

@@ -162,13 +162,12 @@ public class BucketController {
 
         if (resource != null) {
             Optional<RolePermission> rolePermission = rolePermissionRepository.findByRoleTypeAndResource(user.getRoleType(), resource);
-            if (rolePermission.isPresent()) {
-                rolePermissionRepository.delete(rolePermission);
-            }
+            rolePermission.ifPresent(rolePermissionRepository::delete);
         }
 
         return ApiResponse.success();
     }
+
 
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "更新桶容量配置")

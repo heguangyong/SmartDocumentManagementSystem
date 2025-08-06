@@ -76,8 +76,12 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Autowired
     private FolderRepository folderRepository;
+
     @Autowired
     private FolderService folderService;
+
+    @Autowired
+    private PermissionChecker permissionChecker;
 
 
     @Override
@@ -698,7 +702,6 @@ public class UserFileServiceImpl implements UserFileService {
         // 查询这些桶中的文件
         return userFileRepository.findByBucketInAndDeleteFlagFalse(new HashSet<>(bucketNames));
     }
-
 
 
     private List<UserFile> mergeWithoutDuplicates(List<UserFile> a, List<UserFile> b) {
