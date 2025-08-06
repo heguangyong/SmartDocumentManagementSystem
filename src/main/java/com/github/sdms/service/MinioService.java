@@ -117,4 +117,5 @@ public interface MinioService {
 
     void refreshBucketStatAsync(String bucketName);   // 如果外部需要触发，也可以加
 
+    void copyObject(String bucket, String name, String bucket1, String newObjectName);
 }

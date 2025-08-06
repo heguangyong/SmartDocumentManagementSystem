@@ -186,6 +186,21 @@ public class FileController {
         return ResponseEntity.ok().build();
     }
 
+    // 1. Controller新增复制接口
+    @PostMapping("/copy")
+    @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
+    @Operation(summary = "复制文件到目标目录")
+    public ApiResponse<UserFile> copyFile(
+            @AuthenticationPrincipal CustomerUserDetails userDetails,
+            @RequestParam String filename,
+            @RequestParam Long targetFolderId) {
+
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
+
+        UserFile copiedFile = userFileService.copyFile(filename, userId, libraryCode, targetFolderId);
+        return ApiResponse.success(copiedFile);
+    }
 
 
     @PostMapping("/uploadVersion")

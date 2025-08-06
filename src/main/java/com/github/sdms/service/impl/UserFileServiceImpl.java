@@ -487,6 +487,63 @@ public class UserFileServiceImpl implements UserFileService {
         return newVersion.getId();
     }
 
+    // 3. Service实现（UserFileServiceImpl）
+    @Override
+    @Transactional
+    public UserFile copyFile(String filename, Long userId, String libraryCode, Long targetFolderId) {
+        // 查询源文件
+        UserFile sourceFile = userFileRepository.findByOriginFilenameAndUserIdAndLibraryCodeAndDeleteFlagFalse(
+                filename, userId, libraryCode
+        ).orElseThrow(() -> new ApiException(404, "文件不存在"));
+
+        // 权限校验
+        permissionChecker.checkFileAccess(userId, sourceFile.getId(), "READ");
+
+        // 校验目标目录权限
+        Folder targetFolder = folderRepository.findById(targetFolderId)
+                .orElseThrow(() -> new ApiException(404, "目标目录不存在"));
+        if (!targetFolder.getUserId().equals(userId)) {
+            throw new ApiException(403, "无权限访问目标目录");
+        }
+
+        // 复制存储对象（MinIO）
+        String newObjectName = generateNewObjectName(sourceFile.getName());
+        minioService.copyObject(sourceFile.getBucket(), sourceFile.getName(), sourceFile.getBucket(), newObjectName);
+
+        // 复制数据库文件记录，版本号重置为1，标记为最新版本
+        UserFile copiedFile = new UserFile();
+        copiedFile.setOriginFilename(sourceFile.getOriginFilename());
+        copiedFile.setName(newObjectName);
+        copiedFile.setType(sourceFile.getType());
+        copiedFile.setSize(sourceFile.getSize());
+        copiedFile.setCreatedDate(new Date());
+        copiedFile.setUserId(userId);
+        copiedFile.setLibraryCode(libraryCode);
+        copiedFile.setVersionNumber(1);
+        copiedFile.setIsLatest(true);
+        copiedFile.setShared(false);
+        copiedFile.setFolderId(targetFolderId);
+        copiedFile.setBucket(sourceFile.getBucket());
+        copiedFile.setDeleteFlag(false);
+
+        return userFileRepository.save(copiedFile);
+    }
+
+    // 辅助生成新对象名（避免重复）
+    private String generateNewObjectName(String originalName) {
+        String suffix = "";
+        String baseName = originalName;
+        String ext = "";
+
+        int dotIndex = originalName.lastIndexOf('.');
+        if (dotIndex > 0) {
+            baseName = originalName.substring(0, dotIndex);
+            ext = originalName.substring(dotIndex);
+        }
+        suffix = "_" + System.currentTimeMillis();
+        return baseName + suffix + ext;
+    }
+
 
     @Override
     public UserFile uploadFileAndCreateRecord(Long userId, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception {

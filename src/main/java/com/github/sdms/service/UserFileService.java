@@ -22,6 +22,10 @@ public interface UserFileService {
 
     Long restoreFileVersion(Long fileId, Long userId);
 
+    // 2. Service接口补充
+    UserFile copyFile(String filename, Long userId, String libraryCode, Long targetFolderId);
+
+
     void saveUserFile(UserFile file);
 
     List<UserFile> listFilesByRole(CustomerUserDetails userDetails);

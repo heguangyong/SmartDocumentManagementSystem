@@ -10,6 +10,7 @@ import com.github.sdms.util.BucketStatCache;
 import com.github.sdms.util.BucketUtil;
 import com.github.sdms.util.FileUtil;
 import io.minio.*;
+import io.minio.errors.MinioException;
 import io.minio.http.Method;
 import io.minio.messages.Item;
 import lombok.extern.slf4j.Slf4j;
@@ -377,5 +378,34 @@ public class MinioServiceImpl implements MinioService {
 
     }
 
+    /**
+     * 复制对象
+     *
+     * @param srcBucket      源桶名
+     * @param srcObjectName  源对象名
+     * @param destBucket     目标桶名
+     * @param destObjectName 目标对象名
+     */
+    @Override
+    public void copyObject(String srcBucket, String srcObjectName, String destBucket, String destObjectName) {
+        try {
+            CopySource source = CopySource.builder()
+                    .bucket(srcBucket)
+                    .object(srcObjectName)
+                    .build();
+
+            CopyObjectArgs copyArgs = CopyObjectArgs.builder()
+                    .bucket(destBucket)
+                    .object(destObjectName)
+                    .source(source)
+                    .build();
+
+            minioClient.copyObject(copyArgs);
+        } catch (MinioException e) {
+            throw new RuntimeException("MinIO复制对象失败: " + e.getMessage(), e);
+        } catch (Exception e) {
+            throw new RuntimeException("复制对象异常: " + e.getMessage(), e);
+        }
+    }
 
 }
