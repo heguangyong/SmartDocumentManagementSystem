@@ -8,6 +8,7 @@ import com.github.sdms.service.FolderService;
 import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -23,6 +24,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/folder")
 @RequiredArgsConstructor
+@Tag(name = "目录管理", description = "文件夹/目录的增删查改及层级管理接口")
 public class FolderController {
 
     private final FolderService folderService;

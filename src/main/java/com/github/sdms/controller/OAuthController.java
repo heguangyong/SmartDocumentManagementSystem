@@ -1,12 +1,13 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.dto.UUserReq;
 import com.github.sdms.dto.UserProfileDto;
 import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.AuthService;
-import com.github.sdms.dto.UUserReq;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -26,6 +27,7 @@ import java.io.IOException;
 @RestController
 @RequestMapping("/auth")
 @CrossOrigin
+@Tag(name = "认证与授权", description = "OAuth2 登录授权，令牌颁发相关接口")
 public class OAuthController {
 
     @Value("${myset.download_url_1}")

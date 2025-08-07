@@ -9,6 +9,7 @@ import com.github.sdms.service.MinioService;
 import com.github.sdms.service.ShareAccessLogService;
 import com.github.sdms.service.ShareAccessService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -22,6 +23,7 @@ import java.util.*;
 @RestController
 @RequestMapping("/api/share")
 @RequiredArgsConstructor
+@Tag(name = "共享访问", description = "文件/目录共享链接的生成与权限控制接口")
 public class ShareAccessController {
 
     private final MinioService minioService;

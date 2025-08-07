@@ -10,6 +10,7 @@ import com.github.sdms.service.MinioService;
 import com.github.sdms.util.AuthUtils;
 import com.github.sdms.util.BucketUtil;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/bucket")
 @RequiredArgsConstructor
+@Tag(name = "对象存储管理", description = "Bucket 管理接口（MinIO相关操作）")
 public class BucketController {
 
     private final BucketService bucketService;

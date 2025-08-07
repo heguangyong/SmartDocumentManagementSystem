@@ -5,15 +5,17 @@ import com.github.sdms.dto.RolePermissionDTO;
 import com.github.sdms.model.PermissionResource;
 import com.github.sdms.model.RolePermission;
 import com.github.sdms.service.PermissionService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.Operation;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/permission")
 @RequiredArgsConstructor
+@Tag(name = "权限管理", description = "系统权限、角色与访问控制接口")
 public class PermissionController {
 
     private final PermissionService permissionService;

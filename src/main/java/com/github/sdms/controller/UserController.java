@@ -7,14 +7,18 @@ import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.User;
 import com.github.sdms.model.enums.AuditActionType;
 import com.github.sdms.model.enums.RoleType;
+import com.github.sdms.repository.LibrarySiteRepository;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.*;
 import com.github.sdms.util.JwtUtil;
 import com.github.sdms.util.PasswordUtil;
 import com.github.sdms.util.RequestUtils;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -33,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
+@Tag(name = "用户管理", description = "用户注册、登录、信息修改、角色分配等接口")
 public class UserController {
 
     private final UserRepository userRepository;
@@ -45,6 +50,9 @@ public class UserController {
     private final ShareAccessLogService shareAccessLogService;
     private final OAuthUserInfoService oauthUserInfoService;
     private final UserAuditLogService userAuditLogService;
+    private final LibrarySiteRepository librarySiteRepository;
+    private final UserService userService;
+
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final long LOCK_TIME_SECONDS = 30 * 60;
 
@@ -81,6 +89,17 @@ public class UserController {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("验证码错误或已过期"));
             }
             redisTemplate.delete("captcha:" + loginRequest.getCaptchaId());
+            // 校验图书馆代码是否存在（可调整为配置方式）
+            boolean libraryExists = librarySiteRepository.existsByCodeAndStatusTrue(libraryCode);
+            if (!libraryExists) {
+                return ResponseEntity.badRequest().body(ApiResponse.failure("无效的馆点代码"));
+            }
+            // 校验用户是否绑定了该馆点
+            Optional<User> userOpt = userRepository.findByUsernameAndLibraryCode(username, libraryCode);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("用户未绑定该馆点或不存在"));
+            }
+            User user = userOpt.get();
 
             if (Boolean.TRUE.equals(redisTemplate.hasKey(lockKey))) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("账号已锁定，请稍后再试"));
@@ -90,10 +109,6 @@ public class UserController {
             redisTemplate.delete(failedKey);
 
             UserDetails userDetails = customUserDetailsServices.loadUserByUsernameAndLibraryCode(username, libraryCode);
-
-            // 登录成功后：
-            User user = userRepository.findByUsernameAndLibraryCode(username, libraryCode)
-                    .orElseThrow(() -> new ApiException(404, "User not found"));
 
             // 记录审计日志（登录成功）
             userAuditLogService.log(user.getId(), username, libraryCode, ip, userAgent, AuditActionType.LOGIN_SUCCESS, "登录成功");
@@ -229,6 +244,66 @@ public class UserController {
         PagedResult<UserInfo> result = oauthUserInfoService.searchUsersPaged(keyword, page, size);
         return ResponseEntity.ok(ApiResponse.success("查询成功", result));
     }
+
+    @GetMapping("/list/filter")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<Page<User>>> getUsersByFilter(
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String libraryCode,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        RoleType roleType = null;
+        if (role != null && !role.isEmpty()) {
+            try {
+                roleType = RoleType.valueOf(role.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                return ResponseEntity.badRequest().body(ApiResponse.failure("无效的角色参数"));
+            }
+        }
+
+        Page<User> userPage = userService.findUsersByCriteria(username, roleType, libraryCode, PageRequest.of(page, size));
+        return ResponseEntity.ok(ApiResponse.success(userPage));
+    }
+
+    @Operation(summary = "根据用户ID获取用户详情（本地 + 第三方）")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
+    @GetMapping("/detail/{id}")
+    public ResponseEntity<ApiResponse<Object>> getUserDetailById(@PathVariable Long id, Authentication authentication, @RequestParam String libraryCode) {
+        User currentUser = userRepository.findByUsernameAndLibraryCode(authentication.getName(), libraryCode).orElse(null);
+        if (currentUser == null) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("无访问权限"));
+        }
+
+        User targetUser = userRepository.findById(id).orElse(null);
+        if (targetUser == null) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure("用户不存在"));
+        }
+
+        // 非管理员且非本人，拒绝访问
+        if (!currentUser.getId().equals(id) && !jwtUtil.isAdmin()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("无访问权限"));
+        }
+
+        // 判断是否为第三方同步用户
+        if (targetUser.getUid() != null && !targetUser.getUid().isEmpty()) {
+            // 通过 uid 获取第三方用户详情
+            try {
+                UserInfo userInfo = oauthUserInfoService.getUserInfoByUid(targetUser.getUid());
+                if (userInfo == null) {
+                    return ResponseEntity.ok(ApiResponse.success("第三方用户信息暂不可用"));
+                }
+                return ResponseEntity.ok(ApiResponse.success(userInfo));
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.failure("获取第三方用户信息失败：" + e.getMessage()));
+            }
+        } else {
+            // 非第三方用户，返回本地用户实体（或自定义DTO）
+            return ResponseEntity.ok(ApiResponse.success(targetUser));
+        }
+    }
+
 
 
     @Operation(summary = "删除用户", description = "管理员删除用户")
