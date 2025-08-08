@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface BucketPermissionRepository extends JpaRepository<BucketPermission, Long> {
 
@@ -18,7 +19,7 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
 
     List<BucketPermission> findAllByUserId(Long userId);
 
-    BucketPermission findByUserIdAndBucketId(Long userId, Long bucketId);
+    Optional<BucketPermission> findByUserIdAndBucketId(Long userId, Long bucketId);
 
     List<BucketPermission> findByUserId(Long userId);
 
@@ -30,4 +31,8 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
     List<BucketPermission> findByBucketId(Long bucketId);
 
     List<BucketPermission> findAllByBucketId(Long bucketId);
+
+    Optional<BucketPermission> findByBucketIdAndUserId(Long bucketId, Long userId);
+
+    void deleteByUserIdAndBucketId(Long userId, Long bucketId);
 }

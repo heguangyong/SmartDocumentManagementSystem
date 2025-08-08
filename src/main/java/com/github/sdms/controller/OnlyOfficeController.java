@@ -26,7 +26,6 @@ import static com.github.sdms.util.FileUtil.parseDocIdFromKey;
 @RestController
 @RequestMapping("/api/onlyoffice")
 @RequiredArgsConstructor
-@Tag(name = "OnlyOffice 集成", description = "OnlyOffice 编辑器对接接口（回调、配置）")
 public class OnlyOfficeController {
 
     private final UserFileService userFileService;

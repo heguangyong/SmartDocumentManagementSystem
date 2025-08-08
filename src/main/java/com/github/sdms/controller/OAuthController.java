@@ -27,7 +27,6 @@ import java.io.IOException;
 @RestController
 @RequestMapping("/auth")
 @CrossOrigin
-@Tag(name = "认证与授权", description = "OAuth2 登录授权，令牌颁发相关接口")
 public class OAuthController {
 
     @Value("${myset.download_url_1}")

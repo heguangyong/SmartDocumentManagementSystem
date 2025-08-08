@@ -15,7 +15,6 @@ import com.github.sdms.util.BucketUtil;
 import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,7 +35,6 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/file")
 @RequiredArgsConstructor
-@Tag(name = "文件管理", description = "提供上传、下载、预览、复制等文件相关接口")
 public class FileController {
 
     private final UserFileService userFileService;

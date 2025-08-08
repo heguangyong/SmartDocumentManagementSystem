@@ -2,8 +2,10 @@ package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.User;
+import com.github.sdms.model.enums.PermissionType;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
+import com.github.sdms.service.FilePermissionService;
 import com.github.sdms.service.PermissionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,6 +17,10 @@ import org.springframework.stereotype.Service;
 public class PermissionValidatorImpl implements PermissionValidator {
 
     private final UserRepository userRepository;
+    private final FilePermissionService filePermissionService;
+
+
+
 
     @Override
     public boolean canReadBucket(Long userId, String bucketId) {
@@ -35,14 +41,12 @@ public class PermissionValidatorImpl implements PermissionValidator {
 
     @Override
     public boolean canReadFile(Long userId, Long fileId) {
-        // TODO: 实现文件级别权限判断，如使用文件关联表
-        return true;
+        return filePermissionService.checkUserPermission(userId, fileId, PermissionType.READ);
     }
 
     @Override
     public boolean canWriteFile(Long userId, Long fileId) {
-        // TODO: 实现文件级别权限判断，如使用文件关联表
-        return true;
+        return filePermissionService.checkUserPermission(userId, fileId, PermissionType.WRITE);
     }
 
     @Override

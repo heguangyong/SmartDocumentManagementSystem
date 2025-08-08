@@ -17,7 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/site")
 @RequiredArgsConstructor
-@Tag(name = "馆点管理", description = "提供图书馆点分页、搜索选项等接口")
 public class LibrarySiteController {
 
     private final LibrarySiteService librarySiteService;

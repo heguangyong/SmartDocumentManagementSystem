@@ -1,8 +1,6 @@
 package com.github.sdms.service;
 
-import com.github.sdms.dto.BucketPageRequest;
-import com.github.sdms.dto.BucketSummaryDTO;
-import com.github.sdms.dto.BucketUserPermissionDTO;
+import com.github.sdms.dto.*;
 import com.github.sdms.model.Bucket;
 import org.springframework.data.domain.Page;
 
@@ -31,5 +29,19 @@ public interface BucketService {
 
     Page<BucketSummaryDTO> pageBuckets(BucketPageRequest request);
 
-    List<BucketUserPermissionDTO> getBucketUserPermissions(Long bucketId);
+    List<BucketUserPermissionDTO> getBucketUserPermissionsWithSource(Long bucketId);
+
+    List<String> getEffectiveBucketPermission(Long userId, Long bucketId);
+
+    void batchAssignPermissions(BatchAssignBucketPermissionRequest request);
+
+    void removeBucketPermission(Long id, Long id1);
+
+    void updateBucketCapacity(Long bucketId, Long maxCapacity);
+
+    Bucket createBucketByAdmin(CreateBucketRequest request);
+
+    Bucket updateBucketInfo(Long id, Bucket bucket);
+
+
 }

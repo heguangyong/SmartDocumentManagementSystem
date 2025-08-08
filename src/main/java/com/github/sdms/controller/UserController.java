@@ -14,7 +14,6 @@ import com.github.sdms.util.JwtUtil;
 import com.github.sdms.util.PasswordUtil;
 import com.github.sdms.util.RequestUtils;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -37,7 +36,6 @@ import java.util.concurrent.TimeUnit;
 @RestController
 @RequestMapping("/api/user")
 @RequiredArgsConstructor
-@Tag(name = "用户管理", description = "用户注册、登录、信息修改、角色分配等接口")
 public class UserController {
 
     private final UserRepository userRepository;

@@ -50,7 +50,9 @@ public class SecurityConfig {
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-resources/**").permitAll()
 
                         // 🔒 其他接口必须认证
-                        .anyRequest().authenticated()
+//                        .anyRequest().authenticated()
+                        // 开发放开：所有请求均允许，无需认证
+                        .anyRequest().permitAll()
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint(new CustomAuthenticationEntryPoint()) // 未登录

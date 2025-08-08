@@ -15,6 +15,9 @@ public class CreateBucketRequest {
     @Schema(description = "桶所有者ID，user.id")
     private Long ownerId;
 
+    @Schema(description = "桶名称，管理员可指定，普通用户建桶不传")
+    private String name;
+
     @Schema(description = "最大容量（单位：字节）")
     private Long maxCapacity;
 

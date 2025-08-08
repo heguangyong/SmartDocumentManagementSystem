@@ -8,6 +8,7 @@ import com.github.sdms.repository.LibrarySiteRepository;
 import com.github.sdms.service.LibrarySiteService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -20,6 +21,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class LibrarySiteServiceImpl implements LibrarySiteService {
 
+    @Autowired
     private LibrarySiteRepository librarySiteRepository;
 
     @Override

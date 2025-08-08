@@ -15,7 +15,6 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/admin/permission")
 @RequiredArgsConstructor
-@Tag(name = "权限管理", description = "系统权限、角色与访问控制接口")
 public class PermissionController {
 
     private final PermissionService permissionService;

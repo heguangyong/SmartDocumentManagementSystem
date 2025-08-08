@@ -1,13 +1,11 @@
 package com.github.sdms.service.impl;
 
-import com.github.sdms.dto.BucketPageRequest;
-import com.github.sdms.dto.BucketSummaryDTO;
-import com.github.sdms.dto.BucketUserPermissionDTO;
+import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
-import com.github.sdms.model.Bucket;
-import com.github.sdms.model.BucketPermission;
-import com.github.sdms.repository.BucketPermissionRepository;
-import com.github.sdms.repository.BucketRepository;
+import com.github.sdms.model.*;
+import com.github.sdms.model.enums.BucketAction;
+import com.github.sdms.model.enums.RoleType;
+import com.github.sdms.repository.*;
 import com.github.sdms.service.BucketPermissionService;
 import com.github.sdms.service.BucketService;
 import com.github.sdms.service.MinioService;
@@ -38,6 +36,9 @@ public class BucketServiceImpl implements BucketService {
     private final MinioService minioService;
     private final BucketPermissionService bucketPermissionService;
     private final BucketPermissionRepository bucketPermissionRepository;
+    private final UserRepository userRepository;
+    private final PermissionResourceRepository permissionResourceRepository;
+    private final RolePermissionRepository rolePermissionRepository;
 
     /**
      * 创建存储桶（同时在数据库和 MinIO 创建）
@@ -248,22 +249,225 @@ public class BucketServiceImpl implements BucketService {
     }
 
     @Override
-    public List<BucketUserPermissionDTO> getBucketUserPermissions(Long bucketId) {
-        List<BucketPermission> permissions = bucketPermissionRepository.findByBucketId(bucketId);
+    @Transactional
+    public void batchAssignPermissions(BatchAssignBucketPermissionRequest request) {
+        Long bucketId = request.getBucketId();
+        String permissionStr = String.join(",", request.getPermissions());
+
+        for (Long userId : request.getUserIds()) {
+            BucketPermission bp = bucketPermissionRepository
+                    .findByUserIdAndBucketId(userId, bucketId)
+                    .orElse(new BucketPermission());
+
+            bp.setUserId(userId);
+            bp.setBucketId(bucketId);
+            bp.setPermission(permissionStr);
+            bp.setUpdatedAt(new Date());
+            bucketPermissionRepository.save(bp);
+        }
+    }
+
+
+    @Override
+    @Transactional
+    public void removeBucketPermission(Long bucketId, Long userId) {
+        bucketPermissionRepository.deleteByUserIdAndBucketId(userId, bucketId);
+    }
+
+
+    @Override
+    @Transactional
+    public void updateBucketCapacity(Long bucketId, Long maxCapacity) {
+        Bucket bucket = bucketRepository.findById(bucketId)
+                .orElseThrow(() -> new ApiException(404, "桶不存在"));
+        bucket.setMaxCapacity(maxCapacity);
+        bucketRepository.save(bucket);
+    }
+
+    @Override
+    @Transactional
+    public Bucket createBucketByAdmin(CreateBucketRequest request) {
+        if (request.getOwnerId() == null) {
+            throw new ApiException(400, "必须指定 ownerId");
+        }
+
+        User user = userRepository.findById(request.getOwnerId())
+                .orElseThrow(() -> new ApiException(404, "用户不存在"));
+
+        String bucketName;
+        if (request.getName() != null && !request.getName().isBlank()) {
+            bucketName = request.getName();
+        } else {
+            // 读者桶，系统生成
+            bucketName = BucketUtil.getBucketName(request.getOwnerId(), user.getLibraryCode());
+        }
+
+        if (bucketRepository.existsByName(bucketName)) {
+            throw new ApiException(400, "桶名已存在");
+        }
+
+        Bucket bucket = new Bucket();
+        bucket.setName(bucketName);
+        bucket.setDescription(request.getDescription());
+        bucket.setMaxCapacity(request.getMaxCapacity() == null ? 1073741824L : request.getMaxCapacity());
+        bucket.setOwnerId(request.getOwnerId());
+        bucket.setLibraryCode(user.getLibraryCode());
+        bucket.setCreatedAt(new Date());
+        bucket.setUpdatedAt(new Date());
+
+        return bucketRepository.save(bucket);
+    }
+
+
+    @Override
+    @Transactional
+    public Bucket updateBucketInfo(Long id, Bucket bucket) {
+        Bucket dbBucket = bucketRepository.findById(id)
+                .orElseThrow(() -> new ApiException(404, "桶不存在"));
+        dbBucket.setName(bucket.getName());
+        dbBucket.setDescription(bucket.getDescription());
+        dbBucket.setMaxCapacity(bucket.getMaxCapacity());
+        dbBucket.setUpdatedAt(new Date());
+        return bucketRepository.save(dbBucket);
+    }
+
+
+    @Override
+    public List<BucketUserPermissionDTO> getBucketUserPermissionsWithSource(Long bucketId) {
+        Bucket bucket = bucketRepository.findById(bucketId)
+                .orElseThrow(() -> new ApiException(404, "桶不存在"));
+
         List<BucketUserPermissionDTO> result = new ArrayList<>();
 
-//        for (BucketPermission perm : permissions) {
-//            userRepository.findByUid(perm.getUid()).ifPresent(user -> {
-//                result.add(BucketUserPermissionDTO.builder()
-//                        .uid(user.getUid())
-//                        .username(user.getUsername())
-//                        .nickname(user.getNickname())
-//                        .permission(perm.getPermission())
-//                        .build());
-//            });
-//        }
+        // 1. 查询桶直接授权权限
+        List<BucketPermission> directPermissions = bucketPermissionRepository.findByBucketId(bucketId);
+        Map<Long, BucketUserPermissionDTO> userPermMap = new HashMap<>();
+
+        for (BucketPermission bp : directPermissions) {
+            User user = userRepository.findById(bp.getUserId())
+                    .orElseThrow(() -> new ApiException(404, "用户不存在"));
+
+            BucketUserPermissionDTO dto = new BucketUserPermissionDTO();
+            dto.setUserId(user.getId());
+            dto.setUsername(user.getUsername());
+            dto.setRoleType(user.getRoleType());
+            dto.setPermissions(parsePermissionString(bp.getPermission()));
+            dto.setUpdatedAt(bp.getUpdatedAt());
+            userPermMap.put(user.getId(), dto);
+        }
+
+        // 2. 查询所有用户，推算角色权限覆盖（角色权限存在rolePermissionRepository）
+        List<User> allUsers = userRepository.findAll();
+
+        for (User user : allUsers) {
+            // 跳过已有直接权限的用户
+            if (userPermMap.containsKey(user.getId())) {
+                continue;
+            }
+
+            RoleType role = user.getRoleType();
+
+            // 管理员拥有所有权限
+            if (role == RoleType.ADMIN) {
+                BucketUserPermissionDTO dto = new BucketUserPermissionDTO();
+                dto.setUserId(user.getId());
+                dto.setUsername(user.getUsername());
+                dto.setRoleType(role);
+                dto.setPermissions(List.of(BucketAction.READ, BucketAction.WRITE, BucketAction.DELETE, BucketAction.MANAGE));
+                dto.setUpdatedAt(null);
+                userPermMap.put(user.getId(), dto);
+                continue;
+            }
+
+            // 馆员角色，根据角色权限表获取权限
+            if (role == RoleType.LIBRARIAN) {
+                // 先查找 PermissionResource 是否匹配当前bucketId
+                Optional<PermissionResource> prOpt = permissionResourceRepository.findById(bucketId);
+                if (prOpt.isEmpty()) continue;
+
+                PermissionResource pr = prOpt.get();
+                if (!"BUCKET".equalsIgnoreCase(pr.getResourceType())) continue;
+
+                // 查询角色权限
+                List<RolePermission> rolePermissions = rolePermissionRepository.findByRoleTypeAndResourceId(role, bucketId);
+                if (rolePermissions.isEmpty()) continue;
+
+                // 合并权限
+                Set<BucketAction> actions = new HashSet<>();
+                for (RolePermission rp : rolePermissions) {
+                    actions.addAll(parsePermissionString(rp.getPermission().name()));
+                }
+
+                BucketUserPermissionDTO dto = new BucketUserPermissionDTO();
+                dto.setUserId(user.getId());
+                dto.setUsername(user.getUsername());
+                dto.setRoleType(role);
+                dto.setPermissions(new ArrayList<>(actions));
+                dto.setUpdatedAt(null);
+                userPermMap.put(user.getId(), dto);
+            }
+
+            // 普通用户 READER 角色，默认无权限，除非直接授权已覆盖，不做处理
+        }
+
+        result.addAll(userPermMap.values());
         return result;
     }
+
+
+
+
+
+    /**
+     * 将逗号分隔的权限字符串转为 BucketAction 枚举列表
+     */
+    private List<BucketAction> parsePermissionString(String permStr) {
+        if (permStr == null || permStr.isBlank()) {
+            return Collections.emptyList();
+        }
+        return Arrays.stream(permStr.split(","))
+                .map(String::trim)
+                .map(s -> BucketAction.valueOf(s.toUpperCase()))
+                .toList();
+    }
+
+
+    /**
+     * 计算用户对桶的最终有效权限（合并直接授权与角色授权）
+     */
+    @Override
+    public List<String> getEffectiveBucketPermission(Long userId, Long bucketId) {
+        if (userId == null || bucketId == null) {
+            throw new ApiException(400, "参数错误");
+        }
+
+        Set<String> perms = new HashSet<>();
+
+        // 1. 直接授权
+        Optional<BucketPermission> directOpt = bucketPermissionRepository.findByBucketIdAndUserId(bucketId, userId);
+        directOpt.ifPresent(bp -> {
+            if (bp.getPermission() != null) {
+                perms.addAll(Arrays.asList(bp.getPermission().split(",")));
+            }
+        });
+
+        // 2. 角色权限 - 先获取用户角色
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException("用户不存在"));
+
+        RoleType roleType = user.getRoleType();
+
+        // 查询角色对该bucket资源的权限列表
+        List<RolePermission> rolePermissions = rolePermissionRepository.findByRoleTypeAndResourceId(roleType, bucketId);
+        for (RolePermission rp : rolePermissions) {
+            if (rp.getPermission() != null) {
+                perms.add(rp.getPermission().name());
+            }
+        }
+
+        return perms.stream().sorted().toList();
+    }
+
 
 
 }
