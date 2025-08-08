@@ -1,23 +1,17 @@
 package com.github.sdms.service.impl;
 
-import com.github.sdms.dto.FilePermissionAssignRequest;
-import com.github.sdms.dto.FilePermissionDTO;
-import com.github.sdms.dto.FilePermissionUpdateRequest;
+import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
-import com.github.sdms.model.FilePermission;
-import com.github.sdms.model.User;
-import com.github.sdms.model.UserFile;
+import com.github.sdms.model.*;
 import com.github.sdms.model.enums.PermissionType;
 import com.github.sdms.model.enums.RoleType;
-import com.github.sdms.repository.FilePermissionRepository;
-import com.github.sdms.repository.UserFileRepository;
-import com.github.sdms.repository.UserRepository;
+import com.github.sdms.repository.*;
 import com.github.sdms.service.FilePermissionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
@@ -28,6 +22,8 @@ public class FilePermissionServiceImpl implements FilePermissionService {
     private final FilePermissionRepository filePermissionRepository;
     private final UserRepository userRepository;
     private final UserFileRepository userFileRepository;
+    private final BucketPermissionRepository bucketPermissionRepository;
+    private final BucketRepository bucketRepository;
 
     @Override
     public List<FilePermissionDTO> getPermissionsByFileId(Long fileId) {
@@ -124,6 +120,88 @@ public class FilePermissionServiceImpl implements FilePermissionService {
         // 安全转换字符串到枚举
         dto.setPermission(PermissionType.fromString(permission.getPermission()));
         return dto;
+    }
+
+    @Override
+    public FileSharePermissionDTO getFileSharePermission(Long fileId, Long targetUserId) {
+        UserFile file = userFileRepository.findById(fileId)
+                .orElseThrow(() -> new ApiException("文件不存在"));
+        User targetUser = userRepository.findById(targetUserId)
+                .orElseThrow(() -> new ApiException("目标用户不存在"));
+
+        FileSharePermissionDTO dto = new FileSharePermissionDTO();
+        dto.setFileId(fileId);
+        dto.setTargetUserId(targetUserId);
+        dto.setTargetUsername(targetUser.getUsername());
+
+        // 先查文件权限（自定义权限）
+        FilePermission filePerm = filePermissionRepository.findByUserAndFile(targetUser, file);
+        if (filePerm != null) {
+            dto.setInherited(false);
+            dto.setPermissions(parsePermissionString(filePerm.getPermission()));
+        } else {
+            // 查询桶权限作为继承权限
+            // 注意 UserFile 没有 bucketId，需通过 bucket 名查找 bucket 实体
+            Bucket bucket = bucketRepository.findByName(file.getBucket())
+                    .orElseThrow(() -> new ApiException("桶不存在"));
+
+            Optional<BucketPermission> bucketPermOpt = bucketPermissionRepository.findByBucketIdAndUserId(bucket.getId(), targetUserId);
+            if (bucketPermOpt.isPresent()) {
+                dto.setInherited(true);
+                dto.setPermissions(parsePermissionString(bucketPermOpt.get().getPermission()));
+            } else {
+                // 无权限
+                dto.setInherited(true);
+                dto.setPermissions(Collections.emptySet());
+            }
+        }
+
+        return dto;
+    }
+
+
+    @Override
+    @Transactional
+    public FileSharePermissionDTO assignFileSharePermission(FileSharePermissionAssignRequest request) {
+        UserFile file = userFileRepository.findById(request.getFileId())
+                .orElseThrow(() -> new ApiException("文件不存在"));
+        User targetUser = userRepository.findById(request.getTargetUserId())
+                .orElseThrow(() -> new ApiException("目标用户不存在"));
+
+        if (request.isInherit()) {
+            FilePermission existing = filePermissionRepository.findByUserAndFile(targetUser, file);
+            if (existing != null) {
+                filePermissionRepository.delete(existing);
+            }
+        } else {
+            String permStr = request.getPermissions().stream()
+                    .map(Enum::name)
+                    .collect(Collectors.joining(","));
+
+            FilePermission permission = filePermissionRepository.findByUserAndFile(targetUser, file);
+            if (permission == null) {
+                permission = FilePermission.builder()
+                        .user(targetUser)
+                        .file(file)
+                        .build();
+            }
+
+            permission.setPermission(permStr);
+            filePermissionRepository.save(permission);
+        }
+
+        return getFileSharePermission(request.getFileId(), request.getTargetUserId());
+    }
+
+
+    private Set<PermissionType> parsePermissionString(String permissionStr) {
+        if (permissionStr == null || permissionStr.isEmpty()) {
+            return Collections.emptySet();
+        }
+        return Arrays.stream(permissionStr.split(","))
+                .map(String::trim)
+                .map(PermissionType::valueOf)
+                .collect(Collectors.toSet());
     }
 
 }

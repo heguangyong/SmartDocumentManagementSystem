@@ -1,7 +1,7 @@
 package com.github.sdms.repository;
 
-import com.github.sdms.model.User;
 import com.github.sdms.model.FilePermission;
+import com.github.sdms.model.User;
 import com.github.sdms.model.UserFile;
 import org.springframework.data.jpa.repository.JpaRepository;
 

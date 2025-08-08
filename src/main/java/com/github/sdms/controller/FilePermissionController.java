@@ -1,9 +1,6 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.dto.ApiResponse;
-import com.github.sdms.dto.FilePermissionAssignRequest;
-import com.github.sdms.dto.FilePermissionDTO;
-import com.github.sdms.dto.FilePermissionUpdateRequest;
+import com.github.sdms.dto.*;
 import com.github.sdms.model.enums.PermissionType;
 import com.github.sdms.service.FilePermissionService;
 import com.github.sdms.util.PermissionChecker;
@@ -72,5 +69,23 @@ public class FilePermissionController {
                                                 @RequestParam PermissionType permissionType) {
         boolean hasPerm = filePermissionService.checkUserPermission(userId, fileId, permissionType);
         return ApiResponse.success(hasPerm);
+    }
+
+    @GetMapping("/share")
+    @Operation(summary = "查询文件分享权限详情")
+    public ApiResponse<FileSharePermissionDTO> getFileSharePermission(
+            @RequestParam Long fileId,
+            @RequestParam Long targetUserId) {
+        FileSharePermissionDTO dto = filePermissionService.getFileSharePermission(fileId, targetUserId);
+        return ApiResponse.success(dto);
+    }
+
+    @PostMapping("/share/assign")
+    @Operation(summary = "分配文件分享权限")
+    @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
+    public ApiResponse<FileSharePermissionDTO> assignFileSharePermission(
+            @Valid @RequestBody FileSharePermissionAssignRequest request) {
+        FileSharePermissionDTO dto = filePermissionService.assignFileSharePermission(request);
+        return ApiResponse.success("权限分配成功", dto);
     }
 }
