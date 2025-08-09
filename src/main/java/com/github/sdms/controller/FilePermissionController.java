@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/file-permission")
@@ -40,7 +41,6 @@ public class FilePermissionController {
     @Operation(summary = "给用户分配文件权限")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ApiResponse<FilePermissionDTO> assignPermission(@Valid @RequestBody FilePermissionAssignRequest request) {
-        // 校验调用者对文件的操作权限
         permissionChecker.checkAccess(request.getUserId(), request.getLibraryCode());
         FilePermissionDTO dto = filePermissionService.assignPermission(request);
         return ApiResponse.success("权限分配成功", dto);
@@ -62,13 +62,12 @@ public class FilePermissionController {
         return ApiResponse.success("权限撤销成功", null);
     }
 
-    @GetMapping("/check")
-    @Operation(summary = "校验用户对文件的指定权限")
-    public ApiResponse<Boolean> checkPermission(@RequestParam Long userId,
-                                                @RequestParam Long fileId,
-                                                @RequestParam PermissionType permissionType) {
-        boolean hasPerm = filePermissionService.checkUserPermission(userId, fileId, permissionType);
-        return ApiResponse.success(hasPerm);
+    @GetMapping("/effective")
+    @Operation(summary = "获取用户对指定文件的有效权限集合")
+    public ApiResponse<Set<PermissionType>> getEffectivePermissions(@RequestParam Long userId,
+                                                                    @RequestParam Long fileId) {
+        Set<PermissionType> permissions = filePermissionService.getEffectiveFilePermissions(userId, fileId);
+        return ApiResponse.success(permissions);
     }
 
     @GetMapping("/share")

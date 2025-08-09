@@ -105,6 +105,42 @@ public class FilePermissionServiceImpl implements FilePermissionService {
         return permissionIncludes(assigned, permissionType);
     }
 
+    /**
+     * 新增：获取用户对指定文件的有效权限集合
+     */
+    @Override
+    public Set<PermissionType> getEffectiveFilePermissions(Long userId, Long fileId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ApiException("找不到用户 ID: " + userId));
+        UserFile file = userFileRepository.findById(fileId)
+                .orElseThrow(() -> new ApiException("找不到文件 ID: " + fileId));
+
+        // 管理员拥有所有权限
+        if (user.getRoleType() == RoleType.ADMIN) {
+            return EnumSet.allOf(PermissionType.class);
+        }
+
+        // 文件自定义权限
+        FilePermission filePerm = filePermissionRepository.findByUserAndFile(user, file);
+        if (filePerm != null) {
+            return parsePermissionString(filePerm.getPermission());
+        }
+
+        // 继承桶权限
+        Bucket bucket = bucketRepository.findByName(file.getBucket())
+                .orElseThrow(() -> new ApiException("桶不存在"));
+        Optional<BucketPermission> bucketPermOpt = bucketPermissionRepository.findByBucketIdAndUserId(bucket.getId(), userId);
+        return bucketPermOpt.map(bp -> parsePermissionString(bp.getPermission()))
+                .orElse(Collections.emptySet());
+    }
+
+    /**
+     * 新增：判断用户对文件是否拥有某个权限
+     */
+    @Override
+    public boolean hasPermission(Long userId, Long fileId, PermissionType requiredPermission) {
+        return getEffectiveFilePermissions(userId, fileId).contains(requiredPermission);
+    }
 
     private boolean permissionIncludes(PermissionType assigned, PermissionType required) {
         if (assigned == PermissionType.DELETE) return true;
@@ -117,7 +153,6 @@ public class FilePermissionServiceImpl implements FilePermissionService {
         dto.setId(permission.getId());
         dto.setUserId(permission.getUser().getId());
         dto.setFileId(permission.getFile().getId());
-        // 安全转换字符串到枚举
         dto.setPermission(PermissionType.fromString(permission.getPermission()));
         return dto;
     }
@@ -134,14 +169,11 @@ public class FilePermissionServiceImpl implements FilePermissionService {
         dto.setTargetUserId(targetUserId);
         dto.setTargetUsername(targetUser.getUsername());
 
-        // 先查文件权限（自定义权限）
         FilePermission filePerm = filePermissionRepository.findByUserAndFile(targetUser, file);
         if (filePerm != null) {
             dto.setInherited(false);
             dto.setPermissions(parsePermissionString(filePerm.getPermission()));
         } else {
-            // 查询桶权限作为继承权限
-            // 注意 UserFile 没有 bucketId，需通过 bucket 名查找 bucket 实体
             Bucket bucket = bucketRepository.findByName(file.getBucket())
                     .orElseThrow(() -> new ApiException("桶不存在"));
 
@@ -150,15 +182,12 @@ public class FilePermissionServiceImpl implements FilePermissionService {
                 dto.setInherited(true);
                 dto.setPermissions(parsePermissionString(bucketPermOpt.get().getPermission()));
             } else {
-                // 无权限
                 dto.setInherited(true);
                 dto.setPermissions(Collections.emptySet());
             }
         }
-
         return dto;
     }
-
 
     @Override
     @Transactional
@@ -185,14 +214,11 @@ public class FilePermissionServiceImpl implements FilePermissionService {
                         .file(file)
                         .build();
             }
-
             permission.setPermission(permStr);
             filePermissionRepository.save(permission);
         }
-
         return getFileSharePermission(request.getFileId(), request.getTargetUserId());
     }
-
 
     private Set<PermissionType> parsePermissionString(String permissionStr) {
         if (permissionStr == null || permissionStr.isEmpty()) {
@@ -203,6 +229,4 @@ public class FilePermissionServiceImpl implements FilePermissionService {
                 .map(PermissionType::valueOf)
                 .collect(Collectors.toSet());
     }
-
 }
-

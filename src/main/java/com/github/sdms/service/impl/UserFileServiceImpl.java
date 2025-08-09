@@ -272,6 +272,7 @@ public class UserFileServiceImpl implements UserFileService {
     public UserFile uploadNewDocument(MultipartFile file, Long userId, Bucket targetBucket, String notes, Long folderId) {
         String bucketName = targetBucket.getName();
         String libraryCode = targetBucket.getLibraryCode();
+        Long bucketId= targetBucket.getId();   // 新增
 
         // 构建 MinIO 对象名（避免命名冲突）
         String objectName = FileUtil.generateObjectName(file.getOriginalFilename());
@@ -294,6 +295,7 @@ public class UserFileServiceImpl implements UserFileService {
         // docId：新文件使用新的 docId（即便同名也是新文档）
         long docId = cachedIdGenerator.nextId(IdType.DOC_ID.name());
 
+
         // 构建 UserFile 记录
         UserFile userFile = buildFileRecord(
                 userId,
@@ -305,6 +307,7 @@ public class UserFileServiceImpl implements UserFileService {
                 notes,
                 true, // 是最新版本
                 bucketName,
+                bucketId,   // 新增
                 folderId
         );
 
@@ -324,6 +327,7 @@ public class UserFileServiceImpl implements UserFileService {
     public List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, Long userId, Bucket targetBucket, String notes, Long folderId) {
         String bucketName = targetBucket.getName();
         String libraryCode = targetBucket.getLibraryCode();
+        Long bucketId = targetBucket.getId();
 
         List<UserFile> savedFiles = new ArrayList<>();
 
@@ -357,6 +361,7 @@ public class UserFileServiceImpl implements UserFileService {
                     notes,
                     true, // 是最新版本
                     bucketName,
+                    bucketId,    // 新增
                     folderId
             );
 
@@ -580,7 +585,7 @@ public class UserFileServiceImpl implements UserFileService {
         }
 
         Long docId = cachedIdGenerator.nextId("doc_id");
-        UserFile fileRecord = buildFileRecord(userId, libraryCode, file, objectName, 1, docId, notes, true, bucketName, folderId);
+        UserFile fileRecord = buildFileRecord(userId, libraryCode, file, objectName, 1, docId, notes, true, bucketName, bucketId,folderId);
         return userFileRepository.save(fileRecord);
     }
 
@@ -589,6 +594,8 @@ public class UserFileServiceImpl implements UserFileService {
     public UserFile uploadNewVersion(MultipartFile file, Long userId, String libraryCode, Long docId, String notes, Long folderId) throws Exception {
         // 获取文件最新版本id，用于权限校验
         UserFile originFile = getFileByDocIdAndUid(docId, userId, libraryCode);
+        String bucketName = originFile.getBucket();  // 保持一致
+        Long bucketId = originFile.getBucketId();    // 新增：直接继承原文件的 bucketId
         if (originFile == null) {
             throw new ApiException(403, "无权限上传该文档新版本");
         }
@@ -614,8 +621,7 @@ public class UserFileServiceImpl implements UserFileService {
             throw new ApiException(500, "上传新版本失败：" + e.getMessage());
         }
 
-        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
-        UserFile newVersion = buildFileRecord(userId, libraryCode, file, objectName, nextVersion, docId, notes, true, bucketName, folderId);
+        UserFile newVersion = buildFileRecord(userId, libraryCode, file, objectName, nextVersion, docId, notes, true, bucketName, bucketId,folderId);
         return userFileRepository.save(newVersion);
     }
 
@@ -661,7 +667,7 @@ public class UserFileServiceImpl implements UserFileService {
 
 
     private UserFile buildFileRecord(Long userId, String libraryCode, MultipartFile file, String objectName,
-                                     int version, Long docId, String notes, boolean isLatest, String bucketName, Long folderId) {
+                                     int version, Long docId, String notes, boolean isLatest, String bucketName, Long bucketId, Long folderId) {
         UserFile userFile = new UserFile();
         userFile.setUserId(userId);
         userFile.setLibraryCode(libraryCode);
@@ -675,6 +681,7 @@ public class UserFileServiceImpl implements UserFileService {
         userFile.setCreatedDate(new Date());
         userFile.setDeleteFlag(false);
         userFile.setBucket(bucketName);
+        userFile.setBucketId(bucketId); // 保存 bucketId
         userFile.setType(file.getContentType());
         userFile.setFolderId(folderId);
         userFile.setUrl(objectName);

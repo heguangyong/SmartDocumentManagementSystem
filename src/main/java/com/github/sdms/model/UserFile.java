@@ -37,7 +37,14 @@ public class UserFile {
 
     private String md5; // 文件MD5
 
-    private String bucket; // 存储桶名
+    @Column(name = "bucket_id")
+    private Long bucketId; //存储桶Id
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bucket_id", insertable = false, updatable = false)
+    private Bucket bucketEntity;
+
+    private String bucket; // 存储桶名 (一期遗留字段，暂时保留兼容，计划废弃)
 
     @Column(name = "delete_flag")
     private Boolean deleteFlag = false; // 是否已删除
