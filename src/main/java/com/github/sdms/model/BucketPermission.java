@@ -39,7 +39,7 @@ public class BucketPermission {
     @Column(name = "updated_at")
     private Date updatedAt;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "bucket_id", insertable = false, updatable = false)
     private Bucket bucket;
 

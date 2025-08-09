@@ -24,5 +24,5 @@ public interface BucketRepository extends JpaRepository<Bucket, Long> {
     Page<Bucket> findByNameLike(@Param("keyword") String keyword, Pageable pageable);
 
 
-
+    List<Bucket> findByLibraryCode(String libraryCode);
 }

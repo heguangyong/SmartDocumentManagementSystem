@@ -425,4 +425,18 @@ public class UserController {
     public ResponseEntity<ApiResponse<?>> getShareAccessLogs() {
         return ResponseEntity.ok(ApiResponse.success("查询成功", shareAccessLogService.getAllLogs()));
     }
+
+    @GetMapping("/{id}/permissions")
+    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
+    public ResponseEntity<ApiResponse<List<UserResourcePermissionDTO>>> getUserPermissions(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(userService.getUserPermissions(id)));
+    }
+
+    @PostMapping("/{id}/permissions")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<String>> updateUserPermissions(@PathVariable Long id,
+                                                                     @RequestBody List<UserResourcePermissionDTO> permissions) {
+        userService.updateUserPermissions(id, permissions);
+        return ResponseEntity.ok(ApiResponse.success("权限更新成功"));
+    }
 }

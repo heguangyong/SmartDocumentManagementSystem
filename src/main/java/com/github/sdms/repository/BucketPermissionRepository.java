@@ -35,4 +35,5 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
     Optional<BucketPermission> findByBucketIdAndUserId(Long bucketId, Long userId);
 
     void deleteByUserIdAndBucketId(Long userId, Long bucketId);
+
 }
