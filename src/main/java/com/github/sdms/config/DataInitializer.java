@@ -1,8 +1,10 @@
 package com.github.sdms.config;
 
 import com.github.sdms.model.User;
+import com.github.sdms.model.LibrarySite;
 import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.UserRepository;
+import com.github.sdms.repository.LibrarySiteRepository;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -15,17 +17,40 @@ public class DataInitializer {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final LibrarySiteRepository librarySiteRepository;
 
     @PostConstruct
     public void initUsers() {
-        // 初始化多个馆
-        String[] libraryCodes = {"G123", "G456", "G789"}; // 假设有多个馆的 libraryCode
+        // 创建默认馆点
+        LibrarySite defaultLibrarySite = createDefaultLibrarySite();
 
-        // 对每个馆进行初始化
-        for (String libraryCode : libraryCodes) {
-            createUserIfNotExists("admin"+ libraryCode, "admin_" + libraryCode + "@example.com", "admin123", RoleType.ADMIN, libraryCode);
-            createUserIfNotExists("librarian"+ libraryCode, "librarian_" + libraryCode + "@example.com", "librarian123", RoleType.LIBRARIAN, libraryCode);
-            createUserIfNotExists("reader"+ libraryCode, "reader_" + libraryCode + "@example.com", "reader123", RoleType.READER, libraryCode);
+        // 仅创建默认管理员账号，并赋值馆点
+        createUserIfNotExists("admin", "admin@example.com", "admin123", RoleType.ADMIN, defaultLibrarySite.getCode());
+    }
+
+    /**
+     * 创建默认馆点并返回
+     * @return 默认馆点
+     */
+    private LibrarySite createDefaultLibrarySite() {
+        // 检查默认馆点是否已存在
+        String defaultLibraryCode = "DEFAULT";
+        if (!librarySiteRepository.existsByCode(defaultLibraryCode)) {
+            LibrarySite librarySite = LibrarySite.builder()
+                    .code(defaultLibraryCode)
+                    .name("默认馆点")
+                    .address("默认地址")
+                    .type("主馆")
+                    .status(true)
+                    .build();
+
+            librarySiteRepository.save(librarySite);
+            System.out.println("✅ 默认馆点已创建: " + librarySite.getCode());
+            return librarySite;
+        } else {
+            System.out.println("ℹ️ 默认馆点已存在");
+            return librarySiteRepository.findByCode(defaultLibraryCode)
+                    .orElseThrow(() -> new RuntimeException("默认馆点不存在"));
         }
     }
 
@@ -38,9 +63,9 @@ public class DataInitializer {
      * @param libraryCode 租户馆代码
      */
     private void createUserIfNotExists(String username, String email, String rawPassword, RoleType roleType, String libraryCode) {
-        // 检查邮箱和libraryCode是否已存在
-        if (!userRepository.existsByUsernameAndLibraryCode(username, libraryCode)) {
-            // 生成唯一的uid：模仿第三方接口同步过来的uid
+        // 检查用户名是否已存在
+        if (!userRepository.existsByUsername(username)) {
+            // 生成唯一的uid
             String uid = UUID.randomUUID().toString();
 
             User user = User.builder()
@@ -49,13 +74,13 @@ public class DataInitializer {
                     .email(email)
                     .password(passwordEncoder.encode(rawPassword))
                     .roleType(roleType)
-                    .libraryCode(libraryCode)
+                    .libraryCode(libraryCode)  // 赋值默认馆点code给管理员
                     .build();
 
             userRepository.save(user);
-            System.out.printf("✅ [%s] 用户已创建: %s / %s / %s / %s%n", roleType, username, rawPassword, libraryCode, uid);
+            System.out.printf("✅ [管理员] 用户已创建: %s / %s / %s%n", username, rawPassword, uid);
         } else {
-            System.out.printf("ℹ️ [%s] 用户已存在: %s / %s%n", roleType, username, libraryCode);
+            System.out.printf("ℹ️ [管理员] 用户已存在: %s%n", username);
         }
     }
 }

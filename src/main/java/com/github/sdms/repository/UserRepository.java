@@ -34,4 +34,5 @@ public interface UserRepository extends JpaRepository<User, Long>, JpaSpecificat
     // 根据用户名或邮箱查询用户，满足任一条件即可
     Optional<User> findByUsernameOrEmailAndLibraryCode(@Param("username") String username, @Param("email") String email, @Param("libraryCode") String libraryCode);
 
+    boolean existsByUsername(String username);
 }

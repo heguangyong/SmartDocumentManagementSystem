@@ -72,7 +72,7 @@ public class UserController {
     @Operation(summary = "用户登录")
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<LoginResponse>> login(@RequestBody LoginRequest loginRequest, HttpServletRequest request) {
-        String username = loginRequest.getUsername(); // ✅ 替换获取方式
+        String username = loginRequest.getUsername();
         String libraryCode = loginRequest.getLibraryCode();
         String loginKeyPrefix = username + ":" + libraryCode;
         String failedKey = "login:fail:" + loginKeyPrefix;
@@ -426,12 +426,14 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("查询成功", shareAccessLogService.getAllLogs()));
     }
 
+    @Operation(summary = "获取用户权限", description = "获取用户权限列表")
     @GetMapping("/{id}/permissions")
     @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
     public ResponseEntity<ApiResponse<List<UserResourcePermissionDTO>>> getUserPermissions(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(userService.getUserPermissions(id)));
     }
 
+    @Operation(summary = "更新用户权限", description = "更新用户权限列表")
     @PostMapping("/{id}/permissions")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> updateUserPermissions(@PathVariable Long id,
