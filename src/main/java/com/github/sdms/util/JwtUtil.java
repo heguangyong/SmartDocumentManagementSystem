@@ -32,58 +32,58 @@ public class JwtUtil {
      * 生成 JWT - 本地登录用，支持多角色
      */
     public String generateToken(UserDetails userDetails, String libraryCode) {
-        String subject = userDetails.getUsername();
+        Long userId = ((CustomerUserDetails) userDetails).getUserId(); // 获取userId
         Map<String, Object> claims = new HashMap<>();
-        claims.put("username", subject);
+        claims.put("userId", userId); // 使用 userId 替换 uid
+        claims.put("username", userDetails.getUsername());
+
         // 收集所有角色为列表写入claims
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(Object::toString)
                 .collect(Collectors.toList());
         claims.put("roles", roles);
-        claims.put("libraryCode", libraryCode); // ✅ 加入馆代码
-        claims.put("iss", determineIssuer(roles));// 例如 "reader"、"librarian"、"admin"
+        claims.put("libraryCode", libraryCode); // 加入馆代码
+        claims.put("iss", determineIssuer(roles)); // 例如 "reader"、"librarian"、"admin"
 
-        return buildToken(claims, subject);
+        return buildToken(claims, String.valueOf(userId));
     }
 
     /**
      * 生成 JWT - OAuth 登录用，支持单角色（可扩展为多角色）
      */
-// 新增方法：OAuth 登录或自定义登录时使用
-    public String generateToken(String uid, List<String> roles, String libraryCode) {
+    public String generateToken(Long userId, List<String> roles, String libraryCode) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("username", uid);
+        claims.put("userId", userId); // 使用 userId 替换 uid
         claims.put("roles", roles);
-        claims.put("libraryCode", libraryCode); // ✅ 加入馆代码
-        claims.put("iss", determineIssuer(roles));// 例如 "reader"、"librarian"、"admin"
+        claims.put("libraryCode", libraryCode); // 加入馆代码
+        claims.put("iss", determineIssuer(roles));
 
-        return buildToken(claims, uid);
+        return buildToken(claims, String.valueOf(userId));
     }
 
     public String generateToken(UserDetails userDetails, String libraryCode, boolean rememberMe) {
-        String uid = userDetails.getUsername();
+        Long userId = ((CustomerUserDetails) userDetails).getUserId(); // 获取userId
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
                 .collect(Collectors.toList());
-        return generateToken(uid, roles, libraryCode, rememberMe);
+        return generateToken(userId, roles, libraryCode, rememberMe);
     }
 
 
-    public String generateToken(String uid, List<String> roles, String libraryCode, boolean rememberMe) {
+    public String generateToken(Long userId, List<String> roles, String libraryCode, boolean rememberMe) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("username", uid);
+        claims.put("userId", userId); // 使用 userId 替换 uid
         claims.put("roles", roles);
         claims.put("libraryCode", libraryCode);
         claims.put("iss", determineIssuer(roles));
         long expiration = rememberMe ? 90L * 24 * 60 * 60 * 1000 : EXPIRATION_TIME; // 90天 or 默认
-        return buildToken(claims, uid, expiration);
+        return buildToken(claims, String.valueOf(userId), expiration);
     }
 
     /**
      * 核心构建逻辑
      */
-    // 改造原有构建逻辑为支持传入过期时间
     private String buildToken(Map<String, Object> claims, String subject, long expirationTime) {
         return Jwts.builder()
                 .setClaims(claims)
@@ -94,7 +94,6 @@ public class JwtUtil {
                 .compact();
     }
 
-    // 保留旧接口调用不变
     private String buildToken(Map<String, Object> claims, String subject) {
         return buildToken(claims, subject, EXPIRATION_TIME);
     }
@@ -213,7 +212,7 @@ public class JwtUtil {
     }
 
     // ✅ 从 JWT 中提取 libraryCode claim
-    public String extractLibraryCode(String token) {
+    private String extractLibraryCode(String token) {
         return extractAllClaims(token).get("libraryCode", String.class);
     }
 

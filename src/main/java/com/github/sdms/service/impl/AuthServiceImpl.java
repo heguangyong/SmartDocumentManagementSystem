@@ -107,8 +107,8 @@ public class AuthServiceImpl implements AuthService {
         Long userId = user.getId();
 
         // 生成 JWT 用于前端认证
-        String jwt = jwtUtil.generateToken(uid, rolesFromFolio, libraryCode);
-        stringRedisTemplate.opsForValue().set("accessToken_" + uid, accessToken);
+        String jwt = jwtUtil.generateToken(userId, rolesFromFolio, libraryCode);
+        stringRedisTemplate.opsForValue().set("accessToken_" + userId, accessToken);
 
         return baseRedirectUrl + "?code=" + jwt;
     }
