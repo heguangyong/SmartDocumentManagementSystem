@@ -160,10 +160,17 @@ public class JwtUtil {
      * 校验 token 是否有效
      */
     public boolean validateToken(String token, UserDetails userDetails) {
-        String username = extractUsername(token);
-        return username != null &&
-                username.equals(userDetails.getUsername()) &&
-                !isTokenExpired(token);
+        // ✅ 不再验证 username，而是验证用户ID
+        Long tokenUserId = extractUserId(token);
+
+        // 确保传入的是 CustomerUserDetails 实例
+        if (userDetails instanceof CustomerUserDetails) {
+            CustomerUserDetails customerDetails = (CustomerUserDetails) userDetails;
+            return tokenUserId != null &&
+                    tokenUserId.equals(customerDetails.getUserId()) &&
+                    !isTokenExpired(token);
+        }
+        return false;
     }
 
     // ✅ 获取当前登录用户的角色（去除 "ROLE_" 前缀）

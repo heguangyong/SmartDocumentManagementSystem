@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.util.Collections;
 
 @Component
 @RequiredArgsConstructor
@@ -33,27 +32,31 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         try {
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
                 jwt = authHeader.substring(7);
-                userId = jwtUtil.extractUserId(jwt); // 使用 userId 提取 JWT 中的 userId
+                userId = jwtUtil.extractUserId(jwt);
             }
-            if (userId == null) {
-                throw new IllegalArgumentException("User ID cannot be null");
-            }
-            if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                // 根据 userId 从数据库中加载用户
+
+            if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 User user = userRepository.findById(userId).orElse(null);
 
-                if (user != null && jwtUtil.validateToken(jwt, new org.springframework.security.core.userdetails.User(user.getEmail(), "", Collections.emptyList()))) {
+                if (user != null) {
+                    // ✅ 创建包含正确权限的 UserDetails
                     CustomerUserDetails userDetails = new CustomerUserDetails(user);
 
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
-                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                    // ✅ 验证 token 和用户ID是否匹配
+                    if (jwtUtil.validateToken(jwt, userDetails)) {
+                        UsernamePasswordAuthenticationToken authToken =
+                                new UsernamePasswordAuthenticationToken(
+                                        userDetails,
+                                        null,
+                                        userDetails.getAuthorities()
+                                );
+                        SecurityContextHolder.getContext().setAuthentication(authToken);
+                    }
                 }
             }
         } catch (Exception e) {
             logger.warn("JWT filter exception: {}", e);
         }
-
         filterChain.doFilter(request, response);
     }
 
