@@ -245,6 +245,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success("查询成功", result));
     }
 
+    @Operation(summary = "根据角色等条件分页用户信息", description = "管理员根据角色等条件分页用户信息")
     @GetMapping("/list/filter")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<Page<User>>> getUsersByFilter(
