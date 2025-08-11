@@ -16,7 +16,20 @@ public class CustomUserDetailsServices implements UserDetailsService {
     private final UserRepository userRepository;
 
     /**
-     * 根据 email 和 libraryCode 加载用户信息
+     * 根据 userId 加载用户信息
+     * @param userId 用户ID
+     * @return UserDetails
+     * @throws UsernameNotFoundException 用户未找到异常
+     */
+    public UserDetails loadUserById(Long userId) throws UsernameNotFoundException {
+        // 通过 userId 查找用户
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found with userId: " + userId));
+        return new CustomerUserDetails(user);
+    }
+
+    /**
+     * 根据 username 和 libraryCode 加载用户信息
      * @param username 用户名
      * @param libraryCode 租户标识
      * @return UserDetails

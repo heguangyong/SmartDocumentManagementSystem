@@ -223,4 +223,14 @@ public class JwtUtil {
                 .min(Comparator.comparingInt(ROLE_PRIORITY::indexOf))
                 .orElse("reader");
     }
+
+    public Long extractUserId(String token) {
+        Long userId = extractClaim(token, claims -> claims.get("userId", Long.class));
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID not found in token");
+        }
+        return userId;
+    }
+
+
 }
