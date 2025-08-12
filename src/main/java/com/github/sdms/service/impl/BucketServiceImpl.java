@@ -13,6 +13,8 @@ import com.github.sdms.util.BucketUtil;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
+import io.minio.admin.MinioAdminClient;
+import io.minio.admin.QuotaUnit;
 import io.minio.errors.MinioException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,12 +35,16 @@ public class BucketServiceImpl implements BucketService {
 
     private final BucketRepository bucketRepository;
     private final MinioClient minioClient;
+    private final MinioAdminClient minioAdminClient ;
     private final MinioService minioService;
     private final BucketPermissionService bucketPermissionService;
     private final BucketPermissionRepository bucketPermissionRepository;
     private final UserRepository userRepository;
     private final PermissionResourceRepository permissionResourceRepository;
     private final RolePermissionRepository rolePermissionRepository;
+
+    // 统一单位转换常量
+    private static final long GB_IN_BYTES = 1024L * 1024 * 1024; // 二进制单位（GiB）
 
     /**
      * 创建存储桶（同时在数据库和 MinIO 创建）
@@ -282,18 +288,33 @@ public class BucketServiceImpl implements BucketService {
 
 
     @Override
-    @Transactional
-    public void removeBucketPermission(Long bucketId, Long userId) {
+    @Transactional(rollbackFor = Exception.class) // 确保所有异常都回滚
+    public void removeBucketPermission(Long userId, Long bucketId) {
         bucketPermissionRepository.deleteByUserIdAndBucketId(userId, bucketId);
     }
 
 
+    // 设置存储桶配额的完整实现
+    private void setBucketQuota(String bucketName, long maxCapacityBytes) {
+        try {
+            minioAdminClient.setBucketQuota(bucketName, maxCapacityBytes, QuotaUnit.KB);
+        } catch (Exception e) {
+            throw new ApiException(500, "配额设置失败: " + e.getMessage());
+        }
+    }
+
+
+
     @Override
     @Transactional
-    public void updateBucketCapacity(Long bucketId, Long maxCapacity) {
+    public void updateBucketCapacity(Long bucketId,UpdateBucketCapacityRequest request) {
         Bucket bucket = bucketRepository.findById(bucketId)
                 .orElseThrow(() -> new ApiException(404, "桶不存在"));
-        bucket.setMaxCapacity(maxCapacity);
+        // GB转字节
+        long capacityBytes = request.getMaxCapacityGB() * GB_IN_BYTES;
+        // 更新配额（新增）
+        setBucketQuota(bucket.getName(), capacityBytes);
+        bucket.setMaxCapacity(capacityBytes);
         bucketRepository.save(bucket);
     }
 
@@ -308,18 +329,18 @@ public class BucketServiceImpl implements BucketService {
 
             User user = userRepository.findById(request.getOwnerId())
                     .orElseThrow(() -> new ApiException(404, "用户不存在")); // 明确404状态
-
             // 生成桶名
             String bucketName = generateBucketName(request, user);
 
             // 双重校验（业务冲突使用400）
             checkBucketExistence(bucketName);
+            long newCapacity = request.getMaxCapacityGB() * GB_IN_BYTES;
 
             // 创建MinIO存储桶（基础设施错误使用500）
-            createMinioBucket(bucketName);
+            createMinioBucket(bucketName,newCapacity);
 
             // 构建并保存实体
-            return saveBucketEntity(request, user, bucketName);
+            return saveBucketEntity(request, user, bucketName,newCapacity);
 
         } catch (ApiException e) {
             throw e; // 直接传递已封装的异常
@@ -361,22 +382,22 @@ public class BucketServiceImpl implements BucketService {
     }
 
     // MinIO操作封装
-    private void createMinioBucket(String bucketName) {
+    private void createMinioBucket(String bucketName,long newCapacity) {
         try {
-            minioClient.makeBucket(
-                    MakeBucketArgs.builder().bucket(bucketName).build()
-            );
+            minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+            // 设置存储桶配额（核心新增）
+            setBucketQuota(bucketName, newCapacity);
         } catch (Exception e) {
             throw new ApiException(500, "存储桶创建失败: " + e.getMessage());
         }
     }
 
     // 实体保存
-    private Bucket saveBucketEntity(CreateBucketRequest request, User user, String bucketName) {
+    private Bucket saveBucketEntity(CreateBucketRequest request, User user, String bucketName,long newCapacity) {
         Bucket bucket = new Bucket();
         bucket.setName(bucketName);
         bucket.setDescription(request.getDescription());
-        bucket.setMaxCapacity(request.getMaxCapacity() == null ? 1073741824L : request.getMaxCapacity());
+        bucket.setMaxCapacity(request.getMaxCapacityGB() == null ? 1073741824L : newCapacity);
         bucket.setOwnerId(request.getOwnerId());
         bucket.setLibraryCode(user.getLibraryCode());
         bucket.setCreatedAt(new Date());
@@ -386,12 +407,13 @@ public class BucketServiceImpl implements BucketService {
 
     @Override
     @Transactional
-    public Bucket updateBucketInfo(Long id, Bucket bucket) {
+    public Bucket updateBucketInfo(Long id, UpdateBucketRequest request) {
+        long newCapacity = request.getMaxCapacityGB() * GB_IN_BYTES;
         Bucket dbBucket = bucketRepository.findById(id)
                 .orElseThrow(() -> new ApiException(404, "桶不存在"));
-        dbBucket.setName(bucket.getName());
-        dbBucket.setDescription(bucket.getDescription());
-        dbBucket.setMaxCapacity(bucket.getMaxCapacity());
+        dbBucket.setName(request.getName());
+        dbBucket.setDescription(request.getDescription());
+        dbBucket.setMaxCapacity(newCapacity);
         dbBucket.setUpdatedAt(new Date());
         return bucketRepository.save(dbBucket);
     }

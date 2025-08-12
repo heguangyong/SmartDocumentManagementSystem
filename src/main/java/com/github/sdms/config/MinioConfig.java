@@ -1,6 +1,7 @@
 package com.github.sdms.config;
 
 import io.minio.MinioClient;
+import io.minio.admin.MinioAdminClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -20,6 +21,14 @@ public class MinioConfig {
     @Bean
     public MinioClient minioClient() {
         return MinioClient.builder()
+                .endpoint(endpoint)
+                .credentials(accessKey, secretKey)
+                .build();
+    }
+
+    @Bean
+    public MinioAdminClient minioAdminClient() {
+        return MinioAdminClient.builder()
                 .endpoint(endpoint)
                 .credentials(accessKey, secretKey)
                 .build();

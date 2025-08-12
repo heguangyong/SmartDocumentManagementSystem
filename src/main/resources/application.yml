@@ -10,10 +10,12 @@ spring:
 
   jpa:
     hibernate:
+#      show-sql: true
       ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
+#        format_sql: true
 
   data:
     redis:
@@ -82,6 +84,12 @@ logging:
     org:
       springframework:
         security: DEBUG
+#      hibernate:
+#        SQL: DEBUG
+#        type:
+#          descriptor:
+#            sql:
+#              BasicBinder: TRACE
 
 # 格尔数据加密配置
 svs:

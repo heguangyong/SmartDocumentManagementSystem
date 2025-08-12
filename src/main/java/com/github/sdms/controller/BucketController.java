@@ -65,7 +65,7 @@ public class BucketController {
                 .orElseThrow(() -> new ApiException(404, "用户不存在"));
         Bucket bucket = bucketRepository.findById(request.getBucketId())
                 .orElseThrow(() -> new ApiException(404, "桶不存在"));
-        bucketService.removeBucketPermission(user.getId(), bucket.getId());
+        bucketService.removeBucketPermission(user.getId(),bucket.getId());
         return ApiResponse.success();
     }
 
@@ -74,7 +74,7 @@ public class BucketController {
     @PutMapping("/admin/{bucketId}/capacity")
     public ApiResponse<Void> updateBucketCapacity(@PathVariable Long bucketId,
                                                   @RequestBody UpdateBucketCapacityRequest request) {
-        bucketService.updateBucketCapacity(bucketId, request.getMaxCapacity());
+        bucketService.updateBucketCapacity(bucketId, request);
         return ApiResponse.success();
     }
 
@@ -102,9 +102,12 @@ public class BucketController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "管理员更新桶的详细信息")
     @PutMapping("/admin/update/{id}")
-    public ApiResponse<Bucket> updateBucket(@PathVariable Long id, @RequestBody Bucket bucket) {
-        return ApiResponse.success(bucketService.updateBucketInfo(id, bucket));
+    public ApiResponse<Bucket> updateBucket(
+            @PathVariable Long id,
+            @RequestBody UpdateBucketRequest request) {
+        return ApiResponse.success(bucketService.updateBucketInfo(id, request));
     }
+
 
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "管理员删除指定ID的桶")

@@ -35,13 +35,13 @@ public interface BucketService {
 
     void batchAssignPermissions(BatchAssignBucketPermissionRequest request);
 
-    void removeBucketPermission(Long id, Long id1);
+    void removeBucketPermission(Long userId, Long bucketId);
 
-    void updateBucketCapacity(Long bucketId, Long maxCapacity);
+    void updateBucketCapacity(Long bucketId, UpdateBucketCapacityRequest request);
 
     Bucket createBucketByAdmin(CreateBucketRequest request);
 
-    Bucket updateBucketInfo(Long id, Bucket bucket);
+    Bucket updateBucketInfo(Long id, UpdateBucketRequest request);
 
 
 }
