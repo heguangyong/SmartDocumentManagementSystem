@@ -10,6 +10,7 @@ import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.repository.LibrarySiteRepository;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.*;
+import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.JwtUtil;
 import com.github.sdms.util.PasswordUtil;
 import com.github.sdms.util.RequestUtils;
@@ -89,12 +90,12 @@ public class UserController {
 //            }
 //            redisTemplate.delete("captcha:" + loginRequest.getCaptchaId());
 
-            // 校验图书馆代码是否存在（可调整为配置方式）
+            // 验证图书馆代码
             boolean libraryExists = librarySiteRepository.existsByCodeAndStatusTrue(libraryCode);
             if (!libraryExists) {
                 return ResponseEntity.badRequest().body(ApiResponse.failure("无效的馆点代码"));
             }
-            // 校验用户是否绑定了该馆点
+
             Optional<User> userOpt = userRepository.findByUsernameAndLibraryCode(username, libraryCode);
             if (userOpt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("用户未绑定该馆点或不存在"));
@@ -110,23 +111,31 @@ public class UserController {
 
             UserDetails userDetails = customUserDetailsServices.loadUserByUsernameAndLibraryCode(username, libraryCode);
 
-            // 记录审计日志（登录成功）
+            // 记录登录成功审计日志
             userAuditLogService.log(user.getId(), username, libraryCode, ip, userAgent, AuditActionType.LOGIN_SUCCESS, "登录成功");
 
-            if (Boolean.TRUE.equals(user.getNeedPasswordChange())) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("初次登录需修改密码"));
-            }
-
             String jwt = jwtUtil.generateToken(userDetails, libraryCode, loginRequest.isRememberMe());
-            List<String> roles = userDetails.getAuthorities().stream().map(auth -> auth.getAuthority()).toList();
-            redisTemplate.opsForValue().set(username + libraryCode + "logintime", String.valueOf(System.currentTimeMillis() / 1000));
+            List<String> roles = userDetails.getAuthorities().stream()
+                    .map(auth -> auth.getAuthority())
+                    .toList();
 
-            String mainRole = roles.stream().map(r -> r.replace("ROLE_", "").toLowerCase())
+            // 计算mainRole
+            String mainRole = roles.stream()
+                    .map(r -> r.replace("ROLE_", "").toLowerCase())
                     .filter(r -> List.of("admin", "librarian", "reader").contains(r))
                     .min(Comparator.comparingInt(r -> List.of("admin", "librarian", "reader").indexOf(r)))
                     .orElse("reader");
 
+            if (Boolean.TRUE.equals(user.getNeedPasswordChange())) {
+                // 首次登录需改密码，返回403，附带token和角色信息
+                LoginResponse loginResponse = new LoginResponse(jwt, "Bearer", roles, mainRole);
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.failure("初次登录需修改密码", loginResponse));
+            }
+
+            redisTemplate.opsForValue().set(username + libraryCode + "logintime", String.valueOf(System.currentTimeMillis() / 1000));
             return ResponseEntity.ok(ApiResponse.success(new LoginResponse(jwt, "Bearer", roles, mainRole)));
+
 
         } catch (Exception e) {
             // 登录失败审计日志
@@ -152,30 +161,33 @@ public class UserController {
             Authentication authentication,
             HttpServletRequest request) {
 
-        String libraryCode = jwtUtil.getCurrentLibraryCode();
-        if (libraryCode == null) {
-            return ResponseEntity.badRequest().body(ApiResponse.failure("无法识别libraryCode"));
-        }
+        // 直接从authentication中获取用户信息，无需查库
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
 
-        String username = authentication.getName();
-        User user = userRepository.findByUsernameAndLibraryCode(username, libraryCode)
-                .orElseThrow(() -> new ApiException(404, "User not found"));
-
+        // 验证旧密码
         if (!passwordEncoder.matches(req.getOldPassword(), user.getPassword())) {
             return ResponseEntity.badRequest().body(ApiResponse.failure("旧密码不正确"));
         }
+
+        // 验证新密码复杂度
         if (!PasswordUtil.isStrongPassword(req.getNewPassword())) {
-            return ResponseEntity.badRequest().body(ApiResponse.failure("新密码不符合复杂度要求"));
+            return ResponseEntity.badRequest().body(ApiResponse.failure("新密码不符合复杂度要求;规则：至少8位，包含大小写字母、数字和特殊字符"));
         }
 
+        // 更新密码
         user.setPassword(passwordEncoder.encode(req.getNewPassword()));
         user.setNeedPasswordChange(false);
         userRepository.save(user);
 
-        // ✅ 审计日志：密码修改
+        // 审计日志：密码修改
         String ip = RequestUtils.getClientIp(request);
         String userAgent = RequestUtils.getUserAgent(request);
-        userAuditLogService.log(user.getId(), username, libraryCode, ip, userAgent, AuditActionType.PASSWORD_CHANGE, "用户修改密码");
+        String username = user.getUsername(); // 或者 userDetails.getUsername()
+        String libraryCode = user.getLibraryCode(); // 或者 userDetails.getLibraryCode()
+
+        userAuditLogService.log(user.getId(), username, libraryCode, ip, userAgent,
+                AuditActionType.PASSWORD_CHANGE, "用户修改密码");
 
         return ResponseEntity.ok(ApiResponse.success("密码修改成功"));
     }
@@ -225,10 +237,29 @@ public class UserController {
     @Operation(summary = "创建用户", description = "创建新用户，仅管理员可执行。")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/create")
-    public ResponseEntity<User> createUser(@RequestBody User user, @RequestParam String libraryCode) {
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return ResponseEntity.ok(userRepository.save(user));
+    public ResponseEntity<User> createUser(@RequestBody CreateUserRequest createUserRequest) {
+
+        // 校验两次密码是否一致
+        if (!createUserRequest.getPassword1().equals(createUserRequest.getPassword2())) {
+            return ResponseEntity.badRequest().body(null); // 返回错误响应，密码不一致
+        }
+
+        // 创建新的用户
+        User newUser = new User();
+        newUser.setUsername(createUserRequest.getUsername());
+        newUser.setNickname(createUserRequest.getNickname());
+        newUser.setPassword(passwordEncoder.encode(createUserRequest.getPassword1()));  // 对密码进行加密
+        newUser.setLibraryCode(createUserRequest.getLibraryCode());
+        newUser.setRoleType(createUserRequest.getRoleType());  // 设定角色
+
+        // 设置其他默认字段
+        newUser.setCreatetime(System.currentTimeMillis());
+        newUser.setUpdatetime(System.currentTimeMillis());
+
+        // 保存用户到数据库
+        return ResponseEntity.ok(userRepository.save(newUser));
     }
+
 
     @Operation(summary = "获取所有用户列表", description = "获取所有用户列表，仅管理员可执行。")
     @PreAuthorize("hasRole('ADMIN')")

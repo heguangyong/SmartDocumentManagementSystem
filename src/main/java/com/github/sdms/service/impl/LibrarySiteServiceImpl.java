@@ -8,6 +8,7 @@ import com.github.sdms.repository.LibrarySiteRepository;
 import com.github.sdms.service.LibrarySiteService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
@@ -77,5 +78,39 @@ public class LibrarySiteServiceImpl implements LibrarySiteService {
         return result.map(site -> new OptionDTO(site.getName(), site.getCode()));
     }
 
+    @Override
+    public LibrarySiteDTO createSite(LibrarySiteDTO dto) {
+        LibrarySite entity = new LibrarySite();
+        BeanUtils.copyProperties(dto, entity);
+        librarySiteRepository.save(entity);
+        dto.setId(entity.getId());
+        return dto;
+    }
+
+    @Override
+    public LibrarySiteDTO updateSite(LibrarySiteDTO dto) {
+        LibrarySite entity = librarySiteRepository.findById(dto.getId())
+                .orElseThrow(() -> new RuntimeException("馆点不存在"));
+        BeanUtils.copyProperties(dto, entity);
+        librarySiteRepository.save(entity);
+        return dto;
+    }
+
+    @Override
+    public void deleteSite(Long id) {
+        if (!librarySiteRepository.existsById(id)) {
+            throw new RuntimeException("馆点不存在");
+        }
+        librarySiteRepository.deleteById(id);
+    }
+
+    @Override
+    public LibrarySiteDTO getSiteById(Long id) {
+        LibrarySite entity = librarySiteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("馆点不存在"));
+        LibrarySiteDTO dto = new LibrarySiteDTO();
+        BeanUtils.copyProperties(entity, dto);
+        return dto;
+    }
 
 }

@@ -91,7 +91,7 @@ public class PermissionChecker {
     }
 
     public void checkAccess(Long targetUserId) {
-        Long currentUserId = AuthUtils.getCurrentUserId();
+        Long currentUserId = JwtUtil.getCurrentUserIdOrThrow();
         if (currentUserId == null) {
             throw new ApiException(401, "无效会话：无法识别当前登录用户");
         }
@@ -101,7 +101,7 @@ public class PermissionChecker {
     }
 
     public void checkFolderOwnership(Folder folder) {
-        Long currentUserId = AuthUtils.getCurrentUserId();
+        Long currentUserId = JwtUtil.getCurrentUserIdOrThrow();
         if (currentUserId == null) {
             throw new ApiException(401, "无效会话：无法识别当前登录用户");
         }

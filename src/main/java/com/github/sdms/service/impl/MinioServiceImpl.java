@@ -5,10 +5,10 @@ import com.github.sdms.model.Bucket;
 import com.github.sdms.repository.BucketRepository;
 import com.github.sdms.service.MinioService;
 import com.github.sdms.service.PermissionValidator;
-import com.github.sdms.util.AuthUtils;
 import com.github.sdms.util.BucketStatCache;
 import com.github.sdms.util.BucketUtil;
 import com.github.sdms.util.FileUtil;
+import com.github.sdms.util.JwtUtil;
 import io.minio.*;
 import io.minio.errors.MinioException;
 import io.minio.http.Method;
@@ -234,7 +234,7 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public InputStream getObject(String bucket, String objectName) {
-        if (!permissionValidator.canReadBucket(AuthUtils.getCurrentUserId(), bucket)) {
+        if (!permissionValidator.canReadBucket(JwtUtil.getCurrentUserIdOrThrow(), bucket)) {
             throw new ApiException("无权限访问桶：" + bucket);
         }
 
@@ -254,7 +254,7 @@ public class MinioServiceImpl implements MinioService {
 
     @Override
     public void deleteObject(String bucketName, String objectName) {
-        if (!permissionValidator.canWriteBucket(AuthUtils.getCurrentUserId(), bucketName)) {
+        if (!permissionValidator.canWriteBucket(JwtUtil.getCurrentUserIdOrThrow(), bucketName)) {
             throw new ApiException("无权限删除桶中的文件：" + bucketName);
         }
 

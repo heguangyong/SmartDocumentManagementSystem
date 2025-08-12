@@ -1,5 +1,6 @@
 package com.github.sdms.util;
 
+import com.github.sdms.model.User;
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,28 +23,29 @@ public class JwtUtil {
     @Value("${jwt.expiration:7200000}") // 2小时默认
     private long EXPIRATION_TIME;
 
-
     private SecretKey getSigningKey() {
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
     }
+
     private static final List<String> ROLE_PRIORITY = List.of("admin", "librarian", "reader");
+
+    // ========== JWT 生成相关方法 ==========
 
     /**
      * 生成 JWT - 本地登录用，支持多角色
      */
     public String generateToken(UserDetails userDetails, String libraryCode) {
-        Long userId = ((CustomerUserDetails) userDetails).getUserId(); // 获取userId
+        Long userId = ((CustomerUserDetails) userDetails).getUserId();
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId); // 使用 userId 替换 uid
+        claims.put("userId", userId);
         claims.put("username", userDetails.getUsername());
 
-        // 收集所有角色为列表写入claims
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(Object::toString)
                 .collect(Collectors.toList());
         claims.put("roles", roles);
-        claims.put("libraryCode", libraryCode); // 加入馆代码
-        claims.put("iss", determineIssuer(roles)); // 例如 "reader"、"librarian"、"admin"
+        claims.put("libraryCode", libraryCode);
+        claims.put("iss", determineIssuer(roles));
 
         return buildToken(claims, String.valueOf(userId));
     }
@@ -53,16 +55,16 @@ public class JwtUtil {
      */
     public String generateToken(Long userId, List<String> roles, String libraryCode) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId); // 使用 userId 替换 uid
+        claims.put("userId", userId);
         claims.put("roles", roles);
-        claims.put("libraryCode", libraryCode); // 加入馆代码
+        claims.put("libraryCode", libraryCode);
         claims.put("iss", determineIssuer(roles));
 
         return buildToken(claims, String.valueOf(userId));
     }
 
     public String generateToken(UserDetails userDetails, String libraryCode, boolean rememberMe) {
-        Long userId = ((CustomerUserDetails) userDetails).getUserId(); // 获取userId
+        Long userId = ((CustomerUserDetails) userDetails).getUserId();
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .map(r -> r.startsWith("ROLE_") ? r.substring(5) : r)
@@ -70,20 +72,16 @@ public class JwtUtil {
         return generateToken(userId, roles, libraryCode, rememberMe);
     }
 
-
     public String generateToken(Long userId, List<String> roles, String libraryCode, boolean rememberMe) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("userId", userId); // 使用 userId 替换 uid
+        claims.put("userId", userId);
         claims.put("roles", roles);
         claims.put("libraryCode", libraryCode);
         claims.put("iss", determineIssuer(roles));
-        long expiration = rememberMe ? 90L * 24 * 60 * 60 * 1000 : EXPIRATION_TIME; // 90天 or 默认
+        long expiration = rememberMe ? 90L * 24 * 60 * 60 * 1000 : EXPIRATION_TIME;
         return buildToken(claims, String.valueOf(userId), expiration);
     }
 
-    /**
-     * 核心构建逻辑
-     */
     private String buildToken(Map<String, Object> claims, String subject, long expirationTime) {
         return Jwts.builder()
                 .setClaims(claims)
@@ -98,7 +96,8 @@ public class JwtUtil {
         return buildToken(claims, subject, EXPIRATION_TIME);
     }
 
-    // 解析 roles 列表
+    // ========== JWT 解析相关方法 ==========
+
     public List<String> extractRoles(String token) {
         Claims claims = extractAllClaims(token);
         Object roles = claims.get("roles");
@@ -111,23 +110,14 @@ public class JwtUtil {
         return Collections.emptyList();
     }
 
-    /**
-     * 提取用户名（subject）
-     */
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
     }
 
-    /**
-     * 提取角色
-     */
     public String extractRole(String token) {
         return extractAllClaims(token).get("role", String.class);
     }
 
-    /**
-     * 通用提取 claim 方法
-     */
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         try {
             final Claims claims = extractAllClaims(token);
@@ -137,9 +127,6 @@ public class JwtUtil {
         }
     }
 
-    /**
-     * 解码所有 claims
-     */
     private Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
@@ -148,22 +135,13 @@ public class JwtUtil {
                 .getPayload();
     }
 
-    /**
-     * 检查 token 是否过期
-     */
     private boolean isTokenExpired(String token) {
         Date expiration = extractClaim(token, Claims::getExpiration);
         return expiration == null || expiration.before(new Date());
     }
 
-    /**
-     * 校验 token 是否有效
-     */
     public boolean validateToken(String token, UserDetails userDetails) {
-        // ✅ 不再验证 username，而是验证用户ID
         Long tokenUserId = extractUserId(token);
-
-        // 确保传入的是 CustomerUserDetails 实例
         if (userDetails instanceof CustomerUserDetails) {
             CustomerUserDetails customerDetails = (CustomerUserDetails) userDetails;
             return tokenUserId != null &&
@@ -173,52 +151,14 @@ public class JwtUtil {
         return false;
     }
 
-    // ✅ 获取当前登录用户的角色（去除 "ROLE_" 前缀）
-    public String getCurrentRole() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            return authentication.getAuthorities().stream()
-                    .map(GrantedAuthority::getAuthority)
-                    .filter(role -> role.startsWith("ROLE_"))
-                    .map(role -> role.substring(5)) // 去掉 "ROLE_"
-                    .findFirst()
-                    .orElse(null);
+    public Long extractUserId(String token) {
+        Long userId = extractClaim(token, claims -> claims.get("userId", Long.class));
+        if (userId == null) {
+            throw new IllegalArgumentException("User ID not found in token");
         }
-        return null;
+        return userId;
     }
 
-    // ✅ 判断当前用户是否为管理员
-    public boolean isAdmin() {
-        String role = getCurrentRole();
-        return "ADMIN".equals(role);
-    }
-
-    // ✅ 获取当前登录用户的 UID（即 JWT 的 subject）
-    public String getCurrentUsername() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.isAuthenticated()) {
-            return authentication.getName();
-        }
-        return null;
-    }
-
-    // ✅ 获取当前登录用户的 libraryCode
-    public String getCurrentLibraryCode() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !authentication.isAuthenticated()) {
-            return null;
-        }
-
-        // 获取当前 Token
-        Object credentials = authentication.getCredentials();
-        if (credentials instanceof String token) {
-            return extractLibraryCode(token);
-        }
-
-        return null;
-    }
-
-    // ✅ 从 JWT 中提取 libraryCode claim
     private String extractLibraryCode(String token) {
         return extractAllClaims(token).get("libraryCode", String.class);
     }
@@ -231,13 +171,133 @@ public class JwtUtil {
                 .orElse("reader");
     }
 
-    public Long extractUserId(String token) {
-        Long userId = extractClaim(token, claims -> claims.get("userId", Long.class));
+    // ========== 当前用户信息获取方法（合并AuthUtils功能）==========
+
+    /**
+     * 获取当前认证对象
+     */
+    private static Authentication getAuthentication() {
+        return SecurityContextHolder.getContext().getAuthentication();
+    }
+
+    /**
+     * 判断是否已认证
+     */
+    public static boolean isAuthenticated() {
+        Authentication auth = getAuthentication();
+        return auth != null && auth.isAuthenticated()
+                && !"anonymousUser".equals(auth.getPrincipal());
+    }
+
+    /**
+     * 获取当前登录用户对象（核心方法）
+     * @return 当前用户对象，如果未登录返回null
+     */
+    public static User getCurrentUser() {
+        Authentication authentication = getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return null;
+        }
+
+        Object principal = authentication.getPrincipal();
+        if (principal instanceof CustomerUserDetails userDetails) {
+            return userDetails.getUser();
+        }
+
+        return null;
+    }
+
+    /**
+     * 获取当前登录用户ID
+     */
+    public static Long getCurrentUserId() {
+        User currentUser = getCurrentUser();
+        return currentUser != null ? currentUser.getId() : null;
+    }
+
+    /**
+     * 获取当前登录用户ID（带异常）- 替代JwtUtil.getCurrentUserIdOrThrow()
+     */
+    public static Long getCurrentUserIdOrThrow() {
+        Long userId = getCurrentUserId();
         if (userId == null) {
-            throw new IllegalArgumentException("User ID not found in token");
+            throw new RuntimeException("用户未认证");
         }
         return userId;
     }
 
+    /**
+     * 获取当前用户的UID - 替代JwtUtil.getCurrentUidOrThrow()
+     */
+    public static String getCurrentUid() {
+        User currentUser = getCurrentUser();
+        return currentUser != null ? currentUser.getUid() : null;
+    }
 
+    /**
+     * 获取当前用户的UID（带异常）- 替代JwtUtil.getCurrentUidOrThrow()
+     */
+    public static String getCurrentUidOrThrow() {
+        String uid = getCurrentUid();
+        if (uid == null) {
+            throw new RuntimeException("用户未认证");
+        }
+        return uid;
+    }
+
+    /**
+     * 获取当前用户名
+     */
+    public static String getCurrentUsername() {
+        User currentUser = getCurrentUser();
+        return currentUser != null ? currentUser.getUsername() : null;
+    }
+
+    /**
+     * 获取当前用户的libraryCode
+     */
+    public static String getCurrentLibraryCode() {
+        User currentUser = getCurrentUser();
+        return currentUser != null ? currentUser.getLibraryCode() : null;
+    }
+
+    /**
+     * 获取当前用户角色（去除ROLE_前缀）
+     */
+    public static String getCurrentRole() {
+        Authentication authentication = getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            return authentication.getAuthorities().stream()
+                    .map(GrantedAuthority::getAuthority)
+                    .filter(role -> role.startsWith("ROLE_"))
+                    .map(role -> role.substring(5))
+                    .findFirst()
+                    .orElse(null);
+        }
+        return null;
+    }
+
+    /**
+     * 判断当前用户是否为管理员
+     */
+    public static boolean isAdmin() {
+        String role = getCurrentRole();
+        return "ADMIN".equals(role);
+    }
+
+    /**
+     * 判断当前用户是否为图书管理员
+     */
+    public static boolean isLibrarian() {
+        String role = getCurrentRole();
+        return "LIBRARIAN".equals(role);
+    }
+
+    /**
+     * 判断当前用户是否为读者
+     */
+    public static boolean isReader() {
+        String role = getCurrentRole();
+        return "READER".equals(role);
+    }
 }

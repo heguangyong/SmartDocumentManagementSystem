@@ -24,10 +24,18 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ApiResponse<Void>> handleAccessDeniedException(AccessDeniedException ex) {
+        String message = ex.getMessage();
+        // 这里根据实际情况定制消息或统一提示
+        if (message != null && message.contains("ADMIN")) {
+            message = "权限不足，只有管理员可以执行此操作";
+        } else {
+            message = "权限不足，您没有执行该操作的权限";
+        }
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
-                .body(ApiResponse.failure("权限不足，只有管理员可以执行此操作"));
+                .body(ApiResponse.failure(message));
     }
+
 
     /**
      * 处理所有未捕获异常

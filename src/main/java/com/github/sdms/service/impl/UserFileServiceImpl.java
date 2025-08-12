@@ -257,7 +257,7 @@ public class UserFileServiceImpl implements UserFileService {
     public UserFile getFileById(Long fileId, String libraryCode) {
         // 从上下文获取uid，或者通过参数传入（这里示范参数传入方式）
         // 如无上下文，需在调用处补充uid传递
-        Long userId = AuthUtils.getCurrentUserId(); // 需自行实现或传入参数
+        Long userId = JwtUtil.getCurrentUserIdOrThrow(); // 需自行实现或传入参数
 
         if (!permissionValidator.canReadFile(userId, fileId)) {
             throw new ApiException(403, "无权限访问该文件");

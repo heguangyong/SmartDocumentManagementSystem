@@ -7,9 +7,8 @@ import com.github.sdms.model.User;
 import com.github.sdms.repository.*;
 import com.github.sdms.service.BucketService;
 import com.github.sdms.service.MinioService;
-import com.github.sdms.util.AuthUtils;
+import com.github.sdms.util.JwtUtil;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -121,7 +120,7 @@ public class BucketController {
     @Operation(summary = "获取当前用户所有有权限访问的桶")
     @GetMapping("/user/list")
     public ApiResponse<List<Bucket>> listUserBuckets() {
-        Long userId = AuthUtils.getCurrentUserId();
+        Long userId = JwtUtil.getCurrentUserIdOrThrow();
         return ApiResponse.success(bucketService.getAccessibleBuckets(userId));
     }
 
@@ -129,7 +128,7 @@ public class BucketController {
     @Operation(summary = "获取当前用户在某桶的最终权限")
     @GetMapping("/user/{bucketId}/effective-permission")
     public ApiResponse<List<String>> getEffectiveBucketPermission(@PathVariable Long bucketId) {
-        Long userId = AuthUtils.getCurrentUserId();
+        Long userId = JwtUtil.getCurrentUserIdOrThrow();
         return ApiResponse.success(bucketService.getEffectiveBucketPermission(userId, bucketId));
     }
 
@@ -137,7 +136,7 @@ public class BucketController {
     @Operation(summary = "用户创建自己的桶")
     @PostMapping("/user/create")
     public ApiResponse<Bucket> createBucketByUser(@RequestBody Bucket bucket) {
-        bucket.setOwnerId(AuthUtils.getCurrentUserId());
+        bucket.setOwnerId(JwtUtil.getCurrentUserIdOrThrow());
         return ApiResponse.success(bucketService.createBucket(bucket));
     }
 }

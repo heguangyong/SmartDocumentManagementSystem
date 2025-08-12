@@ -5,14 +5,10 @@ import com.github.sdms.dto.LibrarySitePageRequest;
 import com.github.sdms.dto.OptionDTO;
 import com.github.sdms.service.LibrarySiteService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/site")
@@ -43,6 +39,47 @@ public class LibrarySiteController {
             @RequestParam(defaultValue = "10") int size
     ) {
         return librarySiteService.queryOptions(keyword, page, size);
+    }
+
+    /**
+     * 新增馆点
+     */
+    @PostMapping("/library-sites")
+    @Operation(summary = "新增馆点", description = "创建新的馆点信息")
+    @PreAuthorize("hasRole('ADMIN')")
+    public LibrarySiteDTO createLibrarySite(@RequestBody LibrarySiteDTO dto) {
+        return librarySiteService.createSite(dto);
+    }
+
+    /**
+     * 修改馆点
+     */
+    @PutMapping("/library-sites/{id}")
+    @Operation(summary = "修改馆点", description = "根据 ID 修改馆点信息")
+    @PreAuthorize("hasRole('ADMIN')")
+    public LibrarySiteDTO updateLibrarySite(@PathVariable Long id, @RequestBody LibrarySiteDTO dto) {
+        dto.setId(id);
+        return librarySiteService.updateSite(dto);
+    }
+
+    /**
+     * 删除馆点
+     */
+    @DeleteMapping("/library-sites/{id}")
+    @Operation(summary = "删除馆点", description = "根据 ID 删除馆点信息")
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteLibrarySite(@PathVariable Long id) {
+        librarySiteService.deleteSite(id);
+    }
+
+    /**
+     * 获取馆点详情
+     */
+    @GetMapping("/library-sites/{id}")
+    @Operation(summary = "馆点详情", description = "根据 ID 查询馆点详细信息")
+    @PreAuthorize("hasAnyRole('ADMIN', 'LIBRARIAN')")
+    public LibrarySiteDTO getLibrarySite(@PathVariable Long id) {
+        return librarySiteService.getSiteById(id);
     }
 }
 

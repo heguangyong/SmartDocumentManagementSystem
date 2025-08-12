@@ -25,7 +25,7 @@ public class DataInitializer {
         LibrarySite defaultLibrarySite = createDefaultLibrarySite();
 
         // 仅创建默认管理员账号，并赋值馆点
-        createUserIfNotExists("admin", "admin@example.com", "admin123", RoleType.ADMIN, defaultLibrarySite.getCode());
+        createUserIfNotExists("admin","管理员", "admin@example.com", "admin123", RoleType.ADMIN, defaultLibrarySite.getCode());
     }
 
     /**
@@ -40,7 +40,7 @@ public class DataInitializer {
                     .code(defaultLibraryCode)
                     .name("默认馆点")
                     .address("默认地址")
-                    .type("主馆")
+                    .type("MAIN") //主馆
                     .status(true)
                     .build();
 
@@ -62,7 +62,7 @@ public class DataInitializer {
      * @param roleType 用户角色
      * @param libraryCode 租户馆代码
      */
-    private void createUserIfNotExists(String username, String email, String rawPassword, RoleType roleType, String libraryCode) {
+    private void createUserIfNotExists(String username, String nickname,String email, String rawPassword, RoleType roleType, String libraryCode) {
         // 检查用户名是否已存在
         if (!userRepository.existsByUsername(username)) {
             // 生成唯一的uid
@@ -71,6 +71,7 @@ public class DataInitializer {
             User user = User.builder()
                     .uid(uid)  // 使用唯一的uid
                     .username(username)  // username做唯一性检查
+                    .nickname(nickname)
                     .email(email)
                     .password(passwordEncoder.encode(rawPassword))
                     .roleType(roleType)

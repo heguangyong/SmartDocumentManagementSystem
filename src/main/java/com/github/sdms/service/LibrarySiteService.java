@@ -14,4 +14,12 @@ public interface LibrarySiteService {
     List<OptionDTO> getEnabledLibrarySiteOptions();
 
     Page<OptionDTO> queryOptions(String keyword, int page, int size);
+
+    LibrarySiteDTO createSite(LibrarySiteDTO dto);
+
+    LibrarySiteDTO updateSite(LibrarySiteDTO dto);
+
+    void deleteSite(Long id);
+
+    LibrarySiteDTO getSiteById(Long id);
 }
