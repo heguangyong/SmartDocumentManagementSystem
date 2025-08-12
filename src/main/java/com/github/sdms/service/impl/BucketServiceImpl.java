@@ -287,25 +287,79 @@ public class BucketServiceImpl implements BucketService {
     @Override
     @Transactional
     public Bucket createBucketByAdmin(CreateBucketRequest request) {
-        if (request.getOwnerId() == null) {
-            throw new ApiException(400, "必须指定 ownerId");
+        try {
+            // 参数校验（业务错误使用400）
+            if (request.getOwnerId() == null) {
+                throw new ApiException("必须指定 ownerId"); // 使用默认400状态
+            }
+
+            User user = userRepository.findById(request.getOwnerId())
+                    .orElseThrow(() -> new ApiException(404, "用户不存在")); // 明确404状态
+
+            // 生成桶名
+            String bucketName = generateBucketName(request, user);
+
+            // 双重校验（业务冲突使用400）
+            checkBucketExistence(bucketName);
+
+            // 创建MinIO存储桶（基础设施错误使用500）
+            createMinioBucket(bucketName);
+
+            // 构建并保存实体
+            return saveBucketEntity(request, user, bucketName);
+
+        } catch (ApiException e) {
+            throw e; // 直接传递已封装的异常
+        } catch (Exception e) {
+            // 未知异常统一转为500错误
+            throw new ApiException(500, "系统内部错误: " + e.getMessage());
         }
+    }
 
-        User user = userRepository.findById(request.getOwnerId())
-                .orElseThrow(() -> new ApiException(404, "用户不存在"));
-
-        String bucketName;
+    // 桶名生成逻辑
+    private String generateBucketName(CreateBucketRequest request, User user) {
         if (request.getName() != null && !request.getName().isBlank()) {
-            bucketName = request.getName();
-        } else {
-            // 读者桶，系统生成
-            bucketName = BucketUtil.getBucketName(request.getOwnerId(), user.getLibraryCode());
+            String name = request.getName().toLowerCase();
+            if (!name.matches("^[a-z0-9-]{3,}$")) {
+                throw new ApiException("桶名只能包含小写字母、数字和横线");
+            }
+            return name;
         }
+        return BucketUtil.getBucketName(request.getOwnerId(), user.getLibraryCode());
+    }
 
+    // 存在性校验（复用逻辑）
+    private void checkBucketExistence(String bucketName) {
+        // 数据库校验
         if (bucketRepository.existsByName(bucketName)) {
-            throw new ApiException(400, "桶名已存在");
+            throw new ApiException("桶名已存在");
         }
+        // MinIO校验
+        try {
+            boolean exists = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketName).build()
+            );
+            if (exists) {
+                throw new ApiException("MinIO中桶名已存在");
+            }
+        } catch (Exception e) {
+            throw new ApiException(500, "存储服务校验失败: " + e.getMessage());
+        }
+    }
 
+    // MinIO操作封装
+    private void createMinioBucket(String bucketName) {
+        try {
+            minioClient.makeBucket(
+                    MakeBucketArgs.builder().bucket(bucketName).build()
+            );
+        } catch (Exception e) {
+            throw new ApiException(500, "存储桶创建失败: " + e.getMessage());
+        }
+    }
+
+    // 实体保存
+    private Bucket saveBucketEntity(CreateBucketRequest request, User user, String bucketName) {
         Bucket bucket = new Bucket();
         bucket.setName(bucketName);
         bucket.setDescription(request.getDescription());
@@ -314,10 +368,8 @@ public class BucketServiceImpl implements BucketService {
         bucket.setLibraryCode(user.getLibraryCode());
         bucket.setCreatedAt(new Date());
         bucket.setUpdatedAt(new Date());
-
         return bucketRepository.save(bucket);
     }
-
 
     @Override
     @Transactional
