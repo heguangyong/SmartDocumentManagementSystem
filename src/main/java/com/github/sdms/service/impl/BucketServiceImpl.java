@@ -251,20 +251,33 @@ public class BucketServiceImpl implements BucketService {
     @Override
     @Transactional
     public void batchAssignPermissions(BatchAssignBucketPermissionRequest request) {
-        Long bucketId = request.getBucketId();
-        String permissionStr = String.join(",", request.getPermissions());
-
-        for (Long userId : request.getUserIds()) {
-            BucketPermission bp = bucketPermissionRepository
-                    .findByUserIdAndBucketId(userId, bucketId)
-                    .orElse(new BucketPermission());
-
-            bp.setUserId(userId);
-            bp.setBucketId(bucketId);
-            bp.setPermission(permissionStr);
-            bp.setUpdatedAt(new Date());
-            bucketPermissionRepository.save(bp);
+        // 添加存储桶存在性校验
+        if (!bucketRepository.existsById(request.getBucketId())) {
+            throw new ApiException(404, "存储桶不存在");
         }
+
+        request.getUserIds().forEach(userId -> {
+            // 校验用户存在性
+            if (!userRepository.existsById(userId)) {
+                throw new ApiException(404, "用户不存在: " + userId);
+            }
+
+            // 查询或新建权限记录
+            BucketPermission bp = bucketPermissionRepository
+                    .findByUserIdAndBucketId(userId, request.getBucketId())
+                    .orElseGet(() -> {
+                        BucketPermission newBp = new BucketPermission();
+                        newBp.setUserId(userId);
+                        newBp.setBucketId(request.getBucketId());
+                        return newBp;
+                    });
+
+            // 更新权限和审计字段
+            bp.setPermission(String.join(",", request.getPermissions()));
+            bp.setUpdatedAt(new Date()); // @PreUpdate 会自动处理，此处显式设置更可靠
+
+            bucketPermissionRepository.save(bp);
+        });
     }
 
 

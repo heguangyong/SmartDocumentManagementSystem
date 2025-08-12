@@ -203,12 +203,10 @@ CREATE TABLE `bucket_permission`  (
   `bucket_id` bigint(20) NOT NULL,
   `created_at` datetime(6) NOT NULL,
   `permission` varchar(64) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
-  `uid` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci NOT NULL,
   `updated_at` datetime(6) NULL DEFAULT NULL,
   `user_id` bigint(20) NOT NULL,
   PRIMARY KEY (`id`) USING BTREE,
-  UNIQUE INDEX `UK91cdpkpw56k39ayowwsxx043j`(`uid`, `bucket_id`) USING BTREE,
-  INDEX `FKciyexqevpggo5jap23lsyf0la`(`bucket_id`) USING BTREE,
+  UNIQUE INDEX `UK91cdpkpw56k39ayowwsxx043j`(`user_id`, `bucket_id`) USING BTREE,
   CONSTRAINT `FKciyexqevpggo5jap23lsyf0la` FOREIGN KEY (`bucket_id`) REFERENCES `bucket` (`id`) ON DELETE RESTRICT ON UPDATE RESTRICT
 ) ENGINE = InnoDB AUTO_INCREMENT = 8 CHARACTER SET = utf8mb4 COLLATE = utf8mb4_general_ci ROW_FORMAT = Dynamic;
 
