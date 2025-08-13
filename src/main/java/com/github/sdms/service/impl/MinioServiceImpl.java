@@ -120,37 +120,32 @@ public class MinioServiceImpl implements MinioService {
     }
 
     @Override
-    public String uploadFile(Long userId,String bucketName,  MultipartFile file) {
+    public String uploadFile(Long userId, String bucketName, String objectName, MultipartFile file) {
         try {
             // 检查桶是否存在
             boolean found = minioClient.bucketExists(
                     BucketExistsArgs.builder().bucket(bucketName).build()
             );
             if (!found) {
-                minioClient.makeBucket(
-                        MakeBucketArgs.builder().bucket(bucketName).build()
-                );
-                log.info("Created bucket: {}", bucketName);
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
             }
 
-            String objectName = FileUtil.generateObjectName(file.getOriginalFilename());
             try (InputStream inputStream = file.getInputStream()) {
                 minioClient.putObject(
                         PutObjectArgs.builder()
                                 .bucket(bucketName)
-                                .object(objectName)
+                                .object(objectName)    // ✅ 使用传入的 objectName
                                 .stream(inputStream, file.getSize(), -1)
                                 .contentType(file.getContentType())
                                 .build()
                 );
-                log.info("User {} uploaded file to bucket {}: {}", userId, bucketName, objectName);
-                return objectName;
             }
+            return objectName;
         } catch (Exception e) {
-            log.error("MinIO 文件上传失败", e);
             throw new ApiException("文件上传失败: " + e.getMessage());
         }
     }
+
 
 
     @Override
@@ -192,9 +187,7 @@ public class MinioServiceImpl implements MinioService {
     }
 
     @Override
-    public String generatePresignedDownloadUrl(Long userId, String libraryCode, String objectName) {
-        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
-
+    public String generatePresignedDownloadUrl(Long userId, String libraryCode, String objectName, String bucketName) {
         if (!permissionValidator.canReadBucket(userId, bucketName)) {
             throw new ApiException("无权限访问桶：" + bucketName);
         }
@@ -202,7 +195,7 @@ public class MinioServiceImpl implements MinioService {
         try {
             return minioClient.getPresignedObjectUrl(
                     GetPresignedObjectUrlArgs.builder()
-                            .bucket(bucketName)
+                            .bucket(bucketName)   // 使用真实桶名
                             .object(objectName)
                             .method(Method.GET)
                             .expiry(60 * 5)
@@ -213,6 +206,7 @@ public class MinioServiceImpl implements MinioService {
             throw new ApiException("生成下载链接失败: " + e.getMessage());
         }
     }
+
 
 
     @Override

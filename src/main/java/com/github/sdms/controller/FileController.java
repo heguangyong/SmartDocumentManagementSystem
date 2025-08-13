@@ -1,6 +1,9 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.dto.*;
+import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.dto.MoveItemRequest;
+import com.github.sdms.dto.UserFilePageRequest;
+import com.github.sdms.dto.UserFileSummaryDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.model.BucketPermission;
@@ -12,12 +15,11 @@ import com.github.sdms.util.BucketUtil;
 import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
-import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -25,11 +27,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
-import java.util.Date;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 @Slf4j
 @RestController
@@ -181,12 +179,23 @@ public class FileController {
     }
 
     @PostMapping("/move")
-    @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
     @Operation(summary = "移动文件到目标目录")
-    public ResponseEntity<Void> moveItems(@RequestBody MoveItemRequest request, @AuthenticationPrincipal CustomerUserDetails userDetails) {
-        userFileService.moveItems(request.getFileIds(), request.getFolderIds(), request.getTargetFolderId(), userDetails.getUserId());
-        return ResponseEntity.ok().build();
+    @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
+    public ApiResponse<Void> moveItems(@Valid @RequestBody MoveItemRequest request) {
+        // 从 SecurityContext 获取当前用户信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUserId();
+
+        // 调用业务逻辑
+        userFileService.moveItems(request.getFileIds(), request.getFolderIds(), request.getTargetFolderId(), userId);
+
+        return ApiResponse.success("移动成功", null);
     }
+
 
     // 1. Controller新增复制接口
     @PostMapping("/copy")
@@ -278,32 +287,33 @@ public class FileController {
         return ApiResponse.success("文件已恢复", null);
     }
 
-    @GetMapping("/download/{filename}")
+    @GetMapping("/download/{fileId}")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
-    @Operation(summary = "下载当前用户文件")
-    public void download(@AuthenticationPrincipal CustomerUserDetails userDetails,
-                         @PathVariable String filename,
-                         HttpServletResponse response) {
-        try {
-            // 查找文件
-            UserFile file = userFileService.getFileByName(filename, userDetails.getUserId(), userDetails.getLibraryCode());
-
-            // 校验文件权限：确保用户有下载权限
-            permissionChecker.checkFileAccess(userDetails.getUserId(), file.getId(), "READ");
-
-            // 文件下载逻辑
-            response.setContentType(file.getType());
-            response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getOriginFilename() + "\"");
-
-            try (InputStream is = minioService.getObject(file.getBucket(), file.getName())) {
-                is.transferTo(response.getOutputStream());
-                response.flushBuffer();
-            }
-        } catch (Exception e) {
-            log.error("文件下载失败", e);
-            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+    public ApiResponse<Map<String, String>> download(@PathVariable Long fileId) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
         }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+
+        // 获取文件（内部已做权限校验）
+        UserFile file = userFileService.getFileById(fileId);
+
+        // 生成 MinIO 签名下载链接，使用文件实际桶名
+        String downloadUrl = minioService.generatePresignedDownloadUrl(
+                userDetails.getUserId(),
+                userDetails.getLibraryCode(),
+                file.getName(),
+                file.getBucket()
+        );
+
+        Map<String, String> result = new HashMap<>();
+        result.put("downloadUrl", downloadUrl);
+        result.put("filename", file.getOriginFilename());
+
+        return ApiResponse.success("获取下载链接成功", result);
     }
+
 
 
     @GetMapping("/usage")

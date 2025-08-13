@@ -89,4 +89,6 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> , JpaS
     void clearLatestVersionFlag(@Param("docId") Long docId);
 
     Optional<UserFile> findByOriginFilenameAndUserIdAndLibraryCodeAndDeleteFlagFalse(String filename, Long userId, String libraryCode);
+
+    Optional<UserFile> findByIdAndDeleteFlagFalse(Long fileId);
 }

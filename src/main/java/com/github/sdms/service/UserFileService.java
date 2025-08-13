@@ -48,7 +48,7 @@ public interface UserFileService {
 
     List<UserFile> listFilesByFolder(Long userId, Long folderId, String libraryCode);
 
-    UserFile getFileById(Long fileId, String libraryCode);
+    UserFile getFileById(Long fileId);
 
     UserFile uploadNewDocument(MultipartFile file, Long userId, Bucket targetBucket, String notes, Long folderId) throws Exception;
 

@@ -254,18 +254,21 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
-    public UserFile getFileById(Long fileId, String libraryCode) {
-        // 从上下文获取uid，或者通过参数传入（这里示范参数传入方式）
-        // 如无上下文，需在调用处补充uid传递
-        Long userId = JwtUtil.getCurrentUserIdOrThrow(); // 需自行实现或传入参数
+    public UserFile getFileById(Long fileId) {
+        Long userId = JwtUtil.getCurrentUserIdOrThrow();
 
+        // 先查文件
+        UserFile file = userFileRepository.findByIdAndDeleteFlagFalse(fileId)
+                .orElseThrow(() -> new ApiException(404, "指定的文件不存在或已被删除"));
+
+        // 再做权限校验（包含 libraryCode 验证）
         if (!permissionValidator.canReadFile(userId, fileId)) {
             throw new ApiException(403, "无权限访问该文件");
         }
 
-        return userFileRepository.findByIdAndDeleteFlagFalseAndLibraryCode(fileId, libraryCode)
-                .orElseThrow(() -> new ApiException(404, "指定的文件不存在或已被删除"));
+        return file;
     }
+
 
     @Override
     @Transactional
@@ -277,8 +280,8 @@ public class UserFileServiceImpl implements UserFileService {
         // 构建 MinIO 对象名（避免命名冲突）
         String objectName = FileUtil.generateObjectName(file.getOriginalFilename());
 
-        // 上传文件到 MinIO
-        minioService.uploadFile(userId, bucketName, file);
+        // 上传文件到 MinIO —— 使用同一个 objectName
+        minioService.uploadFile(userId, bucketName, objectName, file);
 
         // 提取文件名
         String originFilename = file.getOriginalFilename();
@@ -338,7 +341,7 @@ public class UserFileServiceImpl implements UserFileService {
             String objectName = FileUtil.generateObjectName(originFilename);
 
             // 上传文件
-            minioService.uploadFile(userId, bucketName, file);
+            minioService.uploadFile(userId, bucketName, objectName, file);
 
             // ===== 版本号处理 =====
             Integer maxVersion = userFileRepository.findMaxVersionNumber(originFilename, folderId, userId, libraryCode);
@@ -683,6 +686,13 @@ public class UserFileServiceImpl implements UserFileService {
         userFile.setBucket(bucketName);
         userFile.setBucketId(bucketId); // 保存 bucketId
         userFile.setType(file.getContentType());
+        // 提取 typename（扩展名），默认 unknown
+        String contentType = file.getContentType();
+        String typeName = "unknown";
+        if (contentType != null && contentType.contains("/")) {
+            typeName = contentType.substring(contentType.indexOf("/") + 1);
+        }
+        userFile.setTypename(typeName);
         userFile.setFolderId(folderId);
         userFile.setUrl(objectName);
         return userFile;

@@ -6,7 +6,6 @@ import com.github.sdms.service.MinioService;
 import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CustomerUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,10 +49,16 @@ public class OnlyOfficeController {
         if (userFile == null) {
             return ResponseEntity.status(403).body(ApiResponse.failure("无权限访问该文档"));
         }
-
+        // 获取文件（内部已做权限校验）
+        UserFile file = userFileService.getFileById(userFile.getId());
         // 获取文档访问下载链接（带签名）
-        String downloadUrl = minioService.generatePresignedDownloadUrl(userFile.getUserId(), libraryCode, userFile.getName());
-
+        // 生成 MinIO 签名下载链接，使用文件实际桶名
+        String downloadUrl = minioService.generatePresignedDownloadUrl(
+                userDetails.getUserId(),
+                userDetails.getLibraryCode(),
+                file.getOriginFilename(),
+                file.getBucket()
+        );
         // 构造OnlyOffice编辑器配置
         Map<String, Object> config = new HashMap<>();
         config.put("document", Map.of(
