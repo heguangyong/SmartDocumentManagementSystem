@@ -1,8 +1,7 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
-import com.github.sdms.dto.FolderPageRequest;
-import com.github.sdms.dto.FolderSummaryDTO;
+import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.service.FolderService;
 import com.github.sdms.util.CustomerUserDetails;
@@ -10,9 +9,9 @@ import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -28,24 +27,26 @@ public class FolderController {
     private final FolderService folderService;
     private final PermissionChecker permissionChecker;
 
-    @PostMapping("/page")
-    public ApiResponse<Page<FolderSummaryDTO>> pageFolders(@RequestBody FolderPageRequest request,
-                                                           @AuthenticationPrincipal CustomerUserDetails userDetails) {
-        Page<FolderSummaryDTO> result = folderService.pageFolders(request, userDetails);
-        return ApiResponse.success(result);
-    }
-
-
     @PostMapping("/create")
     @Operation(summary = "创建文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ApiResponse<Folder> createFolder(
-            @RequestParam Long userId,
             @RequestParam @NotBlank String name,
-            @RequestParam(required = false) Long parentId,
-            @RequestParam String libraryCode
+            @RequestParam(required = false) Long parentId
     ) {
+        // 从 SecurityContext 获取当前用户信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
+
+        // 权限校验
         permissionChecker.checkAccess(userId, libraryCode);
+
+        // 创建文件夹
         Folder folder = folderService.createFolder(userId, name, parentId, libraryCode);
         return ApiResponse.success("创建成功", folder);
     }
