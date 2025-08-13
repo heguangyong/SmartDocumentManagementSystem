@@ -1,9 +1,6 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.dto.ApiResponse;
-import com.github.sdms.dto.MoveItemRequest;
-import com.github.sdms.dto.UserFilePageRequest;
-import com.github.sdms.dto.UserFileSummaryDTO;
+import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.model.BucketPermission;
@@ -19,9 +16,12 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -59,55 +59,56 @@ public class FileController {
 
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
     @Operation(summary = "上传新文档")
-    @PostMapping("/upload")
+    @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<UserFile> uploadNewDocument(
-            @AuthenticationPrincipal CustomerUserDetails userDetails,
-            @RequestParam MultipartFile file,
-            @RequestParam(required = false) String notes,
-            @RequestParam(required = false) Long folderId,
-            @RequestParam(required = false) Long bucketId
+            @RequestPart MultipartFile file,
+            @RequestPart(required = false) UploadDocumentRequest request
     ) {
+        // 从 SecurityContext 获取当前用户信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
         Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
-        Bucket targetBucket;
 
+        Long folderId = request != null ? request.getFolderId() : null;
+        Long bucketId = request != null ? request.getBucketId() : null;
+        String notes = request != null ? request.getNotes() : null;
+
+        Bucket targetBucket;
         if (bucketId != null) {
             targetBucket = bucketService.getBucketById(bucketId);
             if (targetBucket == null) {
                 throw new ApiException(404, "目标桶不存在");
             }
-
-            String bucketName = targetBucket.getName();
-            if (!permissionValidator.canWriteBucket(userId, bucketName)) {
-                throw new ApiException(403, "您无权限上传至该桶：" + bucketName);
+            if (!permissionValidator.canWriteBucket(userId, targetBucket.getName())) {
+                throw new ApiException(403, "您无权限上传至该桶：" + targetBucket.getName());
             }
         } else {
             String bucketName = BucketUtil.getBucketName(userId, libraryCode);
-
-            Optional<Bucket> optionalBucket = bucketService.getOptionalBucketByName(bucketName);
-            if (optionalBucket.isEmpty()) {
-                Bucket newBucket = Bucket.builder()
-                        .name(bucketName)
-                        .libraryCode(libraryCode)
-                        .ownerId(userId)
-                        .description("用户默认桶")
-                        .build();
-                targetBucket = bucketService.createBucket(newBucket);
-
-                BucketPermission permission = BucketPermission.builder()
-                        .userId(userId)
-                        .bucketId(targetBucket.getId())
-                        .permission("write")
-                        .createdAt(new Date())
-                        .build();
-                bucketPermissionRepository.save(permission);
-
-            } else {
-                targetBucket = optionalBucket.get();
-
-                if (!permissionValidator.canWriteBucket(userId, bucketName)) {
-                    throw new ApiException(403, "您没有该桶的写权限：" + bucketName);
-                }
+            targetBucket = bucketService.getOptionalBucketByName(bucketName)
+                    .orElseGet(() -> {
+                        Bucket newBucket = Bucket.builder()
+                                .name(bucketName)
+                                .libraryCode(libraryCode)
+                                .ownerId(userId)
+                                .description("用户默认桶")
+                                .build();
+                        Bucket createdBucket = bucketService.createBucket(newBucket);
+                        bucketPermissionRepository.save(
+                                BucketPermission.builder()
+                                        .userId(userId)
+                                        .bucketId(createdBucket.getId())
+                                        .permission("write")
+                                        .createdAt(new Date())
+                                        .build()
+                        );
+                        return createdBucket;
+                    });
+            if (!permissionValidator.canWriteBucket(userId, bucketName)) {
+                throw new ApiException(403, "您没有该桶的写权限：" + bucketName);
             }
         }
 
@@ -118,6 +119,7 @@ public class FileController {
             throw new ApiException(500, "文件上传失败：" + e.getMessage());
         }
     }
+
 
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
     @Operation(summary = "批量上传新文档")
@@ -181,6 +183,8 @@ public class FileController {
     }
 
     @PostMapping("/move")
+    @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
+    @Operation(summary = "移动文件到目标目录")
     public ResponseEntity<Void> moveItems(@RequestBody MoveItemRequest request, @AuthenticationPrincipal CustomerUserDetails userDetails) {
         userFileService.moveItems(request.getFileIds(), request.getFolderIds(), request.getTargetFolderId(), userDetails.getUserId());
         return ResponseEntity.ok().build();
