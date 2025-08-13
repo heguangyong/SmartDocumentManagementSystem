@@ -28,7 +28,7 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     public ShareAccess createFileShare(Long userId, Long fileId, Integer expireMinutes, String libraryCode) {
         UserFile file = userFileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException(404, "文件不存在"));
-        if (!file.getUid().equals(userId)) {
+        if (!file.getUserId().equals(userId)) {
             throw new ApiException(403, "无权限分享该文件");
         }
 
@@ -90,9 +90,9 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     }
 
     @Override
-    public void revokeShare(Long userId, String token, String libraryCode) {
+    public void revokeShare(Long userId, String token) {
         ShareAccess share = getRawByToken(token);
-        if (!share.getOwnerId().equals(userId) || !libraryCode.equals(share.getLibraryCode())) {
+        if (!share.getOwnerId().equals(userId) ) {
             throw new ApiException(403, "无权限撤销该分享");
         }
         share.setEnabled(false); // 逻辑禁用
@@ -100,13 +100,10 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     }
 
     @Override
-    public ShareAccess getByToken(String token, String libraryCode) {
+    public ShareAccess getByToken(String token) {
         ShareAccess share = getRawByToken(token);
         if (!Boolean.TRUE.equals(share.getEnabled())) {
             throw new ApiException(403, "该分享已被禁用");
-        }
-        if (!libraryCode.equals(share.getLibraryCode())) {
-            throw new ApiException(403, "库信息不匹配");
         }
         if (isShareExpired(share)) {
             throw new ApiException(403, "该分享链接已过期");
@@ -122,8 +119,8 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     }
 
     @Override
-    public UserFile getFileByToken(String token, String libraryCode) {
-        ShareAccess share = getByToken(token, libraryCode);
+    public UserFile getFileByToken(String token) {
+        ShareAccess share = getByToken(token);
         if (!"file".equalsIgnoreCase(share.getTargetType())) {
             throw new ApiException(400, "分享类型错误：不是文件类型");
         }
@@ -132,8 +129,8 @@ public class ShareAccessServiceImpl implements ShareAccessService {
     }
 
     @Override
-    public Folder getFolderByToken(String token, String libraryCode) {
-        ShareAccess share = getByToken(token, libraryCode);
+    public Folder getFolderByToken(String token) {
+        ShareAccess share = getByToken(token);
         if (!"folder".equalsIgnoreCase(share.getTargetType())) {
             throw new ApiException(400, "分享类型错误：不是目录类型");
         }

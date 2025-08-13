@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>OnlyOffice 测试</title>
+  <!-- 换成你的 OnlyOffice DocumentServer 地址 -->
+  <script type="text/javascript" src="http://localhost:8081/web-apps/apps/api/documents/api.js"></script>
+</head>
+<body>
+<div id="placeholder" style="width:100%;height:90vh;"></div>
+
+<script>
+  const fileId = "7196"; // 你的文件ID
+  const configUrl = `http://localhost:8080/api/onlyoffice/config/${fileId}`;
+
+  fetch(configUrl)
+    .then(res => res.json())
+    .then(config => {
+        console.log("OnlyOffice 配置:", config);
+        new DocsAPI.DocEditor("placeholder", config);
+    })
+    .catch(err => console.error("加载配置失败", err));
+</script>
+</body>
+</html>

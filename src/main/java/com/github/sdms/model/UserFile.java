@@ -33,7 +33,7 @@ public class UserFile {
     @Column(length = 255)
     private String type; // 文件类型
 
-    @Column(length = 50)
+    @Column(length = 255)
     private String typename; // 文件类型
 
     private Long size; // 文件大小（字节）

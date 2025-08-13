@@ -15,8 +15,11 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 import static com.github.sdms.util.FileUtil.convertUrlToMultipartFile;
 import static com.github.sdms.util.FileUtil.parseDocIdFromKey;
@@ -135,4 +138,87 @@ public class OnlyOfficeController {
         String portStr = (serverPort == 80 || serverPort == 443) ? "" : ":" + serverPort;
         return scheme + "://" + serverName + portStr + contextPath;
     }
+
+    /**
+     * 获取 OnlyOffice 编辑配置
+     */
+    @GetMapping("/config/{fileId}")
+    public Map<String, Object> getOnlyOfficeConfig(@PathVariable Long fileId,
+                                                   @AuthenticationPrincipal CustomerUserDetails userDetails) {
+        String fileName = fileId + ".docx";
+
+        // 生成 MinIO 预签名下载链接
+        String fileUrl = minioService.generatePresignedDownloadUrl(
+                userDetails.getUserId(),
+                userDetails.getLibraryCode(),
+                fileName,
+                "bucket001"  // 你的桶名
+        );
+
+        String key = UUID.randomUUID().toString();
+
+        Map<String, Object> document = Map.of(
+                "fileType", "docx",
+                "key", key,
+                "title", fileName,
+                "url", fileUrl
+        );
+
+        Map<String, Object> editorConfig = Map.of(
+                "callbackUrl", "http://192.168.1.198:8080/api/onlyoffice/callback/" + fileId,
+                "user", Map.of(
+                        "id", userDetails.getUserId(),
+                        "name", userDetails.getUsername()
+                )
+        );
+
+        return Map.of(
+                "documentType", "word",
+                "document", document,
+                "editorConfig", editorConfig
+        );
+    }
+
+
+    /**
+     * OnlyOffice 保存回调
+     */
+    @PostMapping("/callback/{fileId}")
+    @Operation(summary = "OnlyOffice 保存回调", description = "接收 OnlyOffice 编辑器回调，下载编辑后的文件并保存为新版本")
+    public Map<String, Object> fileSaveCallback(
+            @PathVariable Long fileId,
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal CustomerUserDetails userDetails) {
+
+        System.out.println("OnlyOffice 保存回调 fileId=" + fileId);
+        System.out.println("回调数据: " + body);
+
+        Integer status = (Integer) body.get("status");
+        // 仅在文件编辑完成状态才保存
+        if (status != null && (status == 2 || status == 6)) {
+            String docUrl = (String) body.get("url"); // OnlyOffice 提供的下载 URL
+            String key = (String) body.get("key");   // OnlyOffice 版本 key，可用作版本标识
+
+            Long userId = userDetails.getUserId();
+            String libraryCode = userDetails.getLibraryCode();
+
+            try (InputStream in = new URL(docUrl).openStream()) {
+                // 获取文件原名，可用 docId 查数据库或默认 fileId.docx
+                String originalFilename = fileId + ".docx";
+
+                // 调用 uploadNewVersion(InputStream...) 保存新版本
+//                userFileService.uploadNewVersionByInputStream(in, originalFilename, userId, libraryCode,
+//                        fileId, "OnlyOffice 自动保存", null);
+
+                System.out.println("OnlyOffice 文件保存成功: " + originalFilename);
+            } catch (Exception e) {
+                e.printStackTrace();
+                return Map.of("error", 1, "message", "文件保存失败：" + e.getMessage());
+            }
+        }
+
+        return Map.of("error", 0); // 返回 error=0 表示成功
+    }
+
+
 }

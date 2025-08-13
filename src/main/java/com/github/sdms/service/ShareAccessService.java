@@ -27,12 +27,12 @@ public interface ShareAccessService {
     /**
      * 撤销分享（逻辑删除或标记无效）
      */
-    void revokeShare(Long userId, String token, String libraryCode);
+    void revokeShare(Long userId, String token);
 
     /**
      * 校验token，返回分享记录（已校验过期状态）
      */
-    ShareAccess getByToken(String token, String libraryCode);
+    ShareAccess getByToken(String token);
 
     /**
      * 仅查询token记录（不校验状态）
@@ -42,12 +42,12 @@ public interface ShareAccessService {
     /**
      * 根据token获取文件（必须为 file 类型）
      */
-    UserFile getFileByToken(String token, String libraryCode);
+    UserFile getFileByToken(String token);
 
     /**
      * 根据token获取目录（必须为 folder 类型）
      */
-    Folder getFolderByToken(String token, String libraryCode);
+    Folder getFolderByToken(String token);
 
     /**
      * 是否已过期
