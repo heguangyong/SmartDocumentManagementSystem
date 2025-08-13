@@ -65,6 +65,7 @@ ALTER TABLE `user`
 
   -- 设置唯一索引（如果需要，根据业务调整）
   -- CREATE INDEX idx_uid ON `user_file` (`uid`);
+ALTER TABLE user_file MODIFY COLUMN uid VARCHAR(255) NULL;
 
 
 CREATE TABLE `user_permission`  (

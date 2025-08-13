@@ -62,7 +62,9 @@ public class FileController {
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<UserFile> uploadNewDocument(
             @RequestPart MultipartFile file,
-            @RequestPart(required = false) UploadDocumentRequest request
+            @RequestParam(required = false) Long folderId,
+            @RequestParam(required = false) Long bucketId,
+            @RequestParam(required = false) String notes
     ) {
         // 从 SecurityContext 获取当前用户信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -72,10 +74,6 @@ public class FileController {
         CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
         Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
-
-        Long folderId = request != null ? request.getFolderId() : null;
-        Long bucketId = request != null ? request.getBucketId() : null;
-        String notes = request != null ? request.getNotes() : null;
 
         Bucket targetBucket;
         if (bucketId != null) {
