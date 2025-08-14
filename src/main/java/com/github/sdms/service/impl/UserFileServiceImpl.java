@@ -86,15 +86,23 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Override
     public Page<UserFileSummaryDTO> pageFiles(UserFilePageRequest request, CustomerUserDetails userDetails) {
-        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), Sort.by(Sort.Direction.DESC, "createdDate"));
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(),
+                Sort.by(Sort.Direction.DESC, "createdDate"));
 
         Page<UserFile> page = userFileRepository.findAll((root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
             predicates.add(cb.equal(root.get("deleteFlag"), false));
 
+            // 桶过滤条件
+            if (request.getBucketId() != null) {
+                predicates.add(cb.equal(root.get("bucketId"), request.getBucketId()));
+            }
+
+            // 权限范围控制
             switch (userDetails.getRoleType()) {
                 case ADMIN:
+                    // 管理员不过滤用户
                     break;
                 case LIBRARIAN:
                 case READER:
@@ -103,26 +111,24 @@ public class UserFileServiceImpl implements UserFileService {
                     predicates.add(cb.equal(root.get("userId"), userDetails.getUserId()));
                     break;
             }
-            if (request.getKeyword() != null && !request.getKeyword().isEmpty()) {
-                String likeKeyword = "%" + request.getKeyword() + "%";
-                Predicate p1 = cb.like(root.get("originFilename"), likeKeyword);
-                predicates.add(p1); // ✅ 文件名模糊搜索
-            }
 
+            // 文件名/关键字模糊搜索
+            if (request.getKeyword() != null && !request.getKeyword().isEmpty()) {
+                predicates.add(cb.like(root.get("originFilename"), "%" + request.getKeyword() + "%"));
+            }
             if (request.getName() != null && !request.getName().isEmpty()) {
                 predicates.add(cb.like(root.get("originFilename"), "%" + request.getName() + "%"));
             }
+
+            // 类型过滤
             if (request.getType() != null && !request.getType().isEmpty()) {
                 predicates.add(cb.equal(root.get("type"), request.getType()));
             }
+
+            // 目录过滤（含递归）
             if (request.getFolderId() != null) {
-                predicates.add(cb.equal(root.get("folderId"), request.getFolderId()));
-            }
-            // 其他过滤条件代码后面
-            if (request.getFolderId() != null) {
-                // 递归查询所有子目录ID
                 List<Long> folderIds = folderService.getAllSubFolderIds(request.getFolderId());
-                folderIds.add(request.getFolderId()); // 包含自身
+                folderIds.add(request.getFolderId());
                 predicates.add(root.get("folderId").in(folderIds));
             }
 
@@ -145,6 +151,7 @@ public class UserFileServiceImpl implements UserFileService {
 
         return new PageImpl<>(dtoList, pageable, page.getTotalElements());
     }
+
 
 
     @Override

@@ -45,13 +45,20 @@ public class FileController {
     private final BucketPermissionRepository bucketPermissionRepository;
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('LIBRARIAN') or hasRole('READER')")
-    @Operation(summary = "分页获取用户文件")
+    @Operation(summary = "文件列表")
     @PostMapping("/page")
-    public ApiResponse<Page<UserFileSummaryDTO>> pageFiles(@RequestBody UserFilePageRequest request,
-                                                           @AuthenticationPrincipal CustomerUserDetails userDetails) {
+    public ApiResponse<Page<UserFileSummaryDTO>> pageFiles(@RequestBody UserFilePageRequest request) {
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+
         Page<UserFileSummaryDTO> result = userFileService.pageFiles(request, userDetails);
         return ApiResponse.success(result);
     }
+
 
 
 
