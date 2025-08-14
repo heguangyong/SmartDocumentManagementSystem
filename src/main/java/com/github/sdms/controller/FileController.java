@@ -7,6 +7,7 @@ import com.github.sdms.model.BucketPermission;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.repository.BucketPermissionRepository;
 import com.github.sdms.repository.FilePermissionRepository;
+import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.*;
 import com.github.sdms.util.BucketUtil;
 import com.github.sdms.util.CustomerUserDetails;
@@ -40,6 +41,7 @@ public class FileController {
     private final StorageQuotaService storageQuotaService;
     private final FilePermissionRepository filePermissionRepository;
     private final BucketPermissionRepository bucketPermissionRepository;
+    private final UserFileRepository userFileRepository;
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('LIBRARIAN') or hasRole('READER')")
     @Operation(summary = "文件列表")
@@ -60,24 +62,41 @@ public class FileController {
 
 
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
-    @Operation(summary = "上传新文档")
+    @Operation(summary = "上传新文档", description = "上传文件到指定桶和目录，并返回文件信息")
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<UserFile> uploadNewDocument(
+    public ApiResponse<UserFileDTO> uploadNewDocument(
             @RequestPart MultipartFile file,
             @RequestParam(required = false) Long folderId,
             @RequestParam(required = false) Long bucketId,
             @RequestParam(required = false) String notes
     ) {
-        // 从 SecurityContext 获取当前用户信息
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+        // 获取当前登录用户
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof CustomerUserDetails)) {
             throw new ApiException(401, "用户未登录");
         }
-        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        CustomerUserDetails userDetails = (CustomerUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
 
+        // 获取或创建可写桶
+        Bucket targetBucket = getOrCreateWritableBucket(userId, libraryCode, bucketId);
+
+        try {
+            // 上传文件并返回 UserFile 实体
+            UserFile savedFile = userFileService.uploadNewDocument(file, userId, targetBucket, notes, folderId);
+
+            // 转换为 DTO 返回
+            UserFileDTO dto = userFileService.toDTO(savedFile);
+            return ApiResponse.success(dto);
+        } catch (Exception e) {
+            throw new ApiException(500, "文件上传失败：" + e.getMessage());
+        }
+    }
+
+    private Bucket getOrCreateWritableBucket(Long userId, String libraryCode, Long bucketId) {
         Bucket targetBucket;
+
         if (bucketId != null) {
             targetBucket = bucketService.getBucketById(bucketId);
             if (targetBucket == null) {
@@ -90,6 +109,7 @@ public class FileController {
             String bucketName = BucketUtil.getBucketName(userId, libraryCode);
             targetBucket = bucketService.getOptionalBucketByName(bucketName)
                     .orElseGet(() -> {
+                        // 创建默认桶
                         Bucket newBucket = Bucket.builder()
                                 .name(bucketName)
                                 .libraryCode(libraryCode)
@@ -97,6 +117,8 @@ public class FileController {
                                 .description("用户默认桶")
                                 .build();
                         Bucket createdBucket = bucketService.createBucket(newBucket);
+
+                        // 自动添加写权限
                         bucketPermissionRepository.save(
                                 BucketPermission.builder()
                                         .userId(userId)
@@ -107,18 +129,15 @@ public class FileController {
                         );
                         return createdBucket;
                     });
-            if (!permissionValidator.canWriteBucket(userId, bucketName)) {
-                throw new ApiException(403, "您没有该桶的写权限：" + bucketName);
+
+            if (!permissionValidator.canWriteBucket(userId, targetBucket.getName())) {
+                throw new ApiException(403, "您没有该桶的写权限：" + targetBucket.getName());
             }
         }
 
-        try {
-            UserFile savedFile = userFileService.uploadNewDocument(file, userId, targetBucket, notes, folderId);
-            return ApiResponse.success(savedFile);
-        } catch (Exception e) {
-            throw new ApiException(500, "文件上传失败：" + e.getMessage());
-        }
+        return targetBucket;
     }
+
 
 
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
@@ -229,35 +248,79 @@ public class FileController {
 
 
     @PostMapping("/uploadVersion")
-    @PreAuthorize("hasAnyRole('READER','LIBRARIAN', 'ADMIN')")
-    @Operation(summary = "上传文档新版本")
-    public ApiResponse<UserFile> uploadNewVersion(
-            @AuthenticationPrincipal CustomerUserDetails userDetails,
+    @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
+    @Operation(summary = "上传文档新版本", description = "上传文档的新版本并返回最新版本信息")
+    public ApiResponse<UserFileDTO> uploadNewVersion(
             @RequestParam MultipartFile file,
             @RequestParam Long docId,
             @RequestParam(required = false) String notes,
-            @RequestParam(required = false) Long folderId // 👈 新增目录ID参数
+            @RequestParam(required = false) Long folderId,
+            @RequestParam(required = false) Long bucketId
     ) {
+        // 获取当前登录用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
+
+        // 如果外部没有传 folderId 或 bucketId，则用 docId 查询最新记录补齐
+        if (folderId == null || bucketId == null) {
+            UserFile latestFile = userFileRepository.findFirstByDocIdAndIsLatestAndLibraryCode(
+                    docId, true, libraryCode
+            ).orElseThrow(() -> new ApiException(404, "未找到该文档的最新记录"));
+
+            if (folderId == null) {
+                folderId = latestFile.getFolderId();
+            }
+            if (bucketId == null) {
+                bucketId = latestFile.getBucketId();
+            }
+        }
+
+        // 获取或创建可写桶
+        Bucket targetBucket = getOrCreateWritableBucket(userId, libraryCode, bucketId);
+
         try {
-            UserFile newVersion = userFileService.uploadNewVersion(file, userDetails.getUserId(), userDetails.getLibraryCode(), docId, notes,folderId);
-            return ApiResponse.success(newVersion);
+            UserFile newVersion = userFileService.uploadNewVersion(file, userId, libraryCode, docId, notes, folderId, targetBucket);
+            return ApiResponse.success(userFileService.toDTO(newVersion));
         } catch (Exception e) {
-            log.error("上传文档新版本失败", e);
-            return ApiResponse.failure("上传失败: " + e.getMessage());
+            throw new ApiException(500, "上传失败：" + e.getMessage());
         }
     }
 
-    @GetMapping("/versions/{docId}")
+
+
+
+    @PostMapping("/versions")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
-    @Operation(summary = "获取指定文档所有版本")
-    public ApiResponse<List<UserFile>> getAllVersions(
-            @AuthenticationPrincipal CustomerUserDetails userDetails,
-            @PathVariable Long docId
-    ) {
-        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
-        List<UserFile> versions = userFileService.getVersionsByDocId(docId, userDetails.getLibraryCode());
+    @Operation(summary = "获取指定文档所有版本", description = "按版本号降序返回所有文件版本，并标识最新版本")
+    public ApiResponse<List<UserFileDTO>> getAllVersions(@Valid @RequestBody UserFileVersionRequest request) {
+
+        // 获取当前登录用户
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
+
+        // 权限校验
+        permissionChecker.checkAccess(userId, libraryCode);
+
+        // 查询所有版本
+        List<UserFileDTO> versions = userFileService.getVersionsByDocId(
+                request.getDocId(),
+                libraryCode,
+                request.getBucketId(),
+                request.getFolderId()
+        );
         return ApiResponse.success(versions);
     }
+
 
     @GetMapping("/list")
     @Operation(summary = "获取当前用户文件列表")

@@ -91,4 +91,10 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> , JpaS
     Optional<UserFile> findByOriginFilenameAndUserIdAndLibraryCodeAndDeleteFlagFalse(String filename, Long userId, String libraryCode);
 
     Optional<UserFile> findByIdAndDeleteFlagFalse(Long fileId);
+
+    Optional<UserFile> findTopByDocIdAndLibraryCodeOrderByVersionNumberDesc(Long docId, String libraryCode);
+
+    Optional<UserFile> findFirstByDocIdAndIsLatestAndLibraryCode(Long docId, boolean isLatest, String libraryCode);
+
+    Optional<UserFile> findFirstByDocIdAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(Long docId, String libraryCode);
 }

@@ -1,10 +1,12 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.dto.UserFileDTO;
 import com.github.sdms.dto.UserFilePageRequest;
 import com.github.sdms.dto.UserFileSummaryDTO;
 import com.github.sdms.dto.UserFileVersionDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
+import com.github.sdms.model.BucketPermission;
 import com.github.sdms.model.Folder;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.model.enums.IdType;
@@ -279,32 +281,29 @@ public class UserFileServiceImpl implements UserFileService {
 
     @Override
     @Transactional
-    public UserFile uploadNewDocument(MultipartFile file, Long userId, Bucket targetBucket, String notes, Long folderId) {
+    public UserFile uploadNewDocument(
+            MultipartFile file,
+            Long userId,
+            Bucket targetBucket,
+            String notes,
+            Long folderId
+    ) {
         String bucketName = targetBucket.getName();
         String libraryCode = targetBucket.getLibraryCode();
-        Long bucketId= targetBucket.getId();   // 新增
+        Long bucketId = targetBucket.getId();
 
         // 构建 MinIO 对象名（避免命名冲突）
         String objectName = FileUtil.generateObjectName(file.getOriginalFilename());
 
-        // 上传文件到 MinIO —— 使用同一个 objectName
+        // 上传文件到 MinIO
         minioService.uploadFile(userId, bucketName, objectName, file);
 
         // 提取文件名
         String originFilename = file.getOriginalFilename();
 
-        // ===== 新增逻辑：判断版本号 =====
-        Integer maxVersion = userFileRepository.findMaxVersionNumber(originFilename, folderId, userId, libraryCode);
-        int nextVersion = (maxVersion == null ? 1 : maxVersion + 1);
-
-        // ===== 新增逻辑：标记旧版本为非最新 =====
-        if (maxVersion != null) {
-            userFileRepository.markOldVersionsNotLatest(originFilename, folderId, userId, libraryCode);
-        }
-
-        // docId：新文件使用新的 docId（即便同名也是新文档）
-        long docId = cachedIdGenerator.nextId(IdType.DOC_ID.name());
-
+        // 生成版本信息
+        int versionNumber = 1;
+        long docId = cachedIdGenerator.nextId(IdType.DOC_ID.name()); // 首次上传生成 docId
 
         // 构建 UserFile 记录
         UserFile userFile = buildFileRecord(
@@ -312,12 +311,12 @@ public class UserFileServiceImpl implements UserFileService {
                 libraryCode,
                 file,
                 objectName,
-                nextVersion,
+                versionNumber,
                 docId,
                 notes,
-                true, // 是最新版本
+                true, // 最新版本
                 bucketName,
-                bucketId,   // 新增
+                bucketId,
                 folderId
         );
 
@@ -331,6 +330,7 @@ public class UserFileServiceImpl implements UserFileService {
 
         return userFile;
     }
+
 
     @Override
     @Transactional
@@ -662,6 +662,25 @@ public class UserFileServiceImpl implements UserFileService {
     }
 
     @Override
+    public UserFile getFileByDocIdAndLibraryCodeLatest(Long docId, String libraryCode, Long userId) {
+        UserFile file = userFileRepository
+                .findFirstByDocIdAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(docId, libraryCode)
+                .orElse(null);
+
+        if (file == null) {
+            throw new ApiException(404, "未找到该文档的最新版本");
+        }
+
+        // 权限校验（只要有读权限即可）
+        if (!permissionValidator.canReadFile(userId, file.getId())) {
+            throw new ApiException(403, "无权限访问该文件");
+        }
+
+        return file;
+    }
+
+
+    @Override
     public UserFile getFileByDocIdAndUid(Long docId, Long userId) {
         return userFileRepository.findFirstByDocIdAndUserIdAndIsLatestTrue(docId, userId)
                 .orElse(null);
@@ -687,7 +706,8 @@ public class UserFileServiceImpl implements UserFileService {
 
 
     private UserFile buildFileRecord(Long userId, String libraryCode, MultipartFile file, String objectName,
-                                     int version, Long docId, String notes, boolean isLatest, String bucketName, Long bucketId, Long folderId) {
+                                     int version, Long docId, String notes, boolean isLatest,
+                                     String bucketName, Long bucketId, Long folderId) {
         UserFile userFile = new UserFile();
         userFile.setUserId(userId);
         userFile.setLibraryCode(libraryCode);
@@ -701,13 +721,12 @@ public class UserFileServiceImpl implements UserFileService {
         userFile.setCreatedDate(new Date());
         userFile.setDeleteFlag(false);
         userFile.setBucket(bucketName);
-        userFile.setBucketId(bucketId); // 保存 bucketId
+        userFile.setBucketId(bucketId);
         userFile.setType(file.getContentType());
         // 提取 typename（扩展名），默认 unknown
-        String contentType = file.getContentType();
         String typeName = "unknown";
-        if (contentType != null && contentType.contains("/")) {
-            typeName = contentType.substring(contentType.indexOf("/") + 1);
+        if (file.getOriginalFilename() != null && file.getOriginalFilename().contains(".")) {
+            typeName = file.getOriginalFilename().substring(file.getOriginalFilename().lastIndexOf('.') + 1);
         }
         userFile.setTypename(typeName);
         userFile.setFolderId(folderId);
@@ -749,4 +768,158 @@ public class UserFileServiceImpl implements UserFileService {
     private boolean hasBucketPermission(Long userId, Long bucketId, String permission) {
         return bucketPermissionRepository.hasPermission(userId, bucketId, permission);
     }
+
+
+    @Override
+    public List<UserFileDTO> getVersionsByDocId(Long docId, String libraryCode, Long bucketId, Long folderId) {
+        List<UserFile> files = userFileRepository.findByDocIdAndLibraryCodeOrderByVersionNumberDesc(docId, libraryCode);
+
+        // 可选：过滤 bucketId / folderId
+        if (bucketId != null) {
+            files = files.stream().filter(f -> bucketId.equals(f.getBucketId())).toList();
+        }
+        if (folderId != null) {
+            files = files.stream().filter(f -> folderId.equals(f.getFolderId())).toList();
+        }
+
+        return files.stream().map(f -> {
+            UserFileDTO dto = new UserFileDTO();
+            dto.setId(f.getId());
+            dto.setOriginFilename(f.getOriginFilename());
+            dto.setName(f.getName());
+            dto.setType(f.getType());
+            dto.setSize(f.getSize());
+            dto.setCreatedDate(f.getCreatedDate());
+            dto.setDocId(f.getDocId());
+            dto.setVersionNumber(f.getVersionNumber());
+            dto.setIsLatest(f.getIsLatest());
+            dto.setFolderId(f.getFolderId());
+            dto.setBucketId(f.getBucketId());
+            dto.setNotes(f.getNotes());
+            dto.setLibraryCode(f.getLibraryCode());
+            dto.setShared(f.getShared());
+            return dto;
+        }).toList();
+    }
+
+    /**
+     * 将 UserFile 转换为 DTO，避免 Hibernate 懒加载序列化异常
+     */
+    public UserFileDTO toDTO(UserFile file) {
+        if (file == null) return null;
+        UserFileDTO dto = new UserFileDTO();
+        dto.setId(file.getId());
+        dto.setUserId(file.getUserId());
+        dto.setOriginFilename(file.getOriginFilename());
+        dto.setName(file.getName());
+        dto.setType(file.getType());
+        dto.setSize(file.getSize());
+        dto.setUrl(file.getUrl());
+        dto.setBucketId(file.getBucketId());
+        dto.setFolderId(file.getFolderId());
+        dto.setDocId(file.getDocId());
+        dto.setVersionNumber(file.getVersionNumber());
+        dto.setNotes(file.getNotes());
+        dto.setIsLatest(file.getIsLatest());
+        dto.setShared(file.getShared());
+        dto.setCreatedDate(file.getCreatedDate());
+        return dto;
+    }
+
+    /**
+     * 批量转换
+     */
+    public List<UserFileDTO> toDTOList(List<UserFile> files) {
+        return files.stream().map(this::toDTO).toList();
+    }
+
+    @Transactional
+    @Override
+    public UserFile uploadNewVersion(MultipartFile file, Long userId, String libraryCode, Long docId,
+                                     String notes, Long folderId, Bucket targetBucket) throws Exception {
+
+        // 获取最新版本文件，进行权限校验
+        UserFile originFile = getFileByDocIdAndUid(docId, userId, libraryCode);
+        if (originFile == null) {
+            throw new ApiException(403, "无权限上传该文档新版本");
+        }
+        if (!permissionValidator.canWriteFile(userId, originFile.getId())) {
+            throw new ApiException(403, "无权限上传该文档新版本");
+        }
+
+        if (!storageQuotaService.canUpload(userId, file.getSize(), libraryCode)) {
+            throw new ApiException(403, "上传失败：存储配额不足");
+        }
+
+        // 上传文件到 MinIO
+        String bucketName = targetBucket.getName();
+        Long bucketId = targetBucket.getId();
+        String objectName = FileUtil.generateObjectName(file.getOriginalFilename());
+        minioService.uploadFile(userId, bucketName, objectName, file);
+
+        // ===== 处理版本号 =====
+        List<UserFile> history = userFileRepository.findByDocIdAndLibraryCodeOrderByVersionNumberDesc(docId, libraryCode);
+        int nextVersion = history.isEmpty() ? 1 : (history.get(0).getVersionNumber() + 1);
+
+        // 标记旧版本非最新
+        if (!history.isEmpty()) {
+            userFileRepository.markAllOldVersionsNotLatest(docId, libraryCode);
+        }
+
+        // 构建新的 UserFile 记录
+        UserFile newVersion = buildFileRecord(
+                userId,
+                libraryCode,
+                file,
+                objectName,
+                nextVersion,
+                docId,
+                notes,
+                true,
+                bucketName,
+                bucketId,
+                folderId
+        );
+
+        return userFileRepository.save(newVersion);
+    }
+
+    private Bucket getOrCreateWritableBucket(Long userId, String libraryCode, Long bucketId) {
+        if (bucketId != null) {
+            Bucket b = bucketService.getBucketById(bucketId);
+            if (b == null) throw new ApiException(404, "目标桶不存在");
+            if (!permissionValidator.canWriteBucket(userId, b.getName())) {
+                throw new ApiException(403, "无权限访问桶：" + b.getName());
+            }
+            return b;
+        }
+
+        // 默认桶
+        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
+        Bucket targetBucket = bucketService.getOptionalBucketByName(bucketName)
+                .orElseGet(() -> {
+                    Bucket newBucket = Bucket.builder()
+                            .name(bucketName)
+                            .libraryCode(libraryCode)
+                            .ownerId(userId)
+                            .description("用户默认桶")
+                            .build();
+                    Bucket createdBucket = bucketService.createBucket(newBucket);
+                    bucketPermissionRepository.save(
+                            BucketPermission.builder()
+                                    .userId(userId)
+                                    .bucketId(createdBucket.getId())
+                                    .permission(PermissionType.WRITE.name())
+                                    .createdAt(new Date())
+                                    .build()
+                    );
+                    return createdBucket;
+                });
+
+        if (!permissionValidator.canWriteBucket(userId, targetBucket.getName())) {
+            throw new ApiException(403, "无权限访问默认桶：" + targetBucket.getName());
+        }
+        return targetBucket;
+    }
+
 }

@@ -1,5 +1,6 @@
 package com.github.sdms.service;
 
+import com.github.sdms.dto.UserFileDTO;
 import com.github.sdms.dto.UserFilePageRequest;
 import com.github.sdms.dto.UserFileSummaryDTO;
 import com.github.sdms.dto.UserFileVersionDTO;
@@ -60,6 +61,8 @@ public interface UserFileService {
 
     UserFile getFileByDocIdAndUid(Long docId, Long userId, String libraryCode);
 
+    UserFile getFileByDocIdAndLibraryCodeLatest(Long docId, String libraryCode, Long userId);
+
     UserFile getFileByDocIdAndUid(Long docId, Long userId);
 
     void softDeleteFile(UserFile file);
@@ -67,4 +70,12 @@ public interface UserFileService {
     UserFile getFileByName(String filename, Long userId, String libraryCode);
 
     List<UserFile> uploadMultipleNewDocuments(List<MultipartFile> files, Long userId, Bucket targetBucket, String notes, Long folderId);
+
+    List<UserFileDTO> getVersionsByDocId(Long docId, String libraryCode, Long bucketId, Long folderId);
+
+    UserFileDTO toDTO(UserFile f);
+
+    List<UserFileDTO> toDTOList(List<UserFile> files);
+
+    UserFile uploadNewVersion(MultipartFile file, Long userId, String libraryCode, Long docId, String notes, Long folderId, Bucket targetBucket) throws Exception;
 }
