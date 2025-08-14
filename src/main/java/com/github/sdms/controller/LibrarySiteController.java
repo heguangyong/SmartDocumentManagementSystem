@@ -17,15 +17,13 @@ public class LibrarySiteController {
 
     private final LibrarySiteService librarySiteService;
 
-    /**
-     * 馆点分页查询（后台使用）
-     */
-    @GetMapping("/library-sites")
-    @Operation(summary = "分页查询馆点", description = "支持分页查询图书馆点，可用于后台管理列表展示")
-    @PreAuthorize("hasAnyRole('ADMIN')") // 限管理员
-    public Page<LibrarySiteDTO> pageLibrarySites(LibrarySitePageRequest request) {
+    @PreAuthorize("hasAnyRole('ADMIN')")
+    @Operation(summary = "馆点列表", description = "支持分页查询图书馆点，可用于后台管理列表展示")
+    @PostMapping("/library-sites/page")
+    public Page<LibrarySiteDTO> pageLibrarySites(@RequestBody LibrarySitePageRequest request) {
         return librarySiteService.pageSites(request);
     }
+
 
     /**
      * 馆点下拉选项（支持前端搜索 + 分页）

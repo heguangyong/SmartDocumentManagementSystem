@@ -506,17 +506,15 @@ public class UserFileServiceImpl implements UserFileService {
         return newVersion.getId();
     }
 
-    // 3. Service实现（UserFileServiceImpl）
     @Override
     @Transactional
-    public UserFile copyFile(String filename, Long userId, String libraryCode, Long targetFolderId) {
+    public UserFile copyFile(Long fileId, Long userId, String libraryCode, Long targetFolderId) {
         // 查询源文件
-        UserFile sourceFile = userFileRepository.findByOriginFilenameAndUserIdAndLibraryCodeAndDeleteFlagFalse(
-                filename, userId, libraryCode
-        ).orElseThrow(() -> new ApiException(404, "文件不存在"));
+        UserFile sourceFile = userFileRepository.findByIdAndDeleteFlagFalse(fileId)
+                .orElseThrow(() -> new ApiException(404, "文件不存在"));
 
         // 权限校验
-        permissionChecker.checkFileAccess(userId, sourceFile.getId(), "READ");
+        permissionChecker.checkFileAccess(userId, fileId, "READ");
 
         // 校验目标目录权限
         Folder targetFolder = folderRepository.findById(targetFolderId)
@@ -527,13 +525,15 @@ public class UserFileServiceImpl implements UserFileService {
 
         // 复制存储对象（MinIO）
         String newObjectName = generateNewObjectName(sourceFile.getName());
-        minioService.copyObject(sourceFile.getBucket(), sourceFile.getName(), sourceFile.getBucket(), newObjectName);
+        minioService.copyObject(sourceFile.getBucket(), sourceFile.getName(),
+                sourceFile.getBucket(), newObjectName);
 
-        // 复制数据库文件记录，版本号重置为1，标记为最新版本
+        // 复制数据库文件记录
         UserFile copiedFile = new UserFile();
         copiedFile.setOriginFilename(sourceFile.getOriginFilename());
         copiedFile.setName(newObjectName);
         copiedFile.setType(sourceFile.getType());
+        copiedFile.setTypename(sourceFile.getTypename());
         copiedFile.setSize(sourceFile.getSize());
         copiedFile.setCreatedDate(new Date());
         copiedFile.setUserId(userId);
@@ -548,9 +548,11 @@ public class UserFileServiceImpl implements UserFileService {
         return userFileRepository.save(copiedFile);
     }
 
-    // 辅助生成新对象名（避免重复）
+
+    /**
+     * 生成新的存储对象名，保证唯一性且长度短
+     */
     private String generateNewObjectName(String originalName) {
-        String suffix = "";
         String baseName = originalName;
         String ext = "";
 
@@ -559,9 +561,17 @@ public class UserFileServiceImpl implements UserFileService {
             baseName = originalName.substring(0, dotIndex);
             ext = originalName.substring(dotIndex);
         }
-        suffix = "_" + System.currentTimeMillis();
+
+        // 使用短随机字符串 + 时间片段保证唯一
+        // 8 位十六进制随机数 + 6 位纳秒时间片段
+        String randomPart = Integer.toHexString((int)(Math.random() * 0xFFFFFFF)); // 7 位以内
+        String timePart = Long.toHexString(System.nanoTime()).substring(0, 6);      // 6 位纳秒片段
+        String suffix = "_" + randomPart + timePart;
+
         return baseName + suffix + ext;
     }
+
+
 
 
     @Override

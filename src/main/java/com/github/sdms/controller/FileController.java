@@ -1,9 +1,6 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.dto.ApiResponse;
-import com.github.sdms.dto.MoveItemRequest;
-import com.github.sdms.dto.UserFilePageRequest;
-import com.github.sdms.dto.UserFileSummaryDTO;
+import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.model.BucketPermission;
@@ -204,21 +201,31 @@ public class FileController {
     }
 
 
-    // 1. Controller新增复制接口
     @PostMapping("/copy")
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
     @Operation(summary = "复制文件到目标目录")
-    public ApiResponse<UserFile> copyFile(
-            @AuthenticationPrincipal CustomerUserDetails userDetails,
-            @RequestParam String filename,
-            @RequestParam Long targetFolderId) {
-
+    public ApiResponse<UserFile> copyFile(@Valid @RequestBody CopyFileRequest request) {
+        // 获取当前用户信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
         Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
 
-        UserFile copiedFile = userFileService.copyFile(filename, userId, libraryCode, targetFolderId);
+        // 调用业务逻辑（根据 fileId 查找原文件信息，做权限校验）
+        UserFile copiedFile = userFileService.copyFile(
+                request.getFileId(),
+                userId,
+                libraryCode,
+                request.getTargetFolderId()
+        );
+
         return ApiResponse.success(copiedFile);
     }
+
+
 
 
     @PostMapping("/uploadVersion")

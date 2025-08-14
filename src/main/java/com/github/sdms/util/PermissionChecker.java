@@ -43,6 +43,11 @@ public class PermissionChecker {
         UserFile file = userFileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException(404, "文件不存在"));
 
+        // 在文件权限校验中增加管理员放行
+        if ("ADMIN".equals(currentRole)) {
+            return; // 管理员默认拥有全部权限
+        }
+
         FilePermission filePermission = filePermissionRepository.findByUserAndFile(userDetails.getUser(), file);
         if (filePermission == null) {
             throw new ApiException(403, "用户没有访问该文件的权限");

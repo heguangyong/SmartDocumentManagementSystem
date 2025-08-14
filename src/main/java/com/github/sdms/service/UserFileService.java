@@ -9,7 +9,6 @@ import com.github.sdms.util.CustomerUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
 import java.util.Date;
 import java.util.List;
 
@@ -24,7 +23,7 @@ public interface UserFileService {
     Long restoreFileVersion(Long fileId, Long userId);
 
     // 2. Service接口补充
-    UserFile copyFile(String filename, Long userId, String libraryCode, Long targetFolderId);
+    UserFile copyFile(Long fileId, Long userId, String libraryCode, Long targetFolderId);
 
 
     void saveUserFile(UserFile file);
