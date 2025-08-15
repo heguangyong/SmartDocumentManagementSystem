@@ -22,7 +22,7 @@ spring:
     redis:
       database: 10
       url: redis://127.0.0.1:6379
-      password: 123456
+      password: R@yw51asy9a!
       jedis:
         pool:
           max-active: 800
