@@ -1,0 +1,125 @@
+spring:
+  config:
+    activate:
+      on-profile: dev
+
+  datasource:
+    url: jdbc:mysql://127.0.0.1:3306/test_minio?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  jpa:
+    hibernate:
+      #      show-sql: true
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+  #        format_sql: true
+
+  data:
+    redis:
+      database: 10
+      url: redis://127.0.0.1:6379
+      password: 123456
+      jedis:
+        pool:
+          max-active: 800
+          max-wait: 10000
+          max-idle: 8
+          min-idle: 0
+
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
+
+jwt:
+  #  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
+  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
+  expiration: 7200000
+
+file:
+  upload-dir: uploads/
+  share:
+    default-expire-millis: 7200000 # 默认2小时
+    secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  #${SHARE_SECRET:share-file-jwt-secret} 取环境变量值：没有就用默认值
+
+# 二期目前需要通过uid反查用户信息
+oauth:
+  api_url: https://passport.library.sh.cn/
+  client_id: 1000855101
+  client_secret: bf5a28d7ff094b6ec91cea1b655bf1863e02c2daa140598fcd198bcb0f0349fb
+  redirect_uri: https://driver.library.sh.cn/api/user/authup
+  scope: read
+
+myset:
+  nowsvr: up
+  download_url_1: https://shlib.cn/#/download
+  upload_url_2: http://shlib.cn/#/upload
+  bucket_max_mb: 5120
+  timeout_front_day: 7
+  timeout_back_day: 30
+
+minio:
+  endpoint: http://localhost:9000  # https://minio.library.sh.cn/
+  access-key: admin
+  secret-key: admin123
+  bucket-name: sdmsfilesmanager
+
+aws:
+  credentials:
+    accessKey: admin
+    secretKey: admin123
+    region:
+      static: us-east-1
+    stack:
+      auto: false
+  s3:
+    endpoint: http://localhost:9000
+    bucket:
+      name: sdmsfilesmanager
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    #    org.hibernate.SQL: DEBUG
+    #    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.github.sdms.controller.OnlyOfficeController: DEBUG
+    com.github.sdms.controller.FileController: DEBUG
+
+# 格尔数据加密配置
+svs:
+  service:
+    enabled: false  # 设置为 false 可跳过签名与验签
+    addrs: 60.247.61.98:15009
+    timeout: 20000
+    name: default
+    verify:
+      cert-flag: true
+      allow-list-flag: true
+      chain-flag: true
+      valid-flag: true
+      crl-flag: true
+# 在未启用 svs.service.enabled=true 的情况下，可以临时注释掉以下配置
+koalii-client:
+  ribbon:
+#    NFLoadBalancerPingClassName: com.koalii.svs.client.util.loadbalancer.KoalPingUrl
+#    NFLoadBalancerPingInterval: 60
+#    NFLoadBalancerRuleClassName: com.koalii.svs.client.util.loadbalancer.KoalRoundRobinRule
+#    ConnectTimeout: 20000
+#    ReadTimeout: 20000
+
+# OnlyOffice配置
+onlyoffice:
+  server:
+    url: http://192.168.1.198:8081 # OnlyOffice
+  callback:
+    timeout: 30000  # 回调超时时间
+  upload:
+    max-size: 100MB  # 最大上传文件大小
+
+# 本应用访问地址，提供给onlyoffice访问下载文件
+app:
+  external-base-url: http://192.168.1.198:8080
