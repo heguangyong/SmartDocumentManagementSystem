@@ -1,8 +1,11 @@
 package com.github.sdms.util;
 
 import com.github.sdms.model.User;
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -15,6 +18,7 @@ import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Component
 public class JwtUtil {
 
@@ -24,8 +28,37 @@ public class JwtUtil {
     private long EXPIRATION_TIME;
 
     private SecretKey getSigningKey() {
+        // 检查密钥长度，如果不够则生成安全密钥
+        if (SECRET_KEY.getBytes().length < 64) {
+            // 方案1：使用现有密钥扩展到安全长度
+            String paddedKey = padKeyToSecureLength(SECRET_KEY);
+            return Keys.hmacShaKeyFor(paddedKey.getBytes());
+        }
         return Keys.hmacShaKeyFor(SECRET_KEY.getBytes());
     }
+
+    /**
+     * 将现有密钥扩展到安全长度（64字节）
+     */
+    private String padKeyToSecureLength(String originalKey) {
+        StringBuilder sb = new StringBuilder(originalKey);
+        // 重复原密钥直到达到64字节长度
+        while (sb.length() < 64) {
+            sb.append(originalKey);
+        }
+        return sb.substring(0, 64); // 截取到正好64字节
+    }
+
+    /**
+     * 生成新的安全密钥（仅用于生成新密钥，不要在生产环境调用）
+     */
+    public static void generateSecureKey() {
+        SecretKey key = Keys.secretKeyFor(SignatureAlgorithm.HS512);
+        String encodedKey = Base64.getEncoder().encodeToString(key.getEncoded());
+        System.out.println("New secure JWT key: " + encodedKey);
+        System.out.println("Key length in bytes: " + key.getEncoded().length);
+    }
+
 
     private static final List<String> ROLE_PRIORITY = List.of("admin", "librarian", "reader");
 
@@ -82,15 +115,17 @@ public class JwtUtil {
         return buildToken(claims, String.valueOf(userId), expiration);
     }
 
+    // 修复所有其他使用SignatureAlgorithm.HS512和SECRET_KEY的方法
     private String buildToken(Map<String, Object> claims, String subject, long expirationTime) {
         return Jwts.builder()
                 .setClaims(claims)
                 .setSubject(subject)
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationTime))
-                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512) // 修复：使用getSigningKey()方法
                 .compact();
     }
+
 
     private String buildToken(Map<String, Object> claims, String subject) {
         return buildToken(claims, subject, EXPIRATION_TIME);
@@ -127,7 +162,7 @@ public class JwtUtil {
         }
     }
 
-    private Claims extractAllClaims(String token) {
+    public Claims extractAllClaims(String token) {
         return Jwts.parser()
                 .verifyWith(getSigningKey())
                 .build()
@@ -159,7 +194,7 @@ public class JwtUtil {
         return userId;
     }
 
-    private String extractLibraryCode(String token) {
+    public String extractLibraryCode(String token) {
         return extractAllClaims(token).get("libraryCode", String.class);
     }
 
@@ -300,4 +335,87 @@ public class JwtUtil {
         String role = getCurrentRole();
         return "READER".equals(role);
     }
+
+    /**
+     * 生成文档下载专用Token（长期有效，用于OnlyOffice访问）
+     * @param userDetails 用户详情
+     * @param fileId 文件ID（可选，用于增加安全性）
+     * @return 文档Token
+     */
+    public String generateDocumentToken(CustomerUserDetails userDetails, Long fileId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userDetails.getUserId());
+        claims.put("libraryCode", userDetails.getLibraryCode());
+        claims.put("roles", userDetails.getAuthorities().stream()
+                .map(authority -> authority.getAuthority())
+                .collect(Collectors.toList()));
+
+        if (fileId != null) {
+            claims.put("fileId", fileId);
+        }
+
+        claims.put("tokenType", "DOCUMENT");
+
+        String token = Jwts.builder()
+                .setClaims(claims)
+                .setSubject(userDetails.getUserId().toString())
+                .setIssuer(userDetails.getUsername())
+                .setIssuedAt(new Date())
+                .setExpiration(new Date(System.currentTimeMillis() + 24 * 60 * 60 * 1000)) // 24小时
+                .signWith(getSigningKey(), SignatureAlgorithm.HS512)
+                .compact();
+
+        // 添加调试日志
+        try {
+            Claims tokenClaims = Jwts.parser()
+                    .verifyWith(getSigningKey())
+                    .build()
+                    .parseSignedClaims(token)
+                    .getPayload();
+            log.info("生成文档 token - fileId: {}, payload: {}", fileId, tokenClaims);
+        } catch (Exception e) {
+            log.error("解析生成的文档 token 失败 - fileId: {}", fileId, e);
+        }
+
+        return token;
+    }
+
+    /**
+     * 验证文档Token
+     * @param token Token字符串
+     * @param fileId 可选的文件ID验证
+     * @return 是否有效
+     */
+    public boolean validateDocumentToken(String token, Long fileId) {
+        try {
+            Claims claims = extractAllClaims(token);
+            String tokenType = claims.get("tokenType", String.class);
+            log.info("验证文档 token - fileId: {}, tokenType: {}, claims: {}", fileId, tokenType, claims);
+
+            // 检查是否为文档专用token
+            if (!"DOCUMENT".equals(tokenType)) {
+                log.warn("tokenType 不匹配 - fileId: {}, 预期: DOCUMENT, 实际: {}", fileId, tokenType);
+                return false;
+            }
+
+            // 可选：验证文件ID绑定
+            if (fileId != null) {
+                Long tokenFileId = claims.get("fileId", Long.class);
+                if (tokenFileId != null && !tokenFileId.equals(fileId)) {
+                    log.warn("fileId 不匹配 - fileId: {}, 预期: {}, 实际: {}", fileId, fileId, tokenFileId);
+                    return false;
+                }
+            }
+
+            boolean expired = isTokenExpired(token);
+            if (expired) {
+                log.warn("token 已过期 - fileId: {}", fileId);
+            }
+            return !expired;
+        } catch (Exception e) {
+            log.error("token 验证异常 - fileId: {}, 错误: {}", fileId, e.getMessage());
+            return false;
+        }
+    }
+
 }

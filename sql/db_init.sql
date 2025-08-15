@@ -67,7 +67,25 @@ ALTER TABLE `user`
   -- CREATE INDEX idx_uid ON `user_file` (`uid`);
 ALTER TABLE user_file MODIFY COLUMN uid VARCHAR(255) NULL;
 ALTER TABLE user_file MODIFY COLUMN typename VARCHAR(255);
+-- 数据库迁移脚本：为user_file表添加version_key字段
 
+-- 1. 添加version_key字段
+ALTER TABLE user_file
+ADD COLUMN version_key VARCHAR(64) COMMENT 'OnlyOffice文档缓存控制key';
+
+-- 2. 为现有数据生成version_key（可选，也可以在代码中懒加载）
+UPDATE user_file
+SET version_key = CONCAT(id, '_', version_number, '_', UNIX_TIMESTAMP(COALESCE(update_time, created_date)))
+WHERE version_key IS NULL;
+
+-- 3. 添加索引以提升查询性能（可选）
+CREATE INDEX idx_user_file_doc_version ON user_file(doc_id, version_number);
+CREATE INDEX idx_user_file_version_key ON user_file(version_key);
+
+-- 4. 注释说明
+ALTER TABLE user_file MODIFY COLUMN doc_id BIGINT COMMENT '文档组ID，同一文档的不同版本共享相同docId';
+ALTER TABLE user_file MODIFY COLUMN version_number INT COMMENT '业务版本号，同一docId下递增';
+ALTER TABLE user_file MODIFY COLUMN version_key VARCHAR(64) COMMENT 'OnlyOffice缓存控制key，文档内容变更时需要更新';
 
 
 CREATE TABLE `user_permission`  (

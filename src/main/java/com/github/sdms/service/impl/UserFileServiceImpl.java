@@ -6,7 +6,6 @@ import com.github.sdms.dto.UserFileSummaryDTO;
 import com.github.sdms.dto.UserFileVersionDTO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
-import com.github.sdms.model.BucketPermission;
 import com.github.sdms.model.Folder;
 import com.github.sdms.model.UserFile;
 import com.github.sdms.model.enums.IdType;
@@ -32,6 +31,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStream;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -276,6 +276,12 @@ public class UserFileServiceImpl implements UserFileService {
         }
 
         return file;
+    }
+
+    @Override
+    public UserFile getFileByIdIgnorePermission(Long fileId) {
+        return userFileRepository.findByIdAndDeleteFlagFalse(fileId)
+                .orElseThrow(() -> new ApiException(404, "指定的文件不存在或已被删除"));
     }
 
 
@@ -884,42 +890,148 @@ public class UserFileServiceImpl implements UserFileService {
         return userFileRepository.save(newVersion);
     }
 
-    private Bucket getOrCreateWritableBucket(Long userId, String libraryCode, Long bucketId) {
-        if (bucketId != null) {
-            Bucket b = bucketService.getBucketById(bucketId);
-            if (b == null) throw new ApiException(404, "目标桶不存在");
-            if (!permissionValidator.canWriteBucket(userId, b.getName())) {
-                throw new ApiException(403, "无权限访问桶：" + b.getName());
-            }
-            return b;
+    @Transactional
+    @Override
+    public UserFile uploadNewVersion(InputStream inputStream, String originalFilename,
+                                     Long userId, String libraryCode, Long docId,
+                                     String notes, Long folderId) throws Exception {
+
+        // 获取最新版本文件，进行权限校验
+        UserFile originFile = getFileByDocIdAndUid(docId, userId, libraryCode);
+        if (originFile == null) {
+            throw new ApiException(403, "无权限上传该文档新版本");
+        }
+        if (!permissionValidator.canWriteFile(userId, originFile.getId())) {
+            throw new ApiException(403, "无权限上传该文档新版本");
         }
 
-        // 默认桶
-        String bucketName = BucketUtil.getBucketName(userId, libraryCode);
-        Bucket targetBucket = bucketService.getOptionalBucketByName(bucketName)
-                .orElseGet(() -> {
-                    Bucket newBucket = Bucket.builder()
-                            .name(bucketName)
-                            .libraryCode(libraryCode)
-                            .ownerId(userId)
-                            .description("用户默认桶")
-                            .build();
-                    Bucket createdBucket = bucketService.createBucket(newBucket);
-                    bucketPermissionRepository.save(
-                            BucketPermission.builder()
-                                    .userId(userId)
-                                    .bucketId(createdBucket.getId())
-                                    .permission(PermissionType.WRITE.name())
-                                    .createdAt(new Date())
-                                    .build()
-                    );
-                    return createdBucket;
-                });
+        // 由于是InputStream，我们无法提前知道文件大小，所以先读取到临时存储
+        // 或者可以跳过配额检查（OnlyOffice编辑的文件大小通常不会比原文件大很多）
+        log.info("OnlyOffice上传新版本，跳过配额检查 - docId: {}, userId: {}", docId, userId);
 
-        if (!permissionValidator.canWriteBucket(userId, targetBucket.getName())) {
-            throw new ApiException(403, "无权限访问默认桶：" + targetBucket.getName());
+        // 使用原文件的bucket信息，保持一致性
+        String bucketName = originFile.getBucket();
+        Long bucketId = originFile.getBucketId();
+        Long targetFolderId = folderId != null ? folderId : originFile.getFolderId();
+
+        // 生成新的对象名称
+        String objectName = FileUtil.generateObjectName(originalFilename);
+
+        // 上传文件到 MinIO (需要新增支持InputStream的方法)
+        long fileSize = minioService.uploadFile(userId, bucketName, objectName, inputStream, originalFilename);
+
+        // ===== 处理版本号 =====
+        List<UserFile> history = userFileRepository.findByDocIdAndLibraryCodeOrderByVersionNumberDesc(docId, libraryCode);
+        int nextVersion = history.isEmpty() ? 1 : (history.get(0).getVersionNumber() + 1);
+
+        // 标记旧版本非最新
+        if (!history.isEmpty()) {
+            userFileRepository.markAllOldVersionsNotLatest(docId, libraryCode);
         }
-        return targetBucket;
+
+        // 构建新的 UserFile 记录
+        UserFile newVersion = buildFileRecordFromInputStream(
+                userId,
+                libraryCode,
+                originalFilename,
+                objectName,
+                fileSize,
+                nextVersion,
+                docId,
+                notes,
+                true,
+                bucketName,
+                bucketId,
+                targetFolderId
+        );
+
+        // 为新版本生成versionKey
+        newVersion.generateVersionKey();
+
+        UserFile savedFile = userFileRepository.save(newVersion);
+        log.info("OnlyOffice新版本保存成功 - docId: {}, version: {}, objectName: {}",
+                docId, nextVersion, objectName);
+
+        return savedFile;
     }
 
+    /**
+     * 构建文件记录 - 基于InputStream上传的版本
+     */
+    private UserFile buildFileRecordFromInputStream(Long userId, String libraryCode, String originalFilename,
+                                                    String objectName, long fileSize, int version, Long docId,
+                                                    String notes, boolean isLatest, String bucketName,
+                                                    Long bucketId, Long folderId) {
+        UserFile userFile = new UserFile();
+        userFile.setUserId(userId);
+        userFile.setLibraryCode(libraryCode);
+        userFile.setName(objectName);
+        userFile.setOriginFilename(originalFilename);
+        userFile.setSize(fileSize);
+        userFile.setVersionNumber(version);
+        userFile.setDocId(docId);
+        userFile.setIsLatest(isLatest);
+        userFile.setNotes(notes);
+        userFile.setCreatedDate(new Date());
+        userFile.setUpdateTime(LocalDateTime.now()); // 添加更新时间
+        userFile.setDeleteFlag(false);
+        userFile.setBucket(bucketName);
+        userFile.setBucketId(bucketId);
+
+        // 根据文件名推断Content-Type
+        String contentType = getContentTypeFromFilename(originalFilename);
+        userFile.setType(contentType);
+
+        // 提取 typename（扩展名）
+        String typeName = "unknown";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            typeName = originalFilename.substring(originalFilename.lastIndexOf('.') + 1).toLowerCase();
+        }
+        userFile.setTypename(typeName);
+        userFile.setFolderId(folderId);
+        userFile.setUrl(objectName);
+
+        // 注意：不在这里设置versionKey，由调用方决定何时生成
+
+        return userFile;
+    }
+
+    /**
+     * 根据文件名推断Content-Type
+     */
+    private String getContentTypeFromFilename(String filename) {
+        if (filename == null) return "application/octet-stream";
+
+        String extension = "";
+        if (filename.contains(".")) {
+            extension = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+        }
+
+        switch (extension) {
+            case "doc":
+                return "application/msword";
+            case "docx":
+                return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xls":
+                return "application/vnd.ms-excel";
+            case "xlsx":
+                return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "ppt":
+                return "application/vnd.ms-powerpoint";
+            case "pptx":
+                return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case "pdf":
+                return "application/pdf";
+            case "txt":
+                return "text/plain";
+            case "odt":
+                return "application/vnd.oasis.opendocument.text";
+            case "ods":
+                return "application/vnd.oasis.opendocument.spreadsheet";
+            case "odp":
+                return "application/vnd.oasis.opendocument.presentation";
+            default:
+                return "application/octet-stream";
+        }
+    }
 }

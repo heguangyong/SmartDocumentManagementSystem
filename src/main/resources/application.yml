@@ -35,7 +35,8 @@ spring:
       max-request-size: 500MB
 
 jwt:
-  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
+#  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
+  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
   expiration: 7200000
 
 file:
@@ -81,15 +82,11 @@ aws:
 
 logging:
   level:
-    org:
-      springframework:
-        security: DEBUG
-#      hibernate:
-#        SQL: DEBUG
-#        type:
-#          descriptor:
-#            sql:
-#              BasicBinder: TRACE
+    org.springframework.security: DEBUG
+#    org.hibernate.SQL: DEBUG
+#    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    com.github.sdms.controller.OnlyOfficeController: DEBUG
+    com.github.sdms.controller.FileController: DEBUG
 
 # 格尔数据加密配置
 svs:
@@ -112,3 +109,17 @@ koalii-client:
 #    NFLoadBalancerRuleClassName: com.koalii.svs.client.util.loadbalancer.KoalRoundRobinRule
 #    ConnectTimeout: 20000
 #    ReadTimeout: 20000
+
+# OnlyOffice配置
+onlyoffice:
+  server:
+#    url: http://192.168.1.198:8081 # OnlyOffice
+    url: http://onlyoffice:80 # OnlyOffice 容器名
+  callback:
+    timeout: 30000  # 回调超时时间
+  upload:
+    max-size: 100MB  # 最大上传文件大小
+
+# 本应用访问地址，提供给onlyoffice访问下载文件
+app:
+  external-base-url: http://sdms-backend:8080  # Docker 网络中的容器名

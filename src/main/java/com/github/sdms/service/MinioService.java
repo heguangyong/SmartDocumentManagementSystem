@@ -129,4 +129,19 @@ public interface MinioService {
     void refreshBucketStatAsync(String bucketName);   // 如果外部需要触发，也可以加
 
     void copyObject(String bucket, String name, String bucket1, String newObjectName);
+
+    /**
+     * 上传文件 - 支持InputStream（用于OnlyOffice回调）
+     * @param userId 用户ID
+     * @param bucketName 存储桶名称
+     * @param objectName 对象名称
+     * @param inputStream 文件输入流
+     * @param originalFilename 原始文件名（用于推断Content-Type）
+     * @return 实际上传的文件大小
+     */
+    long uploadFile(Long userId, String bucketName, String objectName,
+                    InputStream inputStream, String originalFilename) throws Exception;
+
+    long uploadFileWithTempFile(Long userId, String bucketName, String objectName,
+                                InputStream inputStream, String originalFilename) throws Exception;
 }

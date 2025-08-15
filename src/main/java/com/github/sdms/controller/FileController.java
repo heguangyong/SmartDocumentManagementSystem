@@ -11,8 +11,13 @@ import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.*;
 import com.github.sdms.util.BucketUtil;
 import com.github.sdms.util.CustomerUserDetails;
+import com.github.sdms.util.JwtUtil;
 import com.github.sdms.util.PermissionChecker;
+import io.jsonwebtoken.Claims;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.annotation.security.PermitAll;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +30,13 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 
 @Slf4j
@@ -42,6 +54,8 @@ public class FileController {
     private final FilePermissionRepository filePermissionRepository;
     private final BucketPermissionRepository bucketPermissionRepository;
     private final UserFileRepository userFileRepository;
+
+    private final JwtUtil jwtUtil;
 
     @PreAuthorize("hasRole('ADMIN') or hasRole('LIBRARIAN') or hasRole('READER')")
     @Operation(summary = "文件列表")
@@ -390,6 +404,134 @@ public class FileController {
 
         return ApiResponse.success("获取下载链接成功", result);
     }
+
+    @GetMapping("/download-proxy/{fileId}")
+    @PermitAll
+    public void downloadProxy(
+            @PathVariable Long fileId,
+            @RequestParam(required = false) String token,
+            HttpServletRequest request,
+            HttpServletResponse response
+    ) throws IOException {
+
+        log.info("文件下载代理请求 - fileId: {}, 来源IP: {}, User-Agent: {}",
+                fileId, request.getRemoteAddr(), request.getHeader("User-Agent"));
+
+        if (token == null || token.trim().isEmpty()) {
+            log.warn("下载请求缺少token - fileId: {}", fileId);
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "缺少 token");
+            return;
+        }
+
+        try {
+            // 验证token（支持文档专用token）
+            if (!jwtUtil.validateDocumentToken(token, fileId)) {
+                log.warn("Token验证失败 - fileId: {}, token: {}", fileId, token);
+                response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token 无效或已过期");
+                return;
+            }
+
+            Claims claims = jwtUtil.extractAllClaims(token);
+            Long userId = claims.get("userId", Long.class);
+            String libraryCode = claims.get("libraryCode", String.class);
+            log.info("Token验证成功 - userId: {}, libraryCode: {}, fileId: {}", userId, libraryCode, fileId);
+
+            UserFile file = userFileService.getFileByIdIgnorePermission(fileId);
+            if (file == null) {
+                log.warn("文件不存在 - fileId: {}", fileId);
+                response.sendError(HttpServletResponse.SC_NOT_FOUND, "文件不存在");
+                return;
+            }
+
+            log.info("准备下载文件 - fileId: {}, fileName: {}, bucket: {}",
+                    fileId, file.getOriginFilename(), file.getBucket());
+
+            // 生成MinIO预签名URL
+            String presignedUrl = minioService.generatePresignedDownloadUrl(
+                    userId,
+                    libraryCode,
+                    file.getName(),
+                    file.getBucket()
+            );
+
+            log.info("生成MinIO预签名URL成功 - fileId: {}", fileId);
+
+            // 设置响应头
+            String contentType = getContentType(file.getOriginFilename());
+            response.setContentType(contentType);
+            String encodedFilename = URLEncoder.encode(file.getOriginFilename(), StandardCharsets.UTF_8);
+            response.setHeader("Content-Disposition", "inline; filename*=UTF-8''" + encodedFilename);
+
+            // 添加CORS头支持OnlyOffice跨域访问
+            response.setHeader("Access-Control-Allow-Origin", "*");
+            response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            response.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+            // 从MinIO流式传输文件到响应
+            try (InputStream in = new URL(presignedUrl).openStream()) {
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                long totalBytes = 0;
+
+                while ((bytesRead = in.read(buffer)) != -1) {
+                    response.getOutputStream().write(buffer, 0, bytesRead);
+                    totalBytes += bytesRead;
+                }
+
+                response.flushBuffer();
+                log.info("文件下载完成 - fileId: {}, 传输字节数: {}", fileId, totalBytes);
+            } catch (IOException e) {
+                log.error("文件流传输失败 - fileId: {}", fileId, e);
+                if (!response.isCommitted()) {
+                    response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "文件传输失败");
+                }
+            }
+        } catch (Exception e) {
+            log.error("文件下载处理异常 - fileId: {}, token: {}", fileId, token, e);
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Token 解析失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 根据文件名推断Content-Type
+     */
+    private String getContentType(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            return "application/octet-stream";
+        }
+
+        try {
+            String contentType = Files.probeContentType(Paths.get(filename));
+            if (contentType != null) {
+                return contentType;
+            }
+        } catch (Exception e) {
+            log.debug("无法通过系统推断Content-Type: {}", filename);
+        }
+
+        // 手动映射常见Office文档类型
+        String extension = "";
+        if (filename.contains(".")) {
+            extension = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+        }
+
+        switch (extension) {
+            case "doc": return "application/msword";
+            case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case "xls": return "application/vnd.ms-excel";
+            case "xlsx": return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case "ppt": return "application/vnd.ms-powerpoint";
+            case "pptx": return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case "pdf": return "application/pdf";
+            case "txt": return "text/plain";
+            case "odt": return "application/vnd.oasis.opendocument.text";
+            case "ods": return "application/vnd.oasis.opendocument.spreadsheet";
+            case "odp": return "application/vnd.oasis.opendocument.presentation";
+            default: return "application/octet-stream";
+        }
+    }
+
+
 
 
 

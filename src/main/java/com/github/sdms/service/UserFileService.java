@@ -10,6 +10,7 @@ import com.github.sdms.util.CustomerUserDetails;
 import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.InputStream;
 import java.util.Date;
 import java.util.List;
 
@@ -51,6 +52,8 @@ public interface UserFileService {
 
     UserFile getFileById(Long fileId);
 
+    UserFile getFileByIdIgnorePermission(Long fileId);
+
     UserFile uploadNewDocument(MultipartFile file, Long userId, Bucket targetBucket, String notes, Long folderId) throws Exception;
 
     UserFile uploadFileAndCreateRecord(Long userId, MultipartFile file, String libraryCode, String notes, Long folderId) throws Exception;
@@ -78,4 +81,19 @@ public interface UserFileService {
     List<UserFileDTO> toDTOList(List<UserFile> files);
 
     UserFile uploadNewVersion(MultipartFile file, Long userId, String libraryCode, Long docId, String notes, Long folderId, Bucket targetBucket) throws Exception;
+
+    /**
+     * 上传新版本 - 支持InputStream（用于OnlyOffice回调）
+     * @param inputStream 文件输入流
+     * @param originalFilename 原始文件名
+     * @param userId 用户ID
+     * @param libraryCode 图书馆代码
+     * @param docId 文档ID
+     * @param notes 版本说明
+     * @param folderId 文件夹ID（可为null）
+     * @return 新版本文件记录
+     */
+    UserFile uploadNewVersion(InputStream inputStream, String originalFilename,
+                              Long userId, String libraryCode, Long docId,
+                              String notes, Long folderId) throws Exception;
 }

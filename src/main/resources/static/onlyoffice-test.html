@@ -3,23 +3,833 @@
 <head>
   <meta charset="UTF-8">
   <title>OnlyOffice 测试</title>
-  <!-- 换成你的 OnlyOffice DocumentServer 地址 -->
-  <script type="text/javascript" src="http://localhost:8081/web-apps/apps/api/documents/api.js"></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- 引入OnlyOffice文档服务器API - 动态URL -->
+  <script id="onlyofficeScript">
+    // 动态加载OnlyOffice API脚本
+    (function() {
+      const urls = [
+        "http://192.168.1.198:8081/web-apps/apps/api/documents/api.js",
+        "http://localhost:8081/web-apps/apps/api/documents/api.js",
+        "http://127.0.0.1:8081/web-apps/apps/api/documents/api.js"
+      ];
+
+      let currentIndex = 0;
+
+      function tryLoadScript() {
+        if (currentIndex >= urls.length) {
+          handleScriptError('OnlyOffice API', 'All URLs failed');
+          return;
+        }
+
+        const script = document.createElement('script');
+        script.type = 'text/javascript';
+        script.src = urls[currentIndex];
+        script.onload = function() {
+          handleScriptLoad('OnlyOffice API', urls[currentIndex]);
+        };
+        script.onerror = function() {
+          console.warn(`Failed to load from: ${urls[currentIndex]}`);
+          currentIndex++;
+          tryLoadScript();
+        };
+
+        document.head.appendChild(script);
+      }
+
+      // 页面加载完成后开始尝试
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', tryLoadScript);
+      } else {
+        tryLoadScript();
+      }
+    })();
+  </script>
+  <style>
+    body {
+        margin: 0;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+        background-color: #f8f9fa;
+    }
+
+    .header {
+        background-color: #ffffff;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .header h1 {
+        margin: 0 0 15px 0;
+        color: #343a40;
+        font-size: 24px;
+    }
+
+    .info-row {
+        display: flex;
+        gap: 20px;
+        margin-bottom: 15px;
+        flex-wrap: wrap;
+    }
+
+    .info-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .info-label {
+        font-weight: bold;
+        color: #6c757d;
+    }
+
+    .status {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: 500;
+    }
+
+    .status.loading { background-color: #fff3cd; color: #856404; }
+    .status.ready { background-color: #d1edff; color: #0c5460; }
+    .status.error { background-color: #f8d7da; color: #721c24; }
+
+    .login-form {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 15px;
+        background-color: #f8f9fa;
+        border-radius: 6px;
+        margin-top: 15px;
+    }
+
+    .form-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .form-group label {
+        font-weight: 500;
+        color: #495057;
+        white-space: nowrap;
+    }
+
+    .form-group input {
+        padding: 6px 12px;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 14px;
+        width: 120px;
+    }
+
+    .btn {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background-color 0.2s;
+    }
+
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+
+    .btn-primary:disabled {
+        background-color: #6c757d;
+        cursor: not-allowed;
+    }
+
+    .error-banner {
+        background-color: #f8d7da;
+        color: #721c24;
+        padding: 15px;
+        border-radius: 6px;
+        margin-bottom: 20px;
+        border-left: 4px solid #dc3545;
+        display: none;
+    }
+
+    .loading-placeholder {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 400px;
+        color: #6c757d;
+        font-size: 18px;
+    }
+
+    .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #007bff;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    #placeholder {
+        width: 100%;
+        height: 80vh;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        background-color: #ffffff;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+
+    .debug-panel {
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 20px;
+        font-family: monospace;
+        font-size: 14px;
+    }
+
+    .debug-title {
+        font-weight: bold;
+        color: #495057;
+        margin-bottom: 10px;
+        font-family: Arial, sans-serif;
+    }
+
+    .debug-item {
+        margin: 5px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .debug-status {
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+
+    .debug-status.success { background-color: #d4edda; color: #155724; }
+    .debug-status.error { background-color: #f8d7da; color: #721c24; }
+    .debug-status.pending { background-color: #fff3cd; color: #856404; }
+
+    @media (max-width: 768px) {
+        .login-form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .form-group {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .form-group input {
+            width: 100%;
+        }
+    }
+  </style>
 </head>
 <body>
-<div id="placeholder" style="width:100%;height:90vh;"></div>
+<div class="header">
+  <h1>OnlyOffice 文档编辑器</h1>
+
+  <div class="info-row">
+    <div class="info-item">
+      <span class="info-label">文档ID:</span>
+      <span id="fileIdDisplay">7212</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">状态:</span>
+      <span id="statusDisplay" class="status loading">初始化中...</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">当前用户:</span>
+      <span id="currentUserDisplay">-</span>
+    </div>
+  </div>
+
+  <div class="login-form">
+    <div class="form-group">
+      <label>用户名:</label>
+      <input type="text" id="username" value="admin">
+    </div>
+    <div class="form-group">
+      <label>密码:</label>
+      <input type="password" id="password" value="admin123">
+    </div>
+    <div class="form-group">
+      <label>馆点:</label>
+      <input type="text" id="libraryCode" value="DEFAULT">
+    </div>
+    <button id="loginBtn" class="btn btn-primary">切换用户</button>
+  </div>
+</div>
+
+<div id="errorDiv" class="error-banner"></div>
+
+<div class="debug-panel">
+  <div class="debug-title">系统诊断信息</div>
+  <div class="debug-item">
+    <span>OnlyOffice API脚本:</span>
+    <span id="apiScriptStatus" class="debug-status pending">检查中</span>
+    <span id="apiScriptDetails"></span>
+  </div>
+  <div class="debug-item">
+    <span>DocsAPI对象:</span>
+    <span id="docsApiStatus" class="debug-status pending">检查中</span>
+    <span id="docsApiDetails"></span>
+  </div>
+  <div class="debug-item">
+    <span>Docker状态:</span>
+    <span id="dockerStatus" class="debug-status pending">检查中</span>
+    <span id="dockerDetails"></span>
+  </div>
+  <div class="debug-item">
+    <span>端口映射:</span>
+    <span id="portStatus" class="debug-status pending">检查中</span>
+    <span id="portDetails"></span>
+  </div>
+  <div class="debug-item">
+    <span>认证状态:</span>
+    <span id="authStatus" class="debug-status pending">未开始</span>
+    <span id="authDetails"></span>
+  </div>
+  <div class="debug-item">
+    <span>配置获取:</span>
+    <span id="configStatus" class="debug-status pending">未开始</span>
+    <span id="configDetails"></span>
+  </div>
+  <div style="margin-top: 10px;">
+    <button id="diagnosisBtn" class="btn btn-primary" style="font-size: 12px; padding: 4px 8px;">重新诊断</button>
+    <button id="testConnectionBtn" class="btn btn-primary" style="font-size: 12px; padding: 4px 8px;">测试连接</button>
+    <button id="dockerHelpBtn" class="btn btn-primary" style="font-size: 12px; padding: 4px 8px;">Docker帮助</button>
+  </div>
+</div>
+
+<div id="dockerHelp" class="debug-panel" style="display: none;">
+  <div class="debug-title">Docker Desktop 排查指南</div>
+  <div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.6;">
+    <p><strong>1. 检查容器状态:</strong></p>
+    <pre style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 12px;">docker ps</pre>
+    <p>确保OnlyOffice容器正在运行，状态为"Up"</p>
+
+    <p><strong>2. 检查端口映射:</strong></p>
+    <pre style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 12px;">docker port [容器名称]</pre>
+    <p>确认8081端口已正确映射到主机</p>
+
+    <p><strong>3. 如果容器未运行，启动命令示例:</strong></p>
+    <pre style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 12px;">docker run -i -t -d -p 8081:80 --name=onlyoffice onlyoffice/documentserver</pre>
+
+    <p><strong>4. 测试容器内部网络:</strong></p>
+    <pre style="background: #f8f9fa; padding: 10px; border-radius: 4px; font-size: 12px;">curl http://localhost:8081/web-apps/apps/api/documents/api.js</pre>
+
+    <p><strong>5. Windows防火墙检查:</strong></p>
+    <p>确保Windows防火墙允许8081端口通信</p>
+
+    <button id="hideDockerHelp" class="btn btn-primary" style="font-size: 12px; padding: 4px 8px; margin-top: 10px;">隐藏帮助</button>
+  </div>
+</div>
+
+<div id="placeholder">
+  <div class="loading-placeholder">
+    <div class="loading-spinner"></div>
+    <div>正在加载OnlyOffice编辑器...</div>
+  </div>
+</div>
 
 <script>
-  const fileId = "7196"; // 你的文件ID
-  const configUrl = `http://localhost:8080/api/onlyoffice/config/${fileId}`;
+  const CONFIG = {
+      fileId: "7212",
+      apiBaseUrl: "http://192.168.1.198:8080/api/onlyoffice",
+      loginUrl: "http://192.168.1.198:8080/api/user/login",
+      onlyOfficeUrl: "http://192.168.1.198:8081",
+      fallbackUrls: [
+          "http://localhost:8081",
+          "http://127.0.0.1:8081"
+      ]
+  };
 
-  fetch(configUrl)
-    .then(res => res.json())
-    .then(config => {
-        console.log("OnlyOffice 配置:", config);
-        new DocsAPI.DocEditor("placeholder", config);
-    })
-    .catch(err => console.error("加载配置失败", err));
+   // 应用状态管理
+   const AppState = {
+       currentToken: null,
+       currentUser: null,
+       docEditor: null,
+       isInitializing: false,
+       diagnostics: {
+           apiScriptLoaded: false,
+           docsApiAvailable: false,
+           networkOk: false,
+           authOk: false,
+           configOk: false
+       }
+   };
+
+   // 脚本加载处理
+   function handleScriptLoad(scriptName, url) {
+       console.log(`${scriptName} 脚本加载成功 from: ${url}`);
+       CONFIG.onlyOfficeUrl = url.replace('/web-apps/apps/api/documents/api.js', '');
+       AppState.diagnostics.apiScriptLoaded = true;
+       updateDiagnosticStatus('apiScriptStatus', 'success', '已加载');
+       document.getElementById('apiScriptDetails').textContent = `来源: ${CONFIG.onlyOfficeUrl}`;
+       checkDocsAPI();
+   }
+
+   function handleScriptError(scriptName, details) {
+       console.error(`${scriptName} 脚本加载失败: ${details}`);
+       AppState.diagnostics.apiScriptLoaded = false;
+       updateDiagnosticStatus('apiScriptStatus', 'error', '加载失败');
+       document.getElementById('apiScriptDetails').textContent = '所有URL均无法访问';
+       showError('OnlyOffice API脚本加载失败，请检查Docker容器状态和端口映射');
+   }
+
+   function checkDocsAPI() {
+       const checkInterval = setInterval(() => {
+           if (typeof DocsAPI !== 'undefined') {
+               console.log('DocsAPI对象已可用');
+               AppState.diagnostics.docsApiAvailable = true;
+               updateDiagnosticStatus('docsApiStatus', 'success', '可用');
+               clearInterval(checkInterval);
+           }
+       }, 100);
+
+       // 10秒超时
+       setTimeout(() => {
+           if (!AppState.diagnostics.docsApiAvailable) {
+               clearInterval(checkInterval);
+               updateDiagnosticStatus('docsApiStatus', 'error', '超时');
+               document.getElementById('docsApiDetails').textContent = 'API对象未在预期时间内加载';
+               showError('DocsAPI对象加载超时，可能是网络问题或服务器配置错误');
+           }
+       }, 10000);
+   }
+
+   // 诊断状态更新
+   function updateDiagnosticStatus(elementId, status, message) {
+       const element = document.getElementById(elementId);
+       element.className = `debug-status ${status}`;
+       element.textContent = message;
+   }
+
+   // UI更新函数
+   function showError(message) {
+       const errorDiv = document.getElementById('errorDiv');
+       errorDiv.textContent = message;
+       errorDiv.style.display = 'block';
+       updateStatus('error', '加载失败');
+       console.error('OnlyOffice Error:', message);
+   }
+
+   function hideError() {
+       document.getElementById('errorDiv').style.display = 'none';
+   }
+
+   function updateStatus(type, message) {
+       const statusEl = document.getElementById('statusDisplay');
+       statusEl.textContent = message;
+       statusEl.className = `status ${type}`;
+   }
+
+   function updateCurrentUser(username, libraryCode) {
+       document.getElementById('currentUserDisplay').textContent =
+           username ? `${username}@${libraryCode}` : '-';
+   }
+
+   function setLoading(isLoading) {
+       const loginBtn = document.getElementById('loginBtn');
+       loginBtn.disabled = isLoading;
+       loginBtn.textContent = isLoading ? '处理中...' : '切换用户';
+   }
+
+   // 认证相关函数
+   async function loginAndGetToken(username, password, libraryCode) {
+       updateStatus('loading', `登录用户 ${username}...`);
+       updateDiagnosticStatus('authStatus', 'pending', '登录中');
+       setLoading(true);
+
+       try {
+           const response = await fetch(CONFIG.loginUrl, {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                   username,
+                   password,
+                   libraryCode,
+                   rememberMe: false
+               })
+           });
+
+           if (!response.ok) {
+               throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+           }
+
+           const result = await response.json();
+
+           if (!result.success || !result.data || !result.data.token) {
+               throw new Error(result.message || '登录失败：无效的响应数据');
+           }
+
+           const token = result.data.token;
+
+           // 更新应用状态（不再使用localStorage）
+           AppState.currentToken = token;
+           AppState.currentUser = { username, libraryCode };
+           AppState.diagnostics.authOk = true;
+
+           updateCurrentUser(username, libraryCode);
+           updateDiagnosticStatus('authStatus', 'success', '已认证');
+           document.getElementById('authDetails').textContent = `令牌长度: ${token.length}`;
+           hideError();
+
+           return token;
+       } catch (err) {
+           const errorMessage = `登录失败: ${err.message}`;
+           AppState.diagnostics.authOk = false;
+           updateDiagnosticStatus('authStatus', 'error', '失败');
+           document.getElementById('authDetails').textContent = err.message;
+           showError(errorMessage);
+           throw new Error(errorMessage);
+       } finally {
+           setLoading(false);
+       }
+   }
+
+   // OnlyOffice配置获取
+   async function fetchEditorConfig(token) {
+      updateStatus('loading', '获取OnlyOffice配置...');
+      updateDiagnosticStatus('configStatus', 'pending', '请求中');
+      const configUrl = `${CONFIG.apiBaseUrl}/edit-config/${CONFIG.fileId}`;
+
+      try {
+          const response = await fetch(configUrl, {
+              method: 'GET',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}` // 用户认证 token 用于请求 /edit-config
+              }
+          });
+
+          if (!response.ok) {
+              throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          }
+
+          const result = await response.json();
+
+          if (!result.success) {
+              throw new Error(result.message || '获取配置失败');
+          }
+
+          // 不再修改 document.url，直接使用后端返回的 URL
+          AppState.diagnostics.configOk = true;
+          updateDiagnosticStatus('configStatus', 'success', '已获取');
+          document.getElementById('configDetails').textContent = `文档URL: ${result.data?.document?.url || 'N/A'}`;
+
+          return result.data;
+      } catch (err) {
+          const errorMessage = `获取配置失败: ${err.message}`;
+          AppState.diagnostics.configOk = false;
+          updateDiagnosticStatus('configStatus', 'error', '失败');
+          document.getElementById('configDetails').textContent = err.message;
+          showError(errorMessage);
+          throw new Error(errorMessage);
+      }
+  }
+
+   function initializeEditor(config) {
+      updateStatus('loading', '初始化编辑器...');
+      console.log('初始化 OnlyOffice 配置:', JSON.stringify(config, null, 2)); // 调试：打印完整配置
+
+      // 设置事件处理
+      config.events = {
+          onAppReady: () => {
+              console.log('OnlyOffice应用已准备就绪');
+              updateStatus('ready', '编辑器已就绪');
+          },
+          onDocumentReady: () => {
+              console.log('文档已加载完成');
+              updateStatus('ready', '文档已加载');
+          },
+          onError: (event) => {
+              const errorMsg = `编辑器错误: ${JSON.stringify(event)}`;
+              showError(errorMsg);
+          },
+          onWarning: (event) => {
+              console.warn('OnlyOffice警告:', event);
+          },
+          onDocumentStateChange: (event) => {
+              console.log('文档状态变更:', event.data ? '已修改' : '未修改');
+          }
+      };
+
+      // 清理现有编辑器
+      if (AppState.docEditor) {
+          try {
+              AppState.docEditor.destroyEditor();
+          } catch (e) {
+              console.warn('清理现有编辑器时出现警告:', e);
+          }
+      }
+
+      // 创建新编辑器
+      try {
+          AppState.docEditor = new DocsAPI.DocEditor("placeholder", config);
+          console.log('OnlyOffice编辑器初始化完成');
+      } catch (err) {
+          showError(`编辑器初始化失败: ${err.message}`);
+          throw err;
+      }
+  }
+
+   // 等待OnlyOffice API加载
+   async function waitForOnlyOfficeAPI() {
+       const maxAttempts = 100; // 10秒超时
+       let attempts = 0;
+
+       updateStatus('loading', '等待OnlyOffice API...');
+
+       while (typeof DocsAPI === 'undefined' && attempts < maxAttempts) {
+           await new Promise(resolve => setTimeout(resolve, 100));
+           attempts++;
+
+           // 每秒更新一次状态
+           if (attempts % 10 === 0) {
+               console.log(`等待OnlyOffice API... ${attempts/10}s`);
+           }
+       }
+
+       if (typeof DocsAPI === 'undefined') {
+           throw new Error('OnlyOffice API加载超时，请检查网络连接和服务器状态');
+       }
+
+       console.log('OnlyOffice API已准备就绪');
+   }
+
+   // 网络连通性测试
+   async function testNetworkConnectivity() {
+       updateDiagnosticStatus('portStatus', 'pending', '测试中');
+       updateDiagnosticStatus('dockerStatus', 'pending', '检查中');
+
+       const urlsToTest = [
+           CONFIG.onlyOfficeUrl,
+           ...CONFIG.fallbackUrls
+       ];
+
+       let successfulUrl = null;
+       let lastError = null;
+
+       for (const baseUrl of urlsToTest) {
+           try {
+               // 测试API脚本URL
+               const scriptUrl = `${baseUrl}/web-apps/apps/api/documents/api.js`;
+               const response = await fetch(scriptUrl, {
+                   method: 'HEAD',
+                   timeout: 3000,
+                   mode: 'no-cors' // 避免CORS问题
+               });
+
+               successfulUrl = baseUrl;
+               AppState.diagnostics.networkOk = true;
+               updateDiagnosticStatus('portStatus', 'success', '端口可达');
+               document.getElementById('portDetails').textContent = `成功连接: ${baseUrl}`;
+               break;
+
+           } catch (err) {
+               lastError = err;
+               console.warn(`无法连接到 ${baseUrl}:`, err.message);
+           }
+       }
+
+       if (!successfulUrl) {
+           AppState.diagnostics.networkOk = false;
+           updateDiagnosticStatus('portStatus', 'error', '连接失败');
+           document.getElementById('portDetails').textContent = `所有URL均无法访问: ${lastError?.message || '未知错误'}`;
+       }
+
+       // Docker状态检查
+       await checkDockerStatus();
+   }
+
+   // Docker状态检查
+   async function checkDockerStatus() {
+       try {
+           // 检查是否在Docker环境中
+           const isInDocker = window.location.hostname === 'localhost' ||
+                             window.location.hostname === '127.0.0.1' ||
+                             window.location.hostname.startsWith('192.168.');
+
+           if (isInDocker) {
+               updateDiagnosticStatus('dockerStatus', 'success', '环境正常');
+               document.getElementById('dockerDetails').textContent = 'Docker Desktop环境检测正常';
+           } else {
+               updateDiagnosticStatus('dockerStatus', 'error', '环境问题');
+               document.getElementById('dockerDetails').textContent = '可能存在网络隔离问题';
+           }
+
+       } catch (err) {
+           updateDiagnosticStatus('dockerStatus', 'error', '检查失败');
+           document.getElementById('dockerDetails').textContent = `Docker状态检查失败: ${err.message}`;
+       }
+   }
+
+   // 主启动流程
+   async function startWithToken(token) {
+       if (AppState.isInitializing) {
+           console.log('已在初始化中，跳过重复请求');
+           return;
+       }
+
+       AppState.isInitializing = true;
+       hideError();
+
+       try {
+           // 等待OnlyOffice API加载
+           await waitForOnlyOfficeAPI();
+           updateStatus('loading', 'OnlyOffice API加载完成');
+
+           // 获取编辑器配置
+           const editorConfig = await fetchEditorConfig(token);
+
+           // 初始化编辑器
+           initializeEditor(editorConfig);
+
+       } catch (err) {
+           console.error('初始化流程失败:', err);
+           showError(err.message);
+       } finally {
+           AppState.isInitializing = false;
+       }
+   }
+
+   // 默认启动
+   async function start() {
+       try {
+           // 使用默认凭据登录
+           const token = await loginAndGetToken('admin', 'admin123', 'DEFAULT');
+           await startWithToken(token);
+       } catch (err) {
+           console.error('默认启动失败:', err);
+           // 错误已在loginAndGetToken中处理
+       }
+   }
+
+   // 事件监听器
+   document.getElementById('loginBtn').addEventListener('click', async () => {
+       const username = document.getElementById('username').value.trim();
+       const password = document.getElementById('password').value;
+       const libraryCode = document.getElementById('libraryCode').value.trim();
+
+       if (!username || !password || !libraryCode) {
+           showError('请填写完整的登录信息');
+           return;
+       }
+
+       try {
+           const token = await loginAndGetToken(username, password, libraryCode);
+           await startWithToken(token);
+       } catch (err) {
+           console.error('切换用户失败:', err);
+           // 错误已在相关函数中处理
+       }
+   });
+
+   // 页面生命周期
+   document.addEventListener('DOMContentLoaded', () => {
+       document.getElementById('fileIdDisplay').textContent = CONFIG.fileId;
+
+       // 初始化诊断
+       setTimeout(() => {
+           testNetworkConnectivity();
+           if (!AppState.diagnostics.apiScriptLoaded) {
+               updateDiagnosticStatus('apiScriptStatus', 'pending', '等待加载');
+           }
+           if (!AppState.diagnostics.docsApiAvailable) {
+               updateDiagnosticStatus('docsApiStatus', 'pending', '等待API');
+           }
+       }, 1000);
+
+       start();
+   });
+
+   // 诊断按钮事件
+   document.getElementById('diagnosisBtn').addEventListener('click', () => {
+       // 重置诊断状态
+       Object.keys(AppState.diagnostics).forEach(key => {
+           AppState.diagnostics[key] = false;
+       });
+
+       // 重新开始诊断
+       testNetworkConnectivity();
+       checkDocsAPI();
+
+       console.log('手动诊断已启动');
+   });
+
+   document.getElementById('testConnectionBtn').addEventListener('click', async () => {
+       try {
+           await testNetworkConnectivity();
+
+           // 同时测试后端API连接
+           try {
+               const response = await fetch(`${CONFIG.apiBaseUrl}/health`, {
+                   method: 'GET',
+                   timeout: 5000
+               });
+               console.log('后端API连接测试:', response.status);
+           } catch (err) {
+               console.warn('后端API连接测试失败:', err);
+           }
+       } catch (err) {
+           console.error('连接测试失败:', err);
+       }
+   });
+
+   // Docker帮助按钮
+   document.getElementById('dockerHelpBtn').addEventListener('click', () => {
+       document.getElementById('dockerHelp').style.display = 'block';
+   });
+
+   document.getElementById('hideDockerHelp').addEventListener('click', () => {
+       document.getElementById('dockerHelp').style.display = 'none';
+   });
+
+   window.addEventListener('beforeunload', () => {
+       if (AppState.docEditor) {
+           try {
+               AppState.docEditor.destroyEditor();
+           } catch (e) {
+               console.warn('页面卸载时清理编辑器出现警告:', e);
+           }
+       }
+   });
+
+   // 添加键盘快捷键支持
+   document.addEventListener('keydown', (event) => {
+       // Ctrl/Cmd + Enter 快速登录
+       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+           const loginBtn = document.getElementById('loginBtn');
+           if (!loginBtn.disabled) {
+               loginBtn.click();
+           }
+       }
+   });
+
 </script>
 </body>
 </html>

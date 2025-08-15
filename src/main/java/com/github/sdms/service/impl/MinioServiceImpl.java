@@ -20,7 +20,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.InputStream;
+import java.io.*;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -399,6 +399,157 @@ public class MinioServiceImpl implements MinioService {
             throw new RuntimeException("MinIO复制对象失败: " + e.getMessage(), e);
         } catch (Exception e) {
             throw new RuntimeException("复制对象异常: " + e.getMessage(), e);
+        }
+    }
+
+    // 在MinioServiceImpl中添加实现
+    @Override
+    public long uploadFile(Long userId, String bucketName, String objectName,
+                           InputStream inputStream, String originalFilename) throws Exception {
+        try {
+            // 检查桶是否存在
+            boolean found = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketName).build()
+            );
+            if (!found) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+            }
+
+            // 由于InputStream可能无法重复读取，我们需要先缓存到内存或临时文件
+            // 这里使用ByteArrayOutputStream缓存（适用于中小文件）
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[8192];
+            int bytesRead;
+            long totalBytes = 0;
+
+            // 读取所有数据到内存
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                baos.write(buffer, 0, bytesRead);
+                totalBytes += bytesRead;
+            }
+
+            byte[] fileData = baos.toByteArray();
+            log.info("从InputStream读取文件数据完成，大小: {} bytes", totalBytes);
+
+            // 推断Content-Type
+            String contentType = getContentTypeFromFilename(originalFilename);
+
+            // 使用字节数组创建新的InputStream上传到MinIO
+            try (ByteArrayInputStream uploadStream = new ByteArrayInputStream(fileData)) {
+                minioClient.putObject(
+                        PutObjectArgs.builder()
+                                .bucket(bucketName)
+                                .object(objectName)
+                                .stream(uploadStream, totalBytes, -1)
+                                .contentType(contentType)
+                                .build()
+                );
+            }
+
+            log.info("文件上传到MinIO成功 - bucket: {}, object: {}, size: {} bytes",
+                    bucketName, objectName, totalBytes);
+
+            return totalBytes;
+
+        } catch (Exception e) {
+            log.error("InputStream文件上传失败 - bucket: {}, object: {}", bucketName, objectName, e);
+            throw new ApiException("文件上传失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 根据文件名推断Content-Type
+     */
+    private String getContentTypeFromFilename(String filename) {
+        if (filename == null || filename.isEmpty()) {
+            return "application/octet-stream";
+        }
+
+        String extension = "";
+        if (filename.contains(".")) {
+            extension = filename.substring(filename.lastIndexOf('.') + 1).toLowerCase();
+        }
+
+        // 常见办公文档类型
+        Map<String, String> contentTypeMap = new HashMap<>();
+        contentTypeMap.put("doc", "application/msword");
+        contentTypeMap.put("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        contentTypeMap.put("xls", "application/vnd.ms-excel");
+        contentTypeMap.put("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        contentTypeMap.put("ppt", "application/vnd.ms-powerpoint");
+        contentTypeMap.put("pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+        contentTypeMap.put("pdf", "application/pdf");
+        contentTypeMap.put("txt", "text/plain");
+        contentTypeMap.put("odt", "application/vnd.oasis.opendocument.text");
+        contentTypeMap.put("ods", "application/vnd.oasis.opendocument.spreadsheet");
+        contentTypeMap.put("odp", "application/vnd.oasis.opendocument.presentation");
+        contentTypeMap.put("rtf", "application/rtf");
+        contentTypeMap.put("csv", "text/csv");
+
+        return contentTypeMap.getOrDefault(extension, "application/octet-stream");
+    }
+
+    // 如果担心内存占用，可以使用临时文件版本（推荐用于大文件）
+    @Override
+    public long uploadFileWithTempFile(Long userId, String bucketName, String objectName,
+                                       InputStream inputStream, String originalFilename) throws Exception {
+        File tempFile = null;
+        try {
+            // 创建临时文件
+            tempFile = File.createTempFile("onlyoffice_upload_", ".tmp");
+
+            // 将InputStream内容写入临时文件
+            long totalBytes = 0;
+            try (FileOutputStream fos = new FileOutputStream(tempFile);
+                 BufferedOutputStream bos = new BufferedOutputStream(fos)) {
+
+                byte[] buffer = new byte[8192];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    bos.write(buffer, 0, bytesRead);
+                    totalBytes += bytesRead;
+                }
+            }
+
+            log.info("临时文件创建完成，大小: {} bytes，路径: {}", totalBytes, tempFile.getAbsolutePath());
+
+            // 检查桶是否存在
+            boolean found = minioClient.bucketExists(
+                    BucketExistsArgs.builder().bucket(bucketName).build()
+            );
+            if (!found) {
+                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucketName).build());
+            }
+
+            // 推断Content-Type
+            String contentType = getContentTypeFromFilename(originalFilename);
+
+            // 从临时文件上传到MinIO
+            try (FileInputStream fis = new FileInputStream(tempFile)) {
+                minioClient.putObject(
+                        PutObjectArgs.builder()
+                                .bucket(bucketName)
+                                .object(objectName)
+                                .stream(fis, totalBytes, -1)
+                                .contentType(contentType)
+                                .build()
+                );
+            }
+
+            log.info("文件从临时文件上传到MinIO成功 - bucket: {}, object: {}, size: {} bytes",
+                    bucketName, objectName, totalBytes);
+
+            return totalBytes;
+
+        } catch (Exception e) {
+            log.error("临时文件上传失败 - bucket: {}, object: {}", bucketName, objectName, e);
+            throw new ApiException("文件上传失败: " + e.getMessage());
+        } finally {
+            // 清理临时文件
+            if (tempFile != null && tempFile.exists()) {
+                boolean deleted = tempFile.delete();
+                log.debug("临时文件删除{}: {}", deleted ? "成功" : "失败", tempFile.getAbsolutePath());
+            }
         }
     }
 
