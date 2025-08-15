@@ -17,9 +17,12 @@ spring:
 
   data:
     redis:
-      database: 10
-      url: redis://host.docker.internal:6379
+#      host: host.docker.internal
+#      port: 9736
+      host: redis
+      port: 6379
       password: 123456
+      database: 10
       jedis:
         pool:
           max-active: 800

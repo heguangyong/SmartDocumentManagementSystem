@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.github</groupId>
 	<artifactId>sdms-backend</artifactId>
-	<version>0.0.1-SNAPSHOT</version>
+	<version>1.0.7</version>
 	<name>sdms-backend</name>
 	<description>Smart Document Management System</description>
 	<url/>
@@ -28,6 +28,8 @@
 	</scm>
 	<properties>
 		<java.version>21</java.version>
+		<!-- 定义自定义依赖路径 -->
+		<lib.dir>${project.basedir}/lib</lib.dir>
 	</properties>
 	<dependencies>
 		<dependency>
@@ -193,30 +195,29 @@
 		</dependency>
 
 
+		<!-- 本地离线依赖 -->
 		<dependency>
 			<groupId>com.koalii</groupId>
 			<artifactId>koalii-svs-client</artifactId>
 			<version>3.0.3</version>
 			<scope>system</scope>
-			<systemPath>${project.basedir}/lib/koalii_svs_client_v3.0.3_jdk1.8_20210512.jar</systemPath>
+			<systemPath>${lib.dir}/koalii_svs_client_v3.0.3_jdk1.8_20210512.jar</systemPath>
 		</dependency>
 
-		<!-- 若使用了依赖包合集，也需引入 -->
 		<dependency>
 			<groupId>com.koalii</groupId>
 			<artifactId>koalii-svs-client-deps</artifactId>
 			<version>3.0.3</version>
 			<scope>system</scope>
-			<systemPath>${project.basedir}/lib/koalii_svs_client_v3.0.3_jdk1.8_20210512-dependencies.jar</systemPath>
+			<systemPath>${lib.dir}/koalii_svs_client_v3.0.3_jdk1.8_20210512-dependencies.jar</systemPath>
 		</dependency>
 
-		<!-- 加上基础依赖 -->
 		<dependency>
 			<groupId>com.geer</groupId>
 			<artifactId>kgsp-core</artifactId>
 			<version>2.1.4</version>
 			<scope>system</scope>
-			<systemPath>${project.basedir}/lib/kgsp_core-2.1.4.jar</systemPath>
+			<systemPath>${lib.dir}/kgsp_core-2.1.4.jar</systemPath>
 		</dependency>
 
 
@@ -236,10 +237,15 @@
 					</annotationProcessorPaths>
 				</configuration>
 			</plugin>
+			<!-- Spring Boot Maven Plugin 关键配置 -->
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 				<configuration>
+					<mainClass>com.github.sdms.SdmsBackendApplication</mainClass>
+					<!-- 必须包含system作用域依赖 -->
+					<includeSystemScope>true</includeSystemScope>
+					<!-- 排除内嵌依赖避免冲突 -->
 					<excludes>
 						<exclude>
 							<groupId>org.projectlombok</groupId>
@@ -247,6 +253,40 @@
 						</exclude>
 					</excludes>
 				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>repackage</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+
+			<!-- 资源文件复制插件 -->
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-resources-plugin</artifactId>
+				<version>3.3.1</version>
+				<executions>
+					<execution>
+						<id>copy-libs</id>
+						<phase>prepare-package</phase>
+						<goals>
+							<goal>copy-resources</goal>
+						</goals>
+						<configuration>
+							<outputDirectory>${project.build.directory}/lib</outputDirectory>
+							<resources>
+								<resource>
+									<directory>${lib.dir}</directory>
+									<includes>
+										<include>*.jar</include>
+									</includes>
+								</resource>
+							</resources>
+						</configuration>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

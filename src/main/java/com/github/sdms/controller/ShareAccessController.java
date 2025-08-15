@@ -30,7 +30,6 @@ import java.util.Objects;
 @RequestMapping("/api/share")
 @RequiredArgsConstructor
 public class ShareAccessController {
-
     private final MinioService minioService;
     private final ShareAccessLogService shareAccessLogService;
     private final ShareAccessService shareAccessService;

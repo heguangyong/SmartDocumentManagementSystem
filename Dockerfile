@@ -1,25 +1,23 @@
-FROM maven:3.9.6-eclipse-temurin-21 AS build
-
-WORKDIR /app
-
-COPY pom.xml .
-
-RUN mvn dependency:go-offline -B
-
-COPY src ./src
-
-RUN mvn clean package -DskipTests
-
+# 使用与本地开发一致的JDK21基础镜像
 FROM eclipse-temurin:21-jdk-jammy
 
-# Set working directory
+# 设置工作目录
 WORKDIR /app
 
-# Copy the built JAR from the build stage
-COPY --from=build /app/target/*.jar app.jar
+# 拷贝jar包和lib目录
+COPY target/sdms-backend-1.0.7.jar app.jar
+COPY target/lib ./lib/
 
-# Copy .env file if it exists (optional)
-COPY .env* ./
+# 拷贝配置文件
+COPY application.yml ./
 
-# Run the application
-CMD ["java", "-jar", "app.jar"]
+# 设置Spring Boot Loader路径，确保app.jar能加载lib下的依赖
+ENV LOADER_PATH=./lib/
+
+# 带诊断功能的启动命令
+CMD ["sh", "-c", "\
+    echo '当前lib目录内容：'; \
+    ls -l $LOADER_PATH; \
+    echo '启动SDMS应用...'; \
+    java -Dloader.path=$LOADER_PATH -jar app.jar \
+"]
