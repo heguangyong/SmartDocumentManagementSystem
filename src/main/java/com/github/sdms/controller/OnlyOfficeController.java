@@ -38,7 +38,7 @@ public class OnlyOfficeController {
     @Autowired
     private PermissionValidator permissionValidator;
 
-    @Value("${onlyoffice.server.url:http://localhost:8081}")
+    @Value("${onlyoffice.server.url}")
     private String onlyOfficeServerUrl;
 
     @Value("${app.external-base-url}")

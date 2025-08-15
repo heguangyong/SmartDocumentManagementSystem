@@ -12,13 +12,13 @@ docker build -t sdms-backend:1.0.1 .
 docker network create my-network
 # onlyoffice
 docker run -i -t -d --name onlyoffice -p 8081:80 -e JWT_ENABLED=false --network my-network onlyoffice/documentserver
-
+docker run -i -t -d --name onlyoffice -p 8081:80 -e JWT_ENABLED=false -e ALLOW_PRIVATE_IP_ADDRESS=true --network my-network onlyoffice/documentserver
 
 # win11 环境
 docker run -d --name sdms-backend -p 8080:8080 --network my-network `
     --add-host=host.docker.internal:192.168.1.198 `
 -v E:/yangzhou/SmartDocumentManagementSystem/application.yml:/app/application.yml `
-sdms-backend:1.0.7
+sdms-backend:1.0.12
 
 
 # centos 环境

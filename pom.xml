@@ -10,7 +10,7 @@
 	</parent>
 	<groupId>com.github</groupId>
 	<artifactId>sdms-backend</artifactId>
-	<version>1.0.7</version>
+	<version>1.0.12</version>
 	<name>sdms-backend</name>
 	<description>Smart Document Management System</description>
 	<url/>

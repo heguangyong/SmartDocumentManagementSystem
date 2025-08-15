@@ -360,12 +360,8 @@
       fileId: "7212",
       apiBaseUrl: "http://192.168.1.198:8080/api/onlyoffice",
       loginUrl: "http://192.168.1.198:8080/api/user/login",
-      onlyOfficeUrl: "http://192.168.1.198:8081",
-      fallbackUrls: [
-          "http://localhost:8081",
-          "http://127.0.0.1:8081",
-          "http://host.docker.internal:8081"
-      ]
+      onlyOfficeUrl: "http://onlyoffice:80",
+      fallbackUrls: []
   };
 
    // 应用状态管理
@@ -557,15 +553,29 @@
       updateStatus('loading', '初始化编辑器...');
       console.log('初始化 OnlyOffice 配置:', JSON.stringify(config, null, 2)); // 调试：打印完整配置
 
+      // 设置宽高为100%
+      config.width = '100%';
+      config.height = '100%';
+
       // 设置事件处理
       config.events = {
           onAppReady: () => {
               console.log('OnlyOffice应用已准备就绪');
               updateStatus('ready', '编辑器已就绪');
+              // 隐藏加载占位符
+              const loadingPlaceholder = document.querySelector('.loading-placeholder');
+              if (loadingPlaceholder) {
+                  loadingPlaceholder.style.display = 'none';
+              }
           },
           onDocumentReady: () => {
               console.log('文档已加载完成');
               updateStatus('ready', '文档已加载');
+              // 确保加载占位符隐藏
+              const loadingPlaceholder = document.querySelector('.loading-placeholder');
+              if (loadingPlaceholder) {
+                  loadingPlaceholder.style.display = 'none';
+              }
           },
           onError: (event) => {
               const errorMsg = `编辑器错误: ${JSON.stringify(event)}`;
