@@ -286,6 +286,42 @@ public class BucketServiceImpl implements BucketService {
         });
     }
 
+    @Override
+    @Transactional
+    public void batchAssignPermissions2(Long bucketId, List<BucketUserPermissionsRequest.UserPermissionDTO> userPermissions) {
+        if (userPermissions == null || userPermissions.isEmpty()) {
+            throw new ApiException(400, "请求数据不能为空");
+        }
+
+        if (!bucketRepository.existsById(bucketId)) {
+            throw new ApiException(404, "存储桶不存在: " + bucketId);
+        }
+
+        for (BucketUserPermissionsRequest.UserPermissionDTO req : userPermissions) {
+            Long userId = req.getUserId();
+            if (!userRepository.existsById(userId)) {
+                throw new ApiException(404, "用户不存在: " + userId);
+            }
+
+            // 查询或新建权限记录
+            BucketPermission bp = bucketPermissionRepository
+                    .findByUserIdAndBucketId(userId, bucketId)
+                    .orElseGet(() -> {
+                        BucketPermission newBp = new BucketPermission();
+                        newBp.setUserId(userId);
+                        newBp.setBucketId(bucketId);
+                        return newBp;
+                    });
+
+            // 更新权限（以逗号分隔存储）
+            bp.setPermission(String.join(",", req.getPermissions()));
+            bp.setUpdatedAt(new Date());
+
+            bucketPermissionRepository.save(bp);
+        }
+    }
+
+
 
     @Override
     @Transactional(rollbackFor = Exception.class) // 确保所有异常都回滚
@@ -407,9 +443,9 @@ public class BucketServiceImpl implements BucketService {
 
     @Override
     @Transactional
-    public Bucket updateBucketInfo(Long id, UpdateBucketRequest request) {
+    public Bucket updateBucketInfo(UpdateBucketRequest request) {
         long newCapacity = request.getMaxCapacityGB() * GB_IN_BYTES;
-        Bucket dbBucket = bucketRepository.findById(id)
+        Bucket dbBucket = bucketRepository.findById(request.getId())
                 .orElseThrow(() -> new ApiException(404, "桶不存在"));
         dbBucket.setName(request.getName());
         dbBucket.setDescription(request.getDescription());

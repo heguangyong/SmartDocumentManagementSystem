@@ -41,7 +41,8 @@ public interface BucketService {
 
     Bucket createBucketByAdmin(CreateBucketRequest request);
 
-    Bucket updateBucketInfo(Long id, UpdateBucketRequest request);
+    Bucket updateBucketInfo(UpdateBucketRequest request);
 
 
+    void batchAssignPermissions2(Long bucketId, List<BucketUserPermissionsRequest.UserPermissionDTO> userPermissions);
 }

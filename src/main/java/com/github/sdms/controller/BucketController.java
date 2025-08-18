@@ -58,6 +58,23 @@ public class BucketController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "批量为桶分配用户权限2")
+    @PostMapping("/admin/assign-permissions2")
+    public ApiResponse<Void> assignBucketPermissions2(@RequestBody BucketUserPermissionsRequest request) {
+
+        Long bucketId = request.getBucketId();
+
+        Bucket bucket = bucketRepository.findById(bucketId)
+                .orElseThrow(() -> new ApiException(404, "桶不存在"));
+
+        bucketService.batchAssignPermissions2(bucketId, request.getUserPermissions());
+
+        return ApiResponse.success();
+    }
+
+
+
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "移除用户对桶的访问权限")
     @PostMapping("/admin/remove-permission")
     public ApiResponse<Void> removeBucketPermission(@RequestBody RemoveBucketPermissionRequest request) {
@@ -82,6 +99,10 @@ public class BucketController {
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/admin/create")
     public ApiResponse<Bucket> createBucket(@RequestBody CreateBucketRequest request) {
+        if (request.getOwnerId() == null) {
+            Long userId = JwtUtil.getCurrentUserIdOrThrow();
+            request.setOwnerId(userId);
+        }
         return ApiResponse.success(bucketService.createBucketByAdmin(request));
     }
 
@@ -101,12 +122,12 @@ public class BucketController {
 
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "管理员更新桶的详细信息")
-    @PutMapping("/admin/update/{id}")
+    @PutMapping("/admin/update")
     public ApiResponse<Bucket> updateBucket(
-            @PathVariable Long id,
             @RequestBody UpdateBucketRequest request) {
-        return ApiResponse.success(bucketService.updateBucketInfo(id, request));
+        return ApiResponse.success(bucketService.updateBucketInfo(request));
     }
+
 
 
     @PreAuthorize("hasRole('ADMIN')")

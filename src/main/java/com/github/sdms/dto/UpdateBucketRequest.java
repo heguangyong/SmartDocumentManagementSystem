@@ -9,6 +9,8 @@ import lombok.Data;
 
 @Data
 public class UpdateBucketRequest {
+    @Schema(description = "桶ID", example = "b15")
+    private Long id;
     @Schema(description = "桶名称（管理员可指定）", example = "archive-2023")
     @Pattern(regexp = "^[a-z0-9-]{3,64}$", message = "桶名需为3-64位小写字母、数字或横线")
     private String name;

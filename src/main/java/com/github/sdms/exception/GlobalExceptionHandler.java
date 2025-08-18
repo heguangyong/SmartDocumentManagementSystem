@@ -2,9 +2,11 @@ package com.github.sdms.exception;
 
 import com.github.sdms.dto.ApiResponse;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -16,6 +18,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleApiException(ApiException ex) {
         return ResponseEntity
                 .status(ex.getStatus())
+                .contentType(MediaType.APPLICATION_JSON) // 👈 强制返回 JSON
                 .body(ApiResponse.failure(ex.getMessage()));
     }
 
@@ -33,6 +36,7 @@ public class GlobalExceptionHandler {
         }
         return ResponseEntity
                 .status(HttpStatus.FORBIDDEN)
+                .contentType(MediaType.APPLICATION_JSON) // 👈 强制返回 JSON
                 .body(ApiResponse.failure(message));
     }
 
@@ -45,6 +49,7 @@ public class GlobalExceptionHandler {
         ex.printStackTrace(); // 日志记录建议保留
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .contentType(MediaType.APPLICATION_JSON) // 👈 强制返回 JSON
                 .body(ApiResponse.failure("服务器内部错误，请稍后再试"));
     }
 }
