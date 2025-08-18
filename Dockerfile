@@ -5,7 +5,7 @@ FROM eclipse-temurin:21-jdk-jammy
 WORKDIR /app
 
 # 拷贝jar包和lib目录
-COPY target/sdms-backend-1.0.12.jar app.jar
+COPY target/sdms-backend-1.0.13.jar app.jar
 COPY target/lib ./lib/
 
 # 拷贝配置文件

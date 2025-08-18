@@ -5,10 +5,11 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
 @Data
-@Configuration
 @ConfigurationProperties(prefix = "svs.service")
 public class SvsClientProperties {
-    private String addrs;     // 多个地址逗号分隔
-    private String name;
-    private int timeout = 20000; // 默认超时
+    private boolean enabled;
+    private String host;
+    private int port;
+    private int timeout = 20000;
+    private String certId;
 }

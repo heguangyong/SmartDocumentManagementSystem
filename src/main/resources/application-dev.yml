@@ -2,6 +2,8 @@ spring:
   config:
     activate:
       on-profile: dev
+#      格尔加密验证相关配置
+    additional-location: kms_client.yml
 
   datasource:
     url: jdbc:mysql://127.0.0.1:3306/test_minio?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false
@@ -63,9 +65,9 @@ myset:
   timeout_back_day: 30
 
 minio:
-  endpoint: http://localhost:9000  # https://minio.library.sh.cn/
-  access-key: admin
-  secret-key: admin123
+  endpoint: http://localhost:9000  # http://localhost:9100   https://minio.library.sh.cn/
+  access-key: admin   # admin2
+  secret-key: admin123  # admin1234
   bucket-name: sdmsfilesmanager
 
 aws:
@@ -89,28 +91,6 @@ logging:
     com.github.sdms.controller.OnlyOfficeController: DEBUG
     com.github.sdms.controller.FileController: DEBUG
 
-# 格尔数据加密配置
-svs:
-  service:
-    enabled: false  # 设置为 false 可跳过签名与验签
-    addrs: 60.247.61.98:15009
-    timeout: 20000
-    name: default
-    verify:
-      cert-flag: true
-      allow-list-flag: true
-      chain-flag: true
-      valid-flag: true
-      crl-flag: true
-# 在未启用 svs.service.enabled=true 的情况下，可以临时注释掉以下配置
-koalii-client:
-  ribbon:
-#    NFLoadBalancerPingClassName: com.koalii.svs.client.util.loadbalancer.KoalPingUrl
-#    NFLoadBalancerPingInterval: 60
-#    NFLoadBalancerRuleClassName: com.koalii.svs.client.util.loadbalancer.KoalRoundRobinRule
-#    ConnectTimeout: 20000
-#    ReadTimeout: 20000
-
 # OnlyOffice配置
 onlyoffice:
   server:
@@ -123,3 +103,30 @@ onlyoffice:
 # 本应用访问地址，提供给onlyoffice访问下载文件
 app:
   external-base-url: http://192.168.1.198:8080
+
+# 格尔加密验证相关配置
+third:
+  signCertId: SHKXJSQBYJS
+  signHost: 172.24.88.208
+  signPort: 5001
+  signTimeOut: 1000
+
+# 我们新增的统一开关与 KMS 配置
+svs:
+  service:
+    enabled: true
+    host: ${third.signHost:172.24.88.208}
+    port: ${third.signPort:5001}
+    timeout: ${third.signTimeOut:1000}
+    cert-id: ${third.signCertId:SHKXJSQBYJS}
+
+kms:
+  enabled: true
+  mode: CFB
+  # 示例里 iv="SCZgvdgVOwhwxRIg" -> Base64 已生成
+  iv: U0NaZ3ZkZ1ZPd2h3eFJJZw==
+  config-path: classpath:kms_client.yml
+
+sdms:
+  crypto:
+    mock-when-disabled: false

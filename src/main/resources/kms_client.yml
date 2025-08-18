@@ -1,0 +1,23 @@
+# 服务地址 格式 ip:port ，必填
+address: 172.24.88.209:19190
+# 应用认证ak/sk,必填，密钥管理员创建并分发
+accessKey: MSKK0oIy5gC47NLQ
+secretKey: aLjiNEOHbCdfTnlb
+# 必填是否使用tls，开启ssl时配置为true
+useTLS: false
+# 本地信任keyStore路径
+trustStorePath: trustStore.jks
+# 本地信任keyStore密码
+trustStorePassword: KeyStorePassword
+
+# 本地keyStore路径
+keyStorePath: keyStore.jks
+# 本地keyStore密码
+keyStorePassword: KeyStorePassword
+# 本地keyStore中key的密码
+keyPassword:
+# useRsa: false
+# 客户端自动重连，默认开启
+pooling:
+  testOnBorrow: true
+

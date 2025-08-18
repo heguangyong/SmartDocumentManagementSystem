@@ -261,3 +261,15 @@ CREATE TABLE `file_permission` (
 DEFAULT CHARSET=utf8mb4
 COLLATE=utf8mb4_unicode_ci;  -- 统一为 unicode_ci
 
+
+-- 扩展 signature 与敏感字段长度，兼容加密后的 Base64 长度
+ALTER TABLE share_access_log
+  MODIFY COLUMN signature TEXT,
+  MODIFY COLUMN access_ip VARCHAR(512),
+  MODIFY COLUMN user_agent TEXT,
+  MODIFY COLUMN token_hash VARCHAR(1024);
+
+ALTER TABLE user_audit_log
+  MODIFY COLUMN signature TEXT,
+  MODIFY COLUMN ip VARCHAR(512),
+  MODIFY COLUMN user_agent TEXT;
