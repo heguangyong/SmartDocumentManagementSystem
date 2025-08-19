@@ -149,6 +149,11 @@ public class PermissionChecker {
      * 检查文件夹访问权限
      */
     public void checkFolderAccess(Long userId, Long folderId, String libraryCode) {
+        // 管理员跳过校验
+        if (jwtUtil.isAdmin()) {
+            return;
+        }
+
         Folder folder = folderRepository.findById(folderId).orElseThrow(() -> new ApiException(404, "文件夹不存在"));
 
         // 检查用户是否有权限访问该文件夹
@@ -161,6 +166,11 @@ public class PermissionChecker {
      * 检查存储桶访问权限
      */
     public void checkBucketAccess(Long userId, Long bucketId, String libraryCode) {
+        // 管理员跳过校验
+        if (jwtUtil.isAdmin()) {
+            return;
+        }
+
         // 首先检查存储桶是否存在
         Bucket bucket = bucketRepository.findById(bucketId).orElseThrow(() -> new ApiException(404, "存储桶不存在"));
 
@@ -182,6 +192,11 @@ public class PermissionChecker {
      * 检查存储桶的特定权限（读取、写入、管理等）
      */
     public void checkBucketPermission(Long userId, Long bucketId, String libraryCode, String requiredPermission) {
+        // 管理员跳过校验
+        if (jwtUtil.isAdmin()) {
+            return;
+        }
+
         // 首先进行基本的访问权限检查
         checkBucketAccess(userId, bucketId, libraryCode);
 

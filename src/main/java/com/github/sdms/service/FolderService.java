@@ -13,7 +13,7 @@ public interface FolderService {
 
     Page<FolderSummaryDTO> pageFolders(FolderPageRequest request, CustomerUserDetails userDetails);
 
-    Folder createFolder(Long userId, String name, Long parentId, String libraryCode);
+    Folder createFolder(Long userId, String name, Long parentId, Long bucketId, String libraryCode);
 
     Folder renameFolder(Long userId, Long folderId, String newName, String libraryCode);
 

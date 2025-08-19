@@ -60,10 +60,11 @@ public class FolderServiceImpl implements FolderService {
 
 
     @Override
-    public Folder createFolder(Long userId, String name, Long parentId, String libraryCode) {
+    public Folder createFolder(Long userId, String name, Long parentId, Long bucketId, String libraryCode) {
+        // 同一父目录下（同一桶/库）检查是否有同名文件夹
         List<Folder> siblings = (parentId == null)
-                ? folderRepository.findByUserIdAndParentIdIsNullAndLibraryCode(userId, libraryCode)
-                : folderRepository.findByUserIdAndParentIdAndLibraryCode(userId, parentId, libraryCode);
+                ? folderRepository.findByUserIdAndParentIdIsNullAndBucketIdAndLibraryCode(userId, bucketId, libraryCode)
+                : folderRepository.findByUserIdAndParentIdAndBucketIdAndLibraryCode(userId, parentId, bucketId, libraryCode);
 
         if (siblings.stream().anyMatch(f -> f.getName().equals(name))) {
             throw new ApiException(400, "该目录下已存在同名文件夹");
@@ -73,12 +74,15 @@ public class FolderServiceImpl implements FolderService {
                 .userId(userId)
                 .name(name)
                 .parentId(parentId)
+                .bucketId(bucketId)            // 绑定存储桶
                 .libraryCode(libraryCode)
                 .createdDate(new Date())
                 .updatedDate(new Date())
                 .build();
+
         return folderRepository.save(folder);
     }
+
 
     @Override
     public Folder renameFolder(Long userId, Long folderId, String newName, String libraryCode) {

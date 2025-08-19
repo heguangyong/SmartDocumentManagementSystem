@@ -11,6 +11,7 @@ import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,11 +38,12 @@ public class FolderController {
     private PermissionChecker permissionChecker;
 
     @PostMapping("/create")
-    @Operation(summary = "创建文件夹")
+    @Operation(summary = "创建文件夹", description = "创建文件夹并绑定到指定存储桶")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     public ApiResponse<Folder> createFolder(
-            @RequestParam @NotBlank String name,
-            @RequestParam(required = false) Long parentId
+            @RequestParam @NotBlank @Parameter(description = "文件夹名称", required = true) String name,
+            @RequestParam(required = false) @Parameter(description = "父文件夹ID，可为空表示根目录") Long parentId,
+            @RequestParam @Parameter(description = "存储桶ID，用于绑定文件夹所属存储桶", required = true) Long bucketId
     ) {
         // 从 SecurityContext 获取当前用户信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -56,9 +58,10 @@ public class FolderController {
         permissionChecker.checkAccess(userId, libraryCode);
 
         // 创建文件夹
-        Folder folder = folderService.createFolder(userId, name, parentId, libraryCode);
+        Folder folder = folderService.createFolder(userId, name, parentId, bucketId, libraryCode);
         return ApiResponse.success("创建成功", folder);
     }
+
 
     @PutMapping("/rename")
     @Operation(summary = "重命名文件夹")

@@ -21,6 +21,7 @@ public class DataInitializer {
 
     @PostConstruct
     public void initUsers() {
+        System.out.println(">>> 进入 DataInitializer.initUsers");
         // 创建默认馆点
         LibrarySite defaultLibrarySite = createDefaultLibrarySite();
 

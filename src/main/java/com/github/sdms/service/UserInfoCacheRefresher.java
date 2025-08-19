@@ -20,6 +20,7 @@ public class UserInfoCacheRefresher {
     // 每 30 分钟执行一次，可调
     @Scheduled(fixedRate = 30 * 60 * 1000L)
     public void refreshCache() {
+        System.out.println(">>> 进入 UserInfoCacheRefresher.refreshCache");
         for (String uid : UserInfoCache.allKeys()) {
             UserInfoCache.refresh(uid, () -> userInfoService.getUserInfoByUid(uid));
         }
