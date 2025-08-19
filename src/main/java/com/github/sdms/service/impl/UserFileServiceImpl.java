@@ -1034,4 +1034,22 @@ public class UserFileServiceImpl implements UserFileService {
                 return "application/octet-stream";
         }
     }
+
+    /**
+     * 根据文件夹ID获取文件列表
+     */
+    @Override
+    public List<UserFile> listFilesByFolderId(Long userId, Long folderId, String libraryCode) {
+        return userFileRepository.findByUserIdAndFolderIdAndLibraryCodeAndDeleteFlagFalse(
+                userId, folderId, libraryCode);
+    }
+
+    /**
+     * 获取桶下的根级文件（folderId 为 null）
+     */
+    @Override
+    public List<UserFile> listRootFilesByBucket(Long userId, Long bucketId, String libraryCode) {
+        return userFileRepository.findByUserIdAndBucketIdAndFolderIdIsNullAndLibraryCodeAndDeleteFlagFalse(
+                userId, bucketId, libraryCode);
+    }
 }

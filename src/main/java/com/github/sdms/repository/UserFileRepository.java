@@ -97,4 +97,14 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> , JpaS
     Optional<UserFile> findFirstByDocIdAndIsLatestAndLibraryCode(Long docId, boolean isLatest, String libraryCode);
 
     Optional<UserFile> findFirstByDocIdAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(Long docId, String libraryCode);
+
+    /**
+     * 根据用户ID、文件夹ID、库代码查找未删除的文件
+     */
+    List<UserFile> findByUserIdAndFolderIdAndLibraryCodeAndDeleteFlagFalse(Long userId, Long folderId, String libraryCode);
+
+    /**
+     * 根据用户ID、桶ID、库代码查找根级未删除文件
+     */
+    List<UserFile> findByUserIdAndBucketIdAndFolderIdIsNullAndLibraryCodeAndDeleteFlagFalse(Long userId, Long bucketId, String libraryCode);
 }

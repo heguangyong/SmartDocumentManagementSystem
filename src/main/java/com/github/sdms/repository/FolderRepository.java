@@ -26,5 +26,15 @@ public interface FolderRepository extends JpaRepository<Folder, Long>, JpaSpecif
     List<Folder> findByParentIdAndUserIdAndLibraryCode(Long parentId, Long userId, String libraryCode);
 
     List<Folder> findByParentId(Long parentId);
+
+    /**
+     * 根据用户ID、桶ID和库代码查找根级文件夹
+     */
+    List<Folder> findByUserIdAndBucketIdAndParentIdIsNullAndLibraryCode(Long userId, Long bucketId, String libraryCode);
+
+    /**
+     * 根据用户ID、桶ID和库代码查找所有文件夹
+     */
+    List<Folder> findByUserIdAndBucketIdAndLibraryCode(Long userId, Long bucketId, String libraryCode);
 }
 

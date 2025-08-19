@@ -96,4 +96,8 @@ public interface UserFileService {
     UserFile uploadNewVersion(InputStream inputStream, String originalFilename,
                               Long userId, String libraryCode, Long docId,
                               String notes, Long folderId) throws Exception;
+
+    List<UserFile> listFilesByFolderId(Long userId, Long folderId, String libraryCode);
+
+    List<UserFile> listRootFilesByBucket(Long userId, Long bucketId, String libraryCode);
 }

@@ -6,6 +6,7 @@ import com.github.sdms.model.Folder;
 import com.github.sdms.util.CustomerUserDetails;
 import org.springframework.data.domain.Page;
 
+import java.util.Collection;
 import java.util.List;
 
 public interface FolderService {
@@ -27,4 +28,12 @@ public interface FolderService {
     void moveFolder(Long userId, Long folderId, Long newParentId, String libraryCode);
 
     List<Long> getAllSubFolderIds(Long folderId);
+
+    List<Folder> listFoldersByParentId(Long userId, Long folderId, String libraryCode);
+
+    List<Folder> listRootFoldersByBucket(Long userId, Long bucketId, String libraryCode);
+
+    List<Folder> listAllFoldersByBucket(Long userId, Long bucketId, String libraryCode);
+
+    Collection<Long> getAllDescendantIds(Long excludeFolderId, List<Folder> allFolders);
 }

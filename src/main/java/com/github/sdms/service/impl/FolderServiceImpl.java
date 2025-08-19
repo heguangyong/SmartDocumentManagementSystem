@@ -12,10 +12,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -178,6 +176,56 @@ public class FolderServiceImpl implements FolderService {
         for (Folder child : children) {
             collector.add(child.getId());
             collectSubFolderIds(child.getId(), collector);
+        }
+    }
+
+    /**
+     * 根据父文件夹ID获取子文件夹列表
+     */
+    @Override
+    public List<Folder> listFoldersByParentId(Long userId, Long parentId, String libraryCode) {
+        return folderRepository.findByUserIdAndParentIdAndLibraryCode(userId, parentId, libraryCode);
+    }
+
+    /**
+     * 获取桶下的根级文件夹（parentId 为 null）
+     */
+    @Override
+    public List<Folder> listRootFoldersByBucket(Long userId, Long bucketId, String libraryCode) {
+        return folderRepository.findByUserIdAndBucketIdAndParentIdIsNullAndLibraryCode(
+                userId, bucketId, libraryCode);
+    }
+
+    /**
+     * 获取桶下所有文件夹
+     */
+    @Override
+    public List<Folder> listAllFoldersByBucket(Long userId, Long bucketId, String libraryCode) {
+        return folderRepository.findByUserIdAndBucketIdAndLibraryCode(
+                userId, bucketId, libraryCode);
+    }
+
+    /**
+     * 获取指定文件夹的所有后代文件夹ID
+     */
+    @Override
+    public Set<Long> getAllDescendantIds(Long folderId, List<Folder> allFolders) {
+        Set<Long> descendants = new HashSet<>();
+        Map<Long, List<Folder>> parentChildMap = allFolders.stream()
+                .filter(f -> f.getParentId() != null)
+                .collect(Collectors.groupingBy(Folder::getParentId));
+
+        collectDescendants(folderId, parentChildMap, descendants);
+        return descendants;
+    }
+
+    private void collectDescendants(Long parentId, Map<Long, List<Folder>> parentChildMap, Set<Long> descendants) {
+        List<Folder> children = parentChildMap.get(parentId);
+        if (children != null) {
+            for (Folder child : children) {
+                descendants.add(child.getId());
+                collectDescendants(child.getId(), parentChildMap, descendants);
+            }
         }
     }
 }

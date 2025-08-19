@@ -56,4 +56,12 @@ public class Folder {
         return this.userId;
     }
 
+    // 新增桶ID关联字段
+    @Column(name = "bucket_id")
+    private Long bucketId;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "bucket_id", insertable = false, updatable = false)
+    private Bucket bucketEntity;
+
 }

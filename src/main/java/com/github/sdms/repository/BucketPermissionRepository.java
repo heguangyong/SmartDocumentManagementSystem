@@ -19,8 +19,14 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
 
     List<BucketPermission> findAllByUserId(Long userId);
 
+    /**
+     * 根据用户ID和桶ID查找权限
+     */
     Optional<BucketPermission> findByUserIdAndBucketId(Long userId, Long bucketId);
 
+    /**
+     * 查找用户在指定桶下的所有权限
+     */
     List<BucketPermission> findByUserId(Long userId);
 
     @Query("select bp.bucketId from BucketPermission bp where bp.userId = :userId")
@@ -28,6 +34,9 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
 
     int countByBucketId(Long bucketId);
 
+    /**
+     * 查找指定桶的所有用户权限
+     */
     List<BucketPermission> findByBucketId(Long bucketId);
 
     List<BucketPermission> findAllByBucketId(Long bucketId);
@@ -35,5 +44,14 @@ public interface BucketPermissionRepository extends JpaRepository<BucketPermissi
     Optional<BucketPermission> findByBucketIdAndUserId(Long bucketId, Long userId);
 
     void deleteByUserIdAndBucketId(Long userId, Long bucketId);
+
+    /**
+     * 检查用户是否对桶有指定权限
+     */
+    @Query("SELECT bp FROM BucketPermission bp WHERE bp.userId = :userId AND bp.bucketId = :bucketId AND bp.permission LIKE %:permission%")
+    Optional<BucketPermission> findByUserIdAndBucketIdAndPermissionContaining(
+            @Param("userId") Long userId,
+            @Param("bucketId") Long bucketId,
+            @Param("permission") String permission);
 
 }
