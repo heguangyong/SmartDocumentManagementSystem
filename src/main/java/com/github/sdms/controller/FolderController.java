@@ -3,6 +3,7 @@ package com.github.sdms.controller;
 import com.github.sdms.dto.AlternativeFolderDTO;
 import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.dto.FolderContentDTO;
+import com.github.sdms.dto.MoveRequest;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.model.UserFile;
@@ -40,11 +41,7 @@ public class FolderController {
     @PostMapping("/create")
     @Operation(summary = "创建文件夹", description = "创建文件夹并绑定到指定存储桶")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<Folder> createFolder(
-            @RequestParam @NotBlank @Parameter(description = "文件夹名称", required = true) String name,
-            @RequestParam(required = false) @Parameter(description = "父文件夹ID，可为空表示根目录") Long parentId,
-            @RequestParam @Parameter(description = "存储桶ID，用于绑定文件夹所属存储桶", required = true) Long bucketId
-    ) {
+    public ApiResponse<Folder> createFolder(@RequestParam @NotBlank @Parameter(description = "文件夹名称", required = true) String name, @RequestParam(required = false) @Parameter(description = "父文件夹ID，可为空表示根目录") Long parentId, @RequestParam @Parameter(description = "存储桶ID，用于绑定文件夹所属存储桶", required = true) Long bucketId) {
         // 从 SecurityContext 获取当前用户信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
@@ -66,12 +63,7 @@ public class FolderController {
     @PutMapping("/rename")
     @Operation(summary = "重命名文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<Folder> renameFolder(
-            @RequestParam Long userId,
-            @RequestParam Long folderId,
-            @RequestParam @NotBlank String newName,
-            @RequestParam String libraryCode
-    ) {
+    public ApiResponse<Folder> renameFolder(@RequestParam Long userId, @RequestParam Long folderId, @RequestParam @NotBlank String newName, @RequestParam String libraryCode) {
         permissionChecker.checkAccess(userId, libraryCode);
         Folder folder = folderService.renameFolder(userId, folderId, newName, libraryCode);
         return ApiResponse.success("重命名成功", folder);
@@ -80,11 +72,7 @@ public class FolderController {
     @DeleteMapping("/delete")
     @Operation(summary = "删除文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<Void> deleteFolder(
-            @RequestParam Long userId,
-            @RequestParam Long folderId,
-            @RequestParam String libraryCode
-    ) {
+    public ApiResponse<Void> deleteFolder(@RequestParam Long userId, @RequestParam Long folderId, @RequestParam String libraryCode) {
         permissionChecker.checkAccess(userId, libraryCode);
         folderService.deleteFolder(userId, folderId, libraryCode);
         return ApiResponse.success("删除成功", null);
@@ -92,11 +80,7 @@ public class FolderController {
 
     @GetMapping("/list")
     @Operation(summary = "列出指定目录下子文件夹")
-    public ApiResponse<List<Folder>> listFolders(
-            @RequestParam Long userId,
-            @RequestParam(required = false) Long parentId,
-            @RequestParam String libraryCode
-    ) {
+    public ApiResponse<List<Folder>> listFolders(@RequestParam Long userId, @RequestParam(required = false) Long parentId, @RequestParam String libraryCode) {
         permissionChecker.checkAccess(userId, libraryCode);
         List<Folder> list = folderService.listFolders(userId, parentId, libraryCode);
         return ApiResponse.success("查询成功", list);
@@ -104,30 +88,31 @@ public class FolderController {
 
     @GetMapping("/tree")
     @Operation(summary = "获取完整目录树")
-    public ApiResponse<List<FolderNode>> folderTree(
-            @RequestParam Long userId,
-            @RequestParam String libraryCode
-    ) {
+    public ApiResponse<List<FolderNode>> folderTree(@RequestParam Long userId, @RequestParam String libraryCode) {
         permissionChecker.checkAccess(userId, libraryCode);
         List<Folder> all = folderService.listAllFolders(userId, libraryCode);
         List<FolderNode> tree = buildTree(all);
         return ApiResponse.success("查询成功", tree);
     }
 
-    @PutMapping("/move")
-    @Operation(summary = "移动文件夹到新的父目录")
+    @PostMapping("/move")
+    @Operation(summary = "批量移动文件和文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<Void> moveFolder(
-            @RequestParam Long userId,
-            @RequestParam Long folderId,
-            @RequestParam Long newParentId,
-            @RequestParam String libraryCode
+    public ApiResponse<Void> moveBatch(
+            @RequestBody MoveRequest moveRequest
     ) {
+        // 从 SecurityContext 获取当前用户信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
         permissionChecker.checkAccess(userId, libraryCode);
-        folderService.moveFolder(userId, folderId, newParentId, libraryCode);
+        folderService.moveBatch(userId, moveRequest, libraryCode);
         return ApiResponse.success("移动成功", null);
     }
-
 
     /**
      * 分层的文件和文件夹列表接口
@@ -136,10 +121,7 @@ public class FolderController {
     @GetMapping("/content")
     @Operation(summary = "获取指定层级的文件夹和文件列表")
     @PreAuthorize("hasRole('ADMIN') or hasRole('LIBRARIAN') or hasRole('READER')")
-    public ApiResponse<List<FolderContentDTO>> getFolderContent(
-            @RequestParam(required = false) Long bucketId,
-            @RequestParam(required = false) Long folderId
-    ) {
+    public ApiResponse<List<FolderContentDTO>> getFolderContent(@RequestParam(required = false) Long bucketId, @RequestParam(required = false) Long folderId) {
         // 从JWT token中获取用户信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
@@ -209,9 +191,7 @@ public class FolderController {
     @GetMapping("/alternatives")
     @Operation(summary = "获取备选文件夹列表（用于移动操作）")
     @PreAuthorize("hasRole('ADMIN') or hasRole('LIBRARIAN')")
-    public ApiResponse<List<AlternativeFolderDTO>> getAlternativeFolders(
-            @RequestParam Long bucketId,
-            @RequestParam(required = false) Long excludeFolderId // 排除的文件夹ID（移动时不能选择自己或子文件夹）
+    public ApiResponse<List<AlternativeFolderDTO>> getAlternativeFolders(@RequestParam Long bucketId, @RequestParam(required = false) Long excludeFolderId // 排除的文件夹ID（移动时不能选择自己或子文件夹）
     ) {
         // 从JWT token中获取用户信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -276,8 +256,7 @@ public class FolderController {
      */
     private Map<Long, String> buildPathMap(List<Folder> folders) {
         Map<Long, String> pathMap = new HashMap<>();
-        Map<Long, Folder> idMap = folders.stream()
-                .collect(Collectors.toMap(Folder::getId, folder -> folder));
+        Map<Long, Folder> idMap = folders.stream().collect(Collectors.toMap(Folder::getId, folder -> folder));
 
         for (Folder folder : folders) {
             StringBuilder path = new StringBuilder();
@@ -306,8 +285,7 @@ public class FolderController {
      * 计算文件夹层级深度
      */
     private Integer calculateLevel(Folder folder, List<Folder> allFolders) {
-        Map<Long, Folder> idMap = allFolders.stream()
-                .collect(Collectors.toMap(Folder::getId, folder1 -> folder1));
+        Map<Long, Folder> idMap = allFolders.stream().collect(Collectors.toMap(Folder::getId, folder1 -> folder1));
 
         int level = 0;
         Long currentParentId = folder.getParentId();
@@ -336,8 +314,7 @@ public class FolderController {
     }
 
     private List<FolderNode> buildTree(List<Folder> folders) {
-        Map<Long, FolderNode> idMap = folders.stream()
-                .collect(Collectors.toMap(Folder::getId, FolderNode::new));
+        Map<Long, FolderNode> idMap = folders.stream().collect(Collectors.toMap(Folder::getId, FolderNode::new));
         List<FolderNode> rootNodes = new ArrayList<>();
 
         for (Folder folder : folders) {

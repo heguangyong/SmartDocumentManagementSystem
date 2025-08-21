@@ -2,6 +2,7 @@ package com.github.sdms.service;
 
 import com.github.sdms.dto.FolderPageRequest;
 import com.github.sdms.dto.FolderSummaryDTO;
+import com.github.sdms.dto.MoveRequest;
 import com.github.sdms.model.Folder;
 import com.github.sdms.util.CustomerUserDetails;
 import org.springframework.data.domain.Page;
@@ -36,4 +37,6 @@ public interface FolderService {
     List<Folder> listAllFoldersByBucket(Long userId, Long bucketId, String libraryCode);
 
     Collection<Long> getAllDescendantIds(Long excludeFolderId, List<Folder> allFolders);
+
+    void moveBatch(Long userId, MoveRequest moveRequest, String libraryCode);
 }

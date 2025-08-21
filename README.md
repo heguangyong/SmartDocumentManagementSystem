@@ -8,6 +8,9 @@ mvn clean package -DskipTests
 
 docker build -t sdms-backend:1.0.1 .
 
+
+# docker 安装redis 端口9736 密码同配置文件中设置
+
 # 第一次需要
 docker network create my-network
 # onlyoffice

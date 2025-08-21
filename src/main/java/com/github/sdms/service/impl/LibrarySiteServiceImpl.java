@@ -27,7 +27,8 @@ public class LibrarySiteServiceImpl implements LibrarySiteService {
 
     @Override
     public Page<LibrarySiteDTO> pageSites(LibrarySitePageRequest request) {
-        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.desc("createTime")));
+        int adjustedPage = request.getPage() <= 0 ? 0 : request.getPage() - 1; // 转换为0基
+        Pageable pageable = PageRequest.of(adjustedPage, request.getSize(), Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.desc("createTime")));
 
         Page<LibrarySite> page = librarySiteRepository.findAll((root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();

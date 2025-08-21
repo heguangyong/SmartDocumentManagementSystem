@@ -6,8 +6,8 @@ import lombok.Data;
 @Data
 public class LibrarySitePageRequest {
 
-    @Schema(description = "页码，从 0 开始", example = "0")
-    private int page = 0;
+    @Schema(description = "页码，从 1 开始", example = "1")
+    private int page = 1;
 
     @Schema(description = "每页数量", example = "10")
     private int size = 10;

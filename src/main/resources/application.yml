@@ -3,3 +3,7 @@ spring:
     name: sdms-backend
   profiles:
     active: dev   # 默认激活的环境
+jwt:
+  #  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
+  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
+  expiration: 7200000

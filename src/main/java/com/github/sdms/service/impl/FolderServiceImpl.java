@@ -2,16 +2,21 @@ package com.github.sdms.service.impl;
 
 import com.github.sdms.dto.FolderPageRequest;
 import com.github.sdms.dto.FolderSummaryDTO;
+import com.github.sdms.dto.MoveRequest;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
+import com.github.sdms.model.UserFile;
 import com.github.sdms.repository.FolderRepository;
+import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.FolderService;
 import com.github.sdms.util.CustomerUserDetails;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -20,6 +25,7 @@ import java.util.stream.Collectors;
 public class FolderServiceImpl implements FolderService {
 
     private final FolderRepository folderRepository;
+    private final UserFileRepository fileRepository;
 
     @Override
     public Page<FolderSummaryDTO> pageFolders(FolderPageRequest request, CustomerUserDetails userDetails) {
@@ -139,13 +145,13 @@ public class FolderServiceImpl implements FolderService {
         Folder newParent = folderRepository.findById(newParentId)
                 .orElseThrow(() -> new ApiException(404, "目标父目录不存在"));
 
-        if (!folder.getUserId().equals(userId) || !newParent.getUserId().equals(userId)) {
-            throw new ApiException(403, "无权限操作该目录");
-        }
+            if (!folder.getUserId().equals(userId) || !newParent.getUserId().equals(userId)) {
+                throw new ApiException(403, "无权限操作该目录");
+            }
 
-        if (isDescendant(folderId, newParentId)) {
-            throw new ApiException(400, "不能将目录移动到其子目录下");
-        }
+            if (isDescendant(folderId, newParentId)) {
+                throw new ApiException(400, "不能将目录移动到其子目录下");
+            }
 
         folder.setParentId(newParentId);
         folder.setUpdatedDate(new Date());
@@ -230,6 +236,73 @@ public class FolderServiceImpl implements FolderService {
                 descendants.add(child.getId());
                 collectDescendants(child.getId(), parentChildMap, descendants);
             }
+        }
+    }
+
+    @Override
+    @Transactional
+    public void moveBatch(Long userId, MoveRequest moveRequest, String libraryCode) {
+        Long targetFolderId = moveRequest.getTargetFolderId();
+
+        // 验证目标文件夹（如果不是移动到根目录）
+        Folder targetFolder = null;
+        if (targetFolderId != null) {
+            targetFolder = folderRepository.findById(targetFolderId)
+                    .orElseThrow(() -> new ApiException(404, "目标父目录不存在"));
+            if (!targetFolder.getUserId().equals(userId)) {
+                throw new ApiException(403, "无权限操作该目录");
+            }
+        }
+
+        // 批量移动文件夹
+        List<Long> folderIds = moveRequest.getFolderIds();
+        if (folderIds != null && !folderIds.isEmpty()) {
+            moveFolders(userId, folderIds, targetFolderId, targetFolder);
+        }
+
+        // 批量移动文件
+        List<Long> fileIds = moveRequest.getFileIds();
+        if (fileIds != null && !fileIds.isEmpty()) {
+            moveFiles(userId, fileIds, targetFolderId);
+        }
+    }
+
+    private void moveFolders(Long userId, List<Long> folderIds, Long targetFolderId, Folder targetFolder) {
+        for (Long folderId : folderIds) {
+            Folder folder = folderRepository.findById(folderId)
+                    .orElseThrow(() -> new ApiException(404, "待移动目录不存在"));
+
+            // 权限检查：检查源文件夹权限
+            if (!folder.getUserId().equals(userId)) {
+                throw new ApiException(403, "无权限操作该目录");
+            }
+
+            // 检查是否移动到子目录（只有当targetFolderId不为null时才需要检查）
+            if (targetFolderId != null && isDescendant(folderId, targetFolderId)) {
+                throw new ApiException(400, "不能将目录移动到其子目录下");
+            }
+
+            // 设置新的父目录ID，null表示移动到根目录
+            folder.setParentId(targetFolderId);
+            folder.setUpdatedDate(new Date());
+            folderRepository.save(folder);
+        }
+    }
+
+    private void moveFiles(Long userId, List<Long> fileIds, Long targetFolderId) {
+        for (Long fileId : fileIds) {
+            UserFile file = fileRepository.findById(fileId)
+                    .orElseThrow(() -> new ApiException(404, "待移动文件不存在"));
+
+            // 权限检查
+            if (!file.getUserId().equals(userId)) {
+                throw new ApiException(403, "无权限操作该文件");
+            }
+
+            // 设置新的文件夹ID，null表示移动到根目录
+            file.setFolderId(targetFolderId);
+            file.setUpdateTime(LocalDateTime.now());
+            fileRepository.save(file);
         }
     }
 }

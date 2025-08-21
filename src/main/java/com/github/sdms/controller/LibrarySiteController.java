@@ -33,10 +33,11 @@ public class LibrarySiteController {
     @PreAuthorize("hasAnyRole('ADMIN', 'LIBRARIAN')") // 館員和管理員都可以查
     public Page<OptionDTO> queryLibrarySites(
             @RequestParam(required = false) String keyword,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        return librarySiteService.queryOptions(keyword, page, size);
+        int adjustedPage = (page <= 0 ? 0 : page - 1);  // 转换为 JPA 的 0 基
+        return librarySiteService.queryOptions(keyword, adjustedPage , size);
     }
 
     /**

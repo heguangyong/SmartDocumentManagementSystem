@@ -1,27 +1,28 @@
 spring:
   config:
-    activate:
-      on-profile: dev
+    #      格尔加密验证相关配置
+    additional-location: kms_client.yml
 
   datasource:
-    url: jdbc:mysql://host.docker.internal:3306/test_minio?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false
-    username: root
-    password: 123456
+    url: jdbc:mysql://172.24.88.90:3306/test_minio?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false
+    username: root # root
+    password: 3ec35e0b0d5d9b52 # 123456
     driver-class-name: com.mysql.cj.jdbc.Driver
 
   jpa:
     hibernate:
-      ddl-auto: validate
+      #      show-sql: true
+      ddl-auto: update
     properties:
       hibernate:
         dialect: org.hibernate.dialect.MySQL8Dialect
+  #        format_sql: true
 
   data:
     redis:
-      host: redis
-      port: 6379
-      password: R@yw51asy9a!
       database: 10
+      url: redis://172.24.88.90:6379
+      password: R@yw51asy9a!
       jedis:
         pool:
           max-active: 800
@@ -34,16 +35,13 @@ spring:
       max-file-size: 500MB
       max-request-size: 500MB
 
-jwt:
-  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
-  expiration: 7200000
-
 file:
   upload-dir: uploads/
   share:
-    default-expire-millis: 7200000
-    secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+    default-expire-millis: 7200000 # 默认2小时
+    secret: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef  #${SHARE_SECRET:share-file-jwt-secret} 取环境变量值：没有就用默认值
 
+# 二期目前需要通过uid反查用户信息
 oauth:
   api_url: https://passport.library.sh.cn/
   client_id: 1000855101
@@ -60,9 +58,9 @@ myset:
   timeout_back_day: 30
 
 minio:
-  endpoint: http://host.docker.internal:9000
-  access-key: admin
-  secret-key: admin123
+  endpoint: http://172.24.88.90:9000  # [测试同版本存储桶] http://localhost:9100  [上图版本] https://minio.library.sh.cn/
+  access-key: admin   #  [测试同版本存储桶]  admin2
+  secret-key: admin123  #  [测试同版本存储桶]  admin1234
   bucket-name: sdmsfilesmanager
 
 aws:
@@ -74,36 +72,55 @@ aws:
     stack:
       auto: false
   s3:
-    endpoint: http://host.docker.internal:9000
+    endpoint: http://172.24.88.90:9000
     bucket:
       name: sdmsfilesmanager
 
 logging:
   level:
+    root: INFO
     org.springframework.security: DEBUG
+    #    org.hibernate.SQL: DEBUG
+    #    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
     com.github.sdms.controller.OnlyOfficeController: DEBUG
     com.github.sdms.controller.FileController: DEBUG
 
+# OnlyOffice配置
+onlyoffice:
+  server:
+    url: http://172.24.88.90:8081 # OnlyOffice
+  callback:
+    timeout: 30000  # 回调超时时间
+  upload:
+    max-size: 100MB  # 最大上传文件大小
+
+# 本应用访问地址，提供给onlyoffice访问下载文件
+app:
+  external-base-url: http://172.24.88.90:8080
+
+# 格尔加密验证相关配置
+third:
+  signCertId: SHKXJSQBYJS
+  signHost: 172.24.88.208
+  signPort: 5001
+  signTimeOut: 1000
+
+# 统一开关与 KMS 配置
 svs:
   service:
     enabled: false
-    addrs: 60.247.61.98:15009
-    timeout: 20000
-    name: default
-    verify:
-      cert-flag: true
-      allow-list-flag: true
-      chain-flag: true
-      valid-flag: true
-      crl-flag: true
+    host: ${third.signHost:172.24.88.208}
+    port: ${third.signPort:5001}
+    timeout: ${third.signTimeOut:1000}
+    cert-id: ${third.signCertId:SHKXJSQBYJS}
 
-onlyoffice:
-  server:
-    url: http://onlyoffice:80
-  callback:
-    timeout: 30000
-  upload:
-    max-size: 100MB
+kms:
+  enabled: true
+  mode: CFB
+  # 示例里 iv="SCZgvdgVOwhwxRIg" -> Base64 已生成
+  iv: U0NaZ3ZkZ1ZPd2h3eFJJZw==
+  config-path: classpath:kms_client.yml
 
-app:
-  external-base-url: http://sdms-backend:8080
+sdms:
+  crypto:
+    mock-when-disabled: false

@@ -21,6 +21,7 @@ public class FolderContentDTO {
     private String fileType; // 仅文件有效
     private Boolean isPublic; // 仅文件夹有效
     private Boolean shared; // 仅文件夹有效
+    private Long folderId; // 新增字段：父文件夹ID（文件为所在文件夹，文件夹为其父文件夹）
 
     // 构造函数 - 用于文件夹
     public FolderContentDTO(Folder folder) {
@@ -31,6 +32,7 @@ public class FolderContentDTO {
         this.updatedDate = folder.getUpdatedDate();
         this.isPublic = folder.getIsPublic();
         this.shared = folder.getShared();
+        this.folderId = folder.getParentId(); // 父文件夹ID
     }
 
     // 构造函数 - 用于文件
@@ -42,5 +44,6 @@ public class FolderContentDTO {
         this.createdDate = file.getCreatedDate();
         this.originFilename = file.getOriginFilename();
         this.fileType = file.getType();
+        this.folderId = file.getFolderId(); // 文件所在文件夹ID
     }
 }

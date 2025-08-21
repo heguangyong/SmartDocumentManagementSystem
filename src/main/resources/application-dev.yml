@@ -1,7 +1,5 @@
 spring:
   config:
-    activate:
-      on-profile: dev
 #      格尔加密验证相关配置
     additional-location: kms_client.yml
 
@@ -37,11 +35,6 @@ spring:
       max-file-size: 500MB
       max-request-size: 500MB
 
-jwt:
-  #  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
-  secret: 63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef63f4945d921d599f27ae4fdf5bada3f1a1b2c3d4e5f678901234567890abcdef
-  expiration: 7200000
-
 file:
   upload-dir: uploads/
   share:
@@ -65,9 +58,9 @@ myset:
   timeout_back_day: 30
 
 minio:
-  endpoint: http://localhost:9000  # http://localhost:9100   https://minio.library.sh.cn/
-  access-key: admin   # admin2
-  secret-key: admin123  # admin1234
+  endpoint: http://192.168.1.198:9000  # [测试同版本存储桶] http://192.168.1.198:9100  [上图版本] https://minio.library.sh.cn/
+  access-key: admin   #  [测试同版本存储桶]  admin2
+  secret-key: admin123  #  [测试同版本存储桶]  admin1234
   bucket-name: sdmsfilesmanager
 
 aws:
@@ -79,7 +72,7 @@ aws:
     stack:
       auto: false
   s3:
-    endpoint: http://localhost:9000
+    endpoint: http://192.168.1.198:9000
     bucket:
       name: sdmsfilesmanager
 
@@ -112,7 +105,7 @@ third:
   signPort: 5001
   signTimeOut: 1000
 
-# 我们新增的统一开关与 KMS 配置
+# 统一开关与 KMS 配置
 svs:
   service:
     enabled: false

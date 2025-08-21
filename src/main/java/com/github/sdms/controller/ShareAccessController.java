@@ -1,6 +1,7 @@
 package com.github.sdms.controller;
 
 import com.github.sdms.dto.ApiResponse;
+import com.github.sdms.dto.ShareCreateReqVO;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.model.ShareAccess;
@@ -13,8 +14,8 @@ import com.github.sdms.util.CustomerUserDetails;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -110,7 +111,6 @@ public class ShareAccessController {
         ));
     }
 
-    // === 替换 createShare：返回中携带 type，方便前端路由 ===
     @PostMapping("/create")
     @Operation(
             summary = "统一创建分享链接",
@@ -118,15 +118,7 @@ public class ShareAccessController {
     )
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN','ADMIN')")
     public ApiResponse<Map<String, String>> createShare(
-            @Parameter(description = "分享目标类型，支持 'file' 或 'folder'", required = true, example = "file")
-            @RequestParam String type,
-
-            @Parameter(description = "分享目标ID（文件ID或目录ID）", required = true, example = "12345")
-            @RequestParam Long targetId,
-
-            @Parameter(description = "分享链接过期时间，不传默认7天后", required = false, example = "2025-08-20T12:00:00")
-            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime expireAt
+            @RequestBody @Valid ShareCreateReqVO reqVO
     ) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
@@ -136,20 +128,26 @@ public class ShareAccessController {
         Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
 
+        LocalDateTime expireAt = reqVO.getExpireAt();
         if (expireAt == null) {
             expireAt = LocalDateTime.now().plusDays(7);
         }
 
         String token = shareAccessService.createShare(
-                userId, type, targetId, java.sql.Timestamp.valueOf(expireAt), libraryCode
+                userId,
+                reqVO.getType(),
+                reqVO.getTargetId(),
+                java.sql.Timestamp.valueOf(expireAt),
+                libraryCode
         );
 
-        // 返回 token + type，前端可直接判断路由
+        // 返回 token + type
         return ApiResponse.success(Map.of(
                 "token", token,
-                "type", normType(type)
+                "type", normType(reqVO.getType())
         ));
     }
+
 
     // === 在类中增加一个小工具方法（私有） ===
     private static String normType(String type) {
