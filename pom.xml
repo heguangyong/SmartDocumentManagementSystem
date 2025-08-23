@@ -194,6 +194,22 @@
 			<version>5.8.23</version>
 		</dependency>
 
+		<dependency>
+			<groupId>org.apache.thrift</groupId>
+			<artifactId>libthrift</artifactId>
+			<version>0.16.0</version>
+			<scope>provided</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.bouncycastle</groupId>
+			<artifactId>bcprov-jdk15on</artifactId>
+			<version>1.62</version>
+		</dependency>
+		<dependency>
+			<groupId>org.apache.commons</groupId>
+			<artifactId>commons-pool2</artifactId>
+			<version>2.11.1</version>
+		</dependency>
 
 		<!-- 本地离线依赖 -->
 
@@ -212,7 +228,6 @@
 			<scope>system</scope>
 			<systemPath>${lib.dir}/kms-sdk-1.4.jar</systemPath>
 		</dependency>
-
 
 	</dependencies>
 

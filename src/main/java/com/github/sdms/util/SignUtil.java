@@ -30,7 +30,8 @@ public class SignUtil {
             byte[] originData = originDataStr.getBytes();
             Svs2ClientHelper.SvsResultData result = helper.cdbSignData(originData,certId);
             String b64SignedData = result.m_b64SignedData;
-            log.info("签名数据originDataStr:{}, b64SignedData:{} ", b64SignedData);
+            log.info("签名数据originDataStr:{}, b64SignedData:{} ", originDataStr, b64SignedData);
+
             return b64SignedData;
         } catch (Exception e){
             log.error("getSignB64SignedData:", e);
@@ -53,6 +54,15 @@ public class SignUtil {
             }
         } catch (Exception e) {
             log.error("validateSignB64SignedData", e);
+        }
+    }
+
+    public boolean tryValidateSign(String origin, Svs2ClientHelper helper, String signature) {
+        try {
+            validateSignB64SignedData(origin, helper, signature);
+            return true;
+        } catch (Exception e) {
+            return false;
         }
     }
 

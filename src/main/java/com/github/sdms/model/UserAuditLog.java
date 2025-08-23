@@ -19,12 +19,13 @@ public class UserAuditLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private Long  userId;         // uid
+    private Long userId;         // uid
     private String username;
     private String libraryCode;
     private String ip;
+    private String ipEnc;//格尔IP加密字段
     private String userAgent;
-
+    private String userAgentEnc;//格尔userAgent加密字段
     private String actionType;     // LOGIN_SUCCESS, LOGIN_FAIL, PASSWORD_CHANGE, etc.
     @Column(columnDefinition = "TEXT")
     private String actionDetail;   // 可存储 JSON
@@ -32,5 +33,5 @@ public class UserAuditLog {
     private Date createdTime;
 
     @Column(length = 2048)
-    private String signature; // 国密签名数据
+    private String signature; // 国密签名数据 这个原有的废弃？
 }

@@ -1,4 +1,5 @@
 spring:
+  verify: false # 用于打开格尔的验签
   config:
     #      格尔加密验证相关配置
     additional-location: kms_client.yml
@@ -20,8 +21,9 @@ spring:
 
   data:
     redis:
+      host: 172.24.88.90
+      port: 6379
       database: 10
-      url: redis://172.24.88.90:6379
       password: R@yw51asy9a!
       jedis:
         pool:
@@ -108,7 +110,7 @@ third:
 # 统一开关与 KMS 配置
 svs:
   service:
-    enabled: false
+    enabled: true
     host: ${third.signHost:172.24.88.208}
     port: ${third.signPort:5001}
     timeout: ${third.signTimeOut:1000}
@@ -123,4 +125,4 @@ kms:
 
 sdms:
   crypto:
-    mock-when-disabled: false
+    mock-when-disabled: true

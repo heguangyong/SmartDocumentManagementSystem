@@ -1,11 +1,12 @@
 package com.github.sdms.service.impl;
 
+import com.github.sdms.dto.ThirdConfig;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.ShareAccessLog;
 import com.github.sdms.repository.ShareAccessLogRepository;
-import com.github.sdms.service.KmsCryptoService;
 import com.github.sdms.service.ShareAccessLogService;
-import com.github.sdms.service.SvsSignService;
+import com.github.sdms.util.KmsUtils;
+import com.github.sdms.util.SignUtil;
 import com.koalii.svs.client.Svs2ClientHelper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
@@ -15,16 +16,14 @@ import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
 public class ShareAccessLogServiceImpl implements ShareAccessLogService {
 
     private final ShareAccessLogRepository repository;
-    private final SvsSignService svsSignService;
-    private final Optional<KmsCryptoService> kmsOpt;
-    private final Optional<Svs2ClientHelper> helperOpt;
+
+    private final ThirdConfig thirdConfig; // 注入三方配置（证书、IP、端口等）
 
     @Value("${svs.service.enabled:true}")
     private boolean signatureEnabled;
@@ -35,41 +34,53 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
     @Value("${sdms.crypto.mock-when-disabled:false}")
     private boolean mockWhenDisabled;
 
+    @Value("${app.verify:false}")
+    private boolean verify;
+
     @Override
     @Transactional
     public void recordAccess(ShareAccessLog log) {
-        try {
-            // 1. 计算敏感字段摘要用于签名（不使用明文）
-            String tokenHashDigest = hashHex(log.getToken() == null ? "" : log.getToken());
-            String ipDigest = hashHex(log.getAccessIp() == null ? "" : log.getAccessIp());
-            String uaDigest = hashHex(log.getUserAgent() == null ? "" : log.getUserAgent());
+        log.setAccessTime(log.getAccessTime() == null ? new Date() : log.getAccessTime());
 
-            // 2. 对敏感字段加密入库（若开启KMS）
-            if (kmsEnabled && kmsOpt.isPresent()) {
-                KmsCryptoService kms = kmsOpt.get();
-                log.setTokenHash(kms.encryptToB64(tokenHashDigest)); // 存摘要密文
-                log.setAccessIp(kms.encryptToB64(log.getAccessIp()));
-                log.setUserAgent(kms.encryptToB64(log.getUserAgent()));
+        try {
+            System.out.println("kmsEnabled=" + kmsEnabled + ", signatureEnabled=" + signatureEnabled);
+
+            // === KMS 加密 ===
+            if (kmsEnabled) {
+                log.setAccessIp(KmsUtils.encrypt(log.getAccessIp()));
+                log.setUserAgent(KmsUtils.encrypt(log.getUserAgent()));
+                log.setTokenHash(KmsUtils.encrypt(hashHex(log.getToken() == null ? "" : log.getToken())));
             } else {
-                log.setTokenHash(tokenHashDigest);
+                log.setTokenHash(hashHex(log.getToken() == null ? "" : log.getToken()));
             }
 
-            // 3. 签名：使用非敏感字段 + 敏感字段的摘要（明文摘要）
-            String origin = String.join("|",
-                    n(log.getAccessIp()), // 可使用摘要替代，这里示例使用摘要串
-                    log.getAccessTime() != null ? log.getAccessTime().toString() : new Date().toString(),
-                    String.valueOf(log.getFileId()),
-                    n(log.getActionType()),
-                    tokenHashDigest
-            );
-
+            // === SVS 签名 ===
             if (signatureEnabled) {
-                String sig = svsSignService.signB64(origin);
-                log.setSignature(sig);
+                String origin = buildSignatureData(log);
+                // 生成签名前打印
+                System.out.println("origin: " + origin);
+                SignUtil signUtil = new SignUtil(thirdConfig);
+                Svs2ClientHelper helper = signUtil.init();
+                String signature = signUtil.getSignB64SignedData(origin, helper);
+                System.out.println("signature: " + signature);
+                log.setSignature(signature);
+                System.out.println("log.signature set: " + log.getSignature());
+
+                // === 生成后立刻做一次验签 ===
+                if (verify && signature != null) {
+                    boolean ok = signUtil.tryValidateSign(origin, helper, signature);
+                    System.out.println("验证结果: " + ok);
+                    if (!ok) {
+                        throw new ApiException(500, "签名验证失败，数据可能被篡改");
+                    }
+                }
+
+                signUtil.close(helper);
             } else {
                 log.setSignature(mockWhenDisabled ? "mock-signature-disabled" : null);
             }
-
+            // 保存前打印整个对象
+            System.out.println("log before save: " + log);
             repository.save(log);
         } catch (Exception e) {
             throw new ApiException(500, "记录访问日志失败: " + e.getMessage());
@@ -79,13 +90,13 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
     @Override
     public boolean verifyAccessLogSignature(ShareAccessLog log) {
         if (!signatureEnabled) return true;
+
         try {
-            // 如果入库时 tokenHash 被加密，需先解密后取摘要比较；这里假定 tokenHash 存的是摘要密文或摘要
-            String tokenHashDigest;
-            if (kmsEnabled && kmsOpt.isPresent()) {
-                tokenHashDigest = kmsOpt.get().decryptFromB64(log.getTokenHash());
+            String tokenDigest;
+            if (kmsEnabled) {
+                tokenDigest = KmsUtils.decrypt(log.getTokenHash());
             } else {
-                tokenHashDigest = log.getTokenHash();
+                tokenDigest = log.getTokenHash();
             }
 
             String origin = String.join("|",
@@ -93,12 +104,41 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
                     log.getAccessTime() != null ? log.getAccessTime().toString() : new Date().toString(),
                     String.valueOf(log.getFileId()),
                     n(log.getActionType()),
-                    tokenHashDigest
+                    tokenDigest
             );
 
-            return svsSignService.verify(origin, log.getSignature());
+            SignUtil signUtil = new SignUtil(thirdConfig);
+            Svs2ClientHelper helper = signUtil.init();
+            signUtil.validateSignB64SignedData(origin, helper, log.getSignature());
+            signUtil.close(helper);
+
+            return true;
         } catch (Exception e) {
+            if (mockWhenDisabled) return true; // 开发环境兼容
             throw new ApiException(500, "验签失败: " + e.getMessage());
+        }
+    }
+
+    private String buildSignatureData(ShareAccessLog log) {
+        return String.join("|",
+                n(log.getAccessIp()),
+                log.getAccessTime() != null ? log.getAccessTime().toString() : new Date().toString(),
+                String.valueOf(log.getFileId()),
+                n(log.getActionType()),
+                n(log.getTokenHash())
+        );
+    }
+
+    private String n(String v) {
+        return v == null ? "" : v;
+    }
+
+    @Override
+    public List<ShareAccessLog> getAllLogs() {
+        try {
+            return repository.findAll(Sort.by(Sort.Direction.DESC, "accessTime"));
+        } catch (Exception e) {
+            throw new ApiException(500, "查询访问日志失败");
         }
     }
 
@@ -112,27 +152,6 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private String n(String v){ return v==null?"":v; }
-
-    @Override
-    public List<ShareAccessLog> getAllLogs() {
-        try {
-            return repository.findAll(Sort.by(Sort.Direction.DESC, "accessTime"));
-        } catch (Exception e) {
-            throw new ApiException(500, "查询访问日志失败");
-        }
-    }
-
-    private String buildSignatureData(ShareAccessLog log) {
-        return String.join("|",
-                safe(log.getAccessIp()),
-                log.getAccessTime() != null ? log.getAccessTime().toString() : new Date().toString(),
-                String.valueOf(log.getFileId()),
-                safe(log.getActionType()),
-                safe(log.getTokenHash())
-        );
     }
 
     private String safe(String input) {

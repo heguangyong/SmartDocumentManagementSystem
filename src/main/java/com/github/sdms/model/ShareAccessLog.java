@@ -18,17 +18,19 @@ public class ShareAccessLog {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String token;
+    private String token;         // 明文 token（可选，仅开发或调试使用）
 
-    private String tokenHash;  // 新增字段，用于存储 token 的哈希值
+    private String tokenHash;     // SHA-256 摘要或加密后的摘要
 
     private Long fileId;
 
     private String fileName;
 
-    private String accessIp;
+    private String accessIp;      // 明文 IP（可选）
+    private String accessIpEnc;   // KMS 加密后的 IP
 
-    private String userAgent;
+    private String userAgent;     // 明文 UA（可选）
+    private String userAgentEnc;  // KMS 加密后的 UA
 
     @Temporal(TemporalType.TIMESTAMP)
     private Date accessTime = new Date();
