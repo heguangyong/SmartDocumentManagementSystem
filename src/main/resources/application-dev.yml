@@ -115,7 +115,7 @@ svs:
     cert-id: ${third.signCertId:SHKXJSQBYJS}
 
 kms:
-  enabled: true
+  enabled: false
   mode: CFB
   # 示例里 iv="SCZgvdgVOwhwxRIg" -> Base64 已生成
   iv: U0NaZ3ZkZ1ZPd2h3eFJJZw==
@@ -123,4 +123,4 @@ kms:
 
 sdms:
   crypto:
-    mock-when-disabled: false
+    mock-when-disabled: true

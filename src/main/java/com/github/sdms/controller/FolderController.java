@@ -117,6 +117,7 @@ public class FolderController {
     /**
      * 分层的文件和文件夹列表接口
      * 根据桶ID或文件夹ID获取当前层级的内容（文件夹 + 文件）
+     * 文件按docId进行版本折叠展示
      */
     @GetMapping("/content")
     @Operation(summary = "获取指定层级的文件夹和文件列表")
@@ -149,10 +150,18 @@ public class FolderController {
                 result.add(new FolderContentDTO(folder));
             }
 
-            // 获取该文件夹下的文件
+            // 获取该文件夹下的文件并按docId分组
             List<UserFile> files = userFileService.listFilesByFolderId(userId, folderId, libraryCode);
-            for (UserFile file : files) {
-                result.add(new FolderContentDTO(file));
+            Map<Long, List<UserFile>> fileGroups = groupFilesByDocId(files);
+
+            // 为每个文档组创建FolderContentDTO
+            for (Map.Entry<Long, List<UserFile>> entry : fileGroups.entrySet()) {
+                List<UserFile> versionFiles = entry.getValue();
+                // 按版本号排序，最新版本在前
+                versionFiles.sort((a, b) -> Integer.compare(b.getVersionNumber(), a.getVersionNumber()));
+
+                UserFile latestFile = versionFiles.get(0); // 最新版本文件
+                result.add(new FolderContentDTO(latestFile, versionFiles));
             }
 
         } else {
@@ -166,10 +175,18 @@ public class FolderController {
                 result.add(new FolderContentDTO(folder));
             }
 
-            // 获取桶下的根级文件（folderId 为 null）
+            // 获取桶下的根级文件（folderId 为 null）并按docId分组
             List<UserFile> rootFiles = userFileService.listRootFilesByBucket(userId, bucketId, libraryCode);
-            for (UserFile file : rootFiles) {
-                result.add(new FolderContentDTO(file));
+            Map<Long, List<UserFile>> fileGroups = groupFilesByDocId(rootFiles);
+
+            // 为每个文档组创建FolderContentDTO
+            for (Map.Entry<Long, List<UserFile>> entry : fileGroups.entrySet()) {
+                List<UserFile> versionFiles = entry.getValue();
+                // 按版本号排序，最新版本在前
+                versionFiles.sort((a, b) -> Integer.compare(b.getVersionNumber(), a.getVersionNumber()));
+
+                UserFile latestFile = versionFiles.get(0); // 最新版本文件
+                result.add(new FolderContentDTO(latestFile, versionFiles));
             }
         }
 
@@ -182,6 +199,17 @@ public class FolderController {
         });
 
         return ApiResponse.success("查询成功", result);
+    }
+
+    /**
+     * 将文件列表按docId分组
+     * @param files 文件列表
+     * @return 按docId分组的文件Map
+     */
+    private Map<Long, List<UserFile>> groupFilesByDocId(List<UserFile> files) {
+        return files.stream()
+                .filter(file -> file.getDocId() != null) // 过滤掉docId为空的文件
+                .collect(Collectors.groupingBy(UserFile::getDocId));
     }
 
     /**

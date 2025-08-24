@@ -1,9 +1,6 @@
 package com.github.sdms.service.impl;
 
-import com.github.sdms.dto.UserFileDTO;
-import com.github.sdms.dto.UserFilePageRequest;
-import com.github.sdms.dto.UserFileSummaryDTO;
-import com.github.sdms.dto.UserFileVersionDTO;
+import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Bucket;
 import com.github.sdms.model.Folder;
@@ -91,6 +88,7 @@ public class UserFileServiceImpl implements UserFileService {
         Pageable pageable = PageRequest.of(request.getPage(), request.getSize(),
                 Sort.by(Sort.Direction.DESC, "createdDate"));
 
+        // 先查询所有符合条件的文件
         Page<UserFile> page = userFileRepository.findAll((root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
@@ -104,7 +102,6 @@ public class UserFileServiceImpl implements UserFileService {
             // 权限范围控制
             switch (userDetails.getRoleType()) {
                 case ADMIN:
-                    // 管理员不过滤用户
                     break;
                 case LIBRARIAN:
                 case READER:
@@ -137,7 +134,85 @@ public class UserFileServiceImpl implements UserFileService {
             return cb.and(predicates.toArray(new Predicate[0]));
         }, pageable);
 
-        List<UserFileSummaryDTO> dtoList = page.getContent().stream().map(file -> {
+        // 按docId分组处理文件列表
+        List<UserFileSummaryDTO> dtoList = buildCollapsedFileList(page.getContent());
+
+        // 重新计算分页信息 - 因为合并后条目数可能变化
+        long totalCollapsedElements = calculateTotalCollapsedElements(request, userDetails);
+
+        return new PageImpl<>(dtoList, pageable, totalCollapsedElements);
+    }
+
+    /**
+     * 构建折叠的文件列表
+     */
+    private List<UserFileSummaryDTO> buildCollapsedFileList(List<UserFile> files) {
+        // 按docId分组，docId为null的文件单独处理
+        Map<Long, List<UserFile>> docGroups = files.stream()
+                .filter(file -> file.getDocId() != null)
+                .collect(Collectors.groupingBy(UserFile::getDocId,
+                        LinkedHashMap::new, // 保持顺序
+                        Collectors.toList()));
+
+        // 处理没有docId的文件（单独文件）
+        List<UserFile> singleFiles = files.stream()
+                .filter(file -> file.getDocId() == null)
+                .collect(Collectors.toList());
+
+        List<UserFileSummaryDTO> result = new ArrayList<>();
+
+        // 处理文档组
+        for (Map.Entry<Long, List<UserFile>> entry : docGroups.entrySet()) {
+            Long docId = entry.getKey();
+            List<UserFile> versions = entry.getValue();
+
+            // 按版本号排序，最新版本在前
+            versions.sort((a, b) -> {
+                if (a.getVersionNumber() == null && b.getVersionNumber() == null) return 0;
+                if (a.getVersionNumber() == null) return 1;
+                if (b.getVersionNumber() == null) return -1;
+                return b.getVersionNumber().compareTo(a.getVersionNumber());
+            });
+
+            // 找到最新版本作为主显示版本
+            UserFile latestVersion = versions.stream()
+                    .filter(f -> Boolean.TRUE.equals(f.getIsLatest()))
+                    .findFirst()
+                    .orElse(versions.get(0)); // 如果没有标记最新的，取版本号最大的
+
+            UserFileSummaryDTO dto = new UserFileSummaryDTO();
+            dto.setId(latestVersion.getId());
+            dto.setOriginFilename(latestVersion.getOriginFilename());
+            dto.setType(latestVersion.getType());
+            dto.setSize(latestVersion.getSize());
+            dto.setCreatedDate(latestVersion.getCreatedDate());
+            dto.setVersionNumber(latestVersion.getVersionNumber());
+            dto.setIsLatest(latestVersion.getIsLatest());
+            dto.setShared(latestVersion.getShared());
+            dto.setFolderId(latestVersion.getFolderId());
+            dto.setDocId(docId);
+            dto.setTotalVersions(versions.size());
+
+            // 构建版本列表
+            List<FileVersionInfo> versionInfos = versions.stream().map(file -> {
+                FileVersionInfo versionInfo = new FileVersionInfo();
+                versionInfo.setFileId(file.getId());
+                versionInfo.setDocId(file.getDocId());
+                versionInfo.setVersionNumber(file.getVersionNumber());
+                versionInfo.setNotes(file.getNotes());
+                versionInfo.setCreatedDate(file.getCreatedDate());
+                versionInfo.setSize(file.getSize());
+                versionInfo.setIsLatest(file.getIsLatest());
+                versionInfo.setVersionKey(file.getVersionKey());
+                return versionInfo;
+            }).collect(Collectors.toList());
+
+            dto.setVersions(versionInfos);
+            result.add(dto);
+        }
+
+        // 处理单独文件（没有docId的文件）
+        for (UserFile file : singleFiles) {
             UserFileSummaryDTO dto = new UserFileSummaryDTO();
             dto.setId(file.getId());
             dto.setOriginFilename(file.getOriginFilename());
@@ -148,13 +223,85 @@ public class UserFileServiceImpl implements UserFileService {
             dto.setIsLatest(file.getIsLatest());
             dto.setShared(file.getShared());
             dto.setFolderId(file.getFolderId());
-            return dto;
-        }).toList();
+            dto.setDocId(null);
+            dto.setTotalVersions(1);
 
-        return new PageImpl<>(dtoList, pageable, page.getTotalElements());
+            // 单文件也需要版本信息
+            FileVersionInfo versionInfo = new FileVersionInfo();
+            versionInfo.setFileId(file.getId());
+            versionInfo.setDocId(null);
+            versionInfo.setVersionNumber(file.getVersionNumber());
+            versionInfo.setNotes(file.getNotes());
+            versionInfo.setCreatedDate(file.getCreatedDate());
+            versionInfo.setSize(file.getSize());
+            versionInfo.setIsLatest(file.getIsLatest());
+            versionInfo.setVersionKey(file.getVersionKey());
+
+            dto.setVersions(Collections.singletonList(versionInfo));
+            result.add(dto);
+        }
+
+        return result;
     }
 
+    /**
+     * 计算折叠后的总条目数
+     * 需要重新查询来计算准确的分页信息
+     */
+    private long calculateTotalCollapsedElements(UserFilePageRequest request, CustomerUserDetails userDetails) {
+        // 查询所有符合条件的文件的docId
+        List<UserFile> allFiles = userFileRepository.findAll((root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
 
+            predicates.add(cb.equal(root.get("deleteFlag"), false));
+
+            if (request.getBucketId() != null) {
+                predicates.add(cb.equal(root.get("bucketId"), request.getBucketId()));
+            }
+
+            switch (userDetails.getRoleType()) {
+                case ADMIN:
+                    break;
+                case LIBRARIAN:
+                case READER:
+                default:
+                    predicates.add(cb.equal(root.get("libraryCode"), userDetails.getLibraryCode()));
+                    predicates.add(cb.equal(root.get("userId"), userDetails.getUserId()));
+                    break;
+            }
+
+            if (request.getKeyword() != null && !request.getKeyword().isEmpty()) {
+                predicates.add(cb.like(root.get("originFilename"), "%" + request.getKeyword() + "%"));
+            }
+            if (request.getName() != null && !request.getName().isEmpty()) {
+                predicates.add(cb.like(root.get("originFilename"), "%" + request.getName() + "%"));
+            }
+
+            if (request.getType() != null && !request.getType().isEmpty()) {
+                predicates.add(cb.equal(root.get("type"), request.getType()));
+            }
+
+            if (request.getFolderId() != null) {
+                List<Long> folderIds = folderService.getAllSubFolderIds(request.getFolderId());
+                folderIds.add(request.getFolderId());
+                predicates.add(root.get("folderId").in(folderIds));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        });
+
+        // 计算唯一的docId数量 + 没有docId的文件数量
+        Set<Long> uniqueDocIds = allFiles.stream()
+                .filter(file -> file.getDocId() != null)
+                .map(UserFile::getDocId)
+                .collect(Collectors.toSet());
+
+        long singleFileCount = allFiles.stream()
+                .filter(file -> file.getDocId() == null)
+                .count();
+
+        return uniqueDocIds.size() + singleFileCount;
+    }
 
     @Override
     public void saveUserFile(UserFile file) {
