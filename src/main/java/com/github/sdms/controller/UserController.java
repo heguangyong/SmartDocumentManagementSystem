@@ -283,7 +283,7 @@ public class UserController {
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String libraryCode,
-            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "1") int page,  // 默认1开始
             @RequestParam(defaultValue = "20") int size
     ) {
         RoleType roleType = null;
@@ -295,9 +295,13 @@ public class UserController {
             }
         }
 
-        Page<User> userPage = userService.findUsersByCriteria(username, roleType, libraryCode, PageRequest.of(page, size));
+        // 关键修正：page - 1，避免前端传1查不到第一页
+        int pageIndex = (page <= 0) ? 0 : page - 1;
+
+        Page<User> userPage = userService.findUsersByCriteria(username, roleType, libraryCode, PageRequest.of(pageIndex, size));
         return ResponseEntity.ok(ApiResponse.success(userPage));
     }
+
 
     @Operation(summary = "根据用户ID获取用户详情（本地 + 第三方）")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
