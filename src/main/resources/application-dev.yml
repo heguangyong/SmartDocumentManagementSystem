@@ -1,3 +1,5 @@
+server:
+  port: 8090
 spring:
   config:
 #      格尔加密验证相关配置

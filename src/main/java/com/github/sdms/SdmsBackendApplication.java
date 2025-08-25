@@ -1,8 +1,9 @@
 package com.github.sdms;
 
-import io.github.cdimascio.dotenv.Dotenv;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
@@ -10,21 +11,14 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 public class SdmsBackendApplication {
 
 	public static void main(String[] args) {
-		// Load environment variables from .env file
-		Dotenv dotenv = Dotenv.configure()
-				.directory("./")
-				.filename(".env")
-				.ignoreIfMissing()
-				.load();
-		
-		// Set system properties for Spring Boot to use
-		dotenv.entries().forEach(entry -> 
-			System.setProperty(entry.getKey(), entry.getValue())
-		);
-		
-		SpringApplication.run(SdmsBackendApplication.class, args);
+		ConfigurableApplicationContext context = SpringApplication.run(SdmsBackendApplication.class, args);
+
+		// 从 Spring 环境获取实际端口
+		Environment env = context.getEnvironment();
+		String port = env.getProperty("server.port", "8080");
+
 		System.out.println("🚀 SDMS Backend started successfully!");
-		System.out.println("📡 API available at: http://localhost:" + 
-			(System.getProperty("SERVER_PORT") != null ? System.getProperty("SERVER_PORT") : "8080"));
+		System.out.println("📡 API available at: http://localhost:" + port);
 	}
 }
+
