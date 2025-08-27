@@ -1,5 +1,5 @@
 spring:
-  verify: false # 用于打开格尔的验签
+  verify: true # 用于打开格尔的验签
   config:
     #      格尔加密验证相关配置
     additional-location: kms_client.yml
@@ -106,6 +106,7 @@ third:
   signHost: 172.24.88.208
   signPort: 5001
   signTimeOut: 1000
+  hashType: "SM3"
 
 # 统一开关与 KMS 配置
 svs:

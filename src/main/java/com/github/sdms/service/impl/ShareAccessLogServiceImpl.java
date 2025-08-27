@@ -7,13 +7,13 @@ import com.github.sdms.repository.ShareAccessLogRepository;
 import com.github.sdms.service.ShareAccessLogService;
 import com.github.sdms.util.KmsUtils;
 import com.github.sdms.util.SignUtil;
-import com.koalii.svs.client.Svs2ClientHelper;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
+import javax.annotation.Resource;
 import java.util.Date;
 import java.util.List;
 
@@ -37,6 +37,9 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
     @Value("${app.verify:false}")
     private boolean verify;
 
+    @Resource
+    private SignUtil signUtil;  // 通过 Spring 注入
+
     @Override
     @Transactional
     public void recordAccess(ShareAccessLog log) {
@@ -59,23 +62,19 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
                 String origin = buildSignatureData(log);
                 // 生成签名前打印
                 System.out.println("origin: " + origin);
-                SignUtil signUtil = new SignUtil(thirdConfig);
-                Svs2ClientHelper helper = signUtil.init();
-                String signature = signUtil.getSignB64SignedData(origin, helper);
+                String signature = signUtil.getSignB64SignedDataV2(origin);  // 移除 helper 参数
                 System.out.println("signature: " + signature);
                 log.setSignature(signature);
                 System.out.println("log.signature set: " + log.getSignature());
 
                 // === 生成后立刻做一次验签 ===
                 if (verify && signature != null) {
-                    boolean ok = signUtil.tryValidateSign(origin, helper, signature);
+                    boolean ok = signUtil.tryValidateSignV2(origin, signature);  // 移除 helper 参数
                     System.out.println("验证结果: " + ok);
                     if (!ok) {
                         throw new ApiException(500, "签名验证失败，数据可能被篡改");
                     }
                 }
-
-                signUtil.close(helper);
             } else {
                 log.setSignature(mockWhenDisabled ? "mock-signature-disabled" : null);
             }
@@ -107,18 +106,14 @@ public class ShareAccessLogServiceImpl implements ShareAccessLogService {
                     tokenDigest
             );
 
-            SignUtil signUtil = new SignUtil(thirdConfig);
-            Svs2ClientHelper helper = signUtil.init();
-            signUtil.validateSignB64SignedData(origin, helper, log.getSignature());
-            signUtil.close(helper);
-
-            return true;
+            return signUtil.validateSignB64SignedDataV2(origin, log.getSignature());  // 直接返回验签结果，移除 helper 相关代码
         } catch (Exception e) {
             if (mockWhenDisabled) return true; // 开发环境兼容
             throw new ApiException(500, "验签失败: " + e.getMessage());
         }
     }
 
+    // buildSignatureData 方法保持不变
     private String buildSignatureData(ShareAccessLog log) {
         return String.join("|",
                 n(log.getAccessIp()),

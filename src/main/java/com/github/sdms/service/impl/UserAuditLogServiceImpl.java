@@ -8,12 +8,12 @@ import com.github.sdms.repository.UserAuditLogRepository;
 import com.github.sdms.service.UserAuditLogService;
 import com.github.sdms.util.KmsUtils;
 import com.github.sdms.util.SignUtil;
-import com.koalii.svs.client.Svs2ClientHelper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.annotation.Resource;
 import java.util.Date;
 
 @Service
@@ -33,9 +33,11 @@ public class UserAuditLogServiceImpl implements UserAuditLogService {
     @Value("${sdms.crypto.mock-when-disabled:false}")
     private boolean mockWhenDisabled;
 
-    @Value("${app.verify:false}")
+    @Value("${spring.verify:false}")
     private boolean verify;
 
+    @Resource
+    private SignUtil signUtil;  // 通过Spring注入，不再手动创建
 
     @Transactional
     @Override
@@ -65,26 +67,21 @@ public class UserAuditLogServiceImpl implements UserAuditLogService {
                 String origin = buildSignatureDataForSign(log);
                 // 生成签名前打印
                 System.out.println("origin: " + origin);
-                SignUtil signUtil = new SignUtil(thirdConfig);   // 注入 ThirdConfig
-                Svs2ClientHelper helper = signUtil.init();
-                String signature = signUtil.getSignB64SignedData(origin, helper);
+                String signature = signUtil.getSignB64SignedDataV2(origin);  // 移除 helper 参数
                 System.out.println("signature: " + signature);
                 log.setSignature(signature);
                 System.out.println("log.signature set: " + log.getSignature());
 
                 // === 生成后立刻做一次验签 ===
                 if (verify && signature != null) {
-                    boolean ok = signUtil.tryValidateSign(origin, helper, signature);
+                    boolean ok = signUtil.tryValidateSignV2(origin, signature);  // 移除 helper 参数
                     System.out.println("验证结果: " + ok);
                     if (!ok) {
                         throw new ApiException(500, "签名验证失败，数据可能被篡改");
                     }
                 }
-
-                signUtil.close(helper);
             } else {
                 log.setSignature(mockWhenDisabled ? "mock-signature-disabled" : null);
-
             }
 
             repository.save(log);
@@ -97,13 +94,10 @@ public class UserAuditLogServiceImpl implements UserAuditLogService {
     public boolean verifyLogSignature(UserAuditLog log) {
         if (!signatureEnabled) return true;
         String origin = buildSignatureDataForSign(log);
-        SignUtil signUtil = new SignUtil(thirdConfig);
-        Svs2ClientHelper helper = signUtil.init();
-        signUtil.validateSignB64SignedData(origin, helper, log.getSignature());
-        signUtil.close(helper);
-        return true; // 如果异常会在 signUtil 内部 log.error
+        return signUtil.validateSignB64SignedDataV2(origin, log.getSignature());  // 直接返回验签结果，移除 helper 相关代码
     }
 
+    // buildSignatureDataForSign 方法保持不变
     private String buildSignatureDataForSign(UserAuditLog log) {
         return String.join("|",
                 s(log.getUserId()),

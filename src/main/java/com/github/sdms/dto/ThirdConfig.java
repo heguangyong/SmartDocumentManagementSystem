@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 public class ThirdConfig {
     private String signCertId;
     private String signHost;
+    private String hashType;
     private Integer signPort;
     private Integer signTimeOut;
 }
