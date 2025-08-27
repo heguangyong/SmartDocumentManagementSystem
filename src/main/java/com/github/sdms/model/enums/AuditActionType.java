@@ -5,5 +5,6 @@ public enum AuditActionType {
     LOGIN_FAIL,
     PASSWORD_CHANGE,
     FILE_SHARE,
-    FILE_EDIT
+    FILE_EDIT,
+    LOGOUT
 }

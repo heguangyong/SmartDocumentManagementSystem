@@ -100,4 +100,8 @@ public interface UserFileService {
     List<UserFile> listFilesByFolderId(Long userId, Long folderId, String libraryCode);
 
     List<UserFile> listRootFilesByBucket(Long userId, Long bucketId, String libraryCode);
+
+    UserFile getHighestVersionFile(Long docId, Long userId, String libraryCode);
+
+    List<UserFile> listFilesByUser(Long userId, String libraryCode);
 }

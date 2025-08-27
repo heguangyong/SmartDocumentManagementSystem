@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface FolderRepository extends JpaRepository<Folder, Long>, JpaSpecificationExecutor<Folder> {
@@ -40,5 +41,11 @@ public interface FolderRepository extends JpaRepository<Folder, Long>, JpaSpecif
     List<Folder> findByUserIdAndParentIdIsNullAndBucketIdAndLibraryCode(Long userId, Long bucketId, String libraryCode);
 
     List<Folder> findByUserIdAndParentIdAndBucketIdAndLibraryCode(Long userId, Long parentId, Long bucketId, String libraryCode);
+
+    /**
+     * 根据目录ID和库代码查询文件夹
+     */
+    Optional<Folder> findByIdAndLibraryCode(Long id, String libraryCode);
+
 }
 

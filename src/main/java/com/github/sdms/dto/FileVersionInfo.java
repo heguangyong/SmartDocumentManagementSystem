@@ -8,6 +8,7 @@ import java.util.Date;
 @Data
 public class FileVersionInfo {
     private Long fileId;               // 文件记录ID (UserFile表主键)
+    private String originFilename;     // 文件名
     private Long docId;                // 文档组ID
     private Integer versionNumber;     // 版本号
     private String notes;              // 版本说明
@@ -23,6 +24,7 @@ public class FileVersionInfo {
     // 新增构造函数，从UserFile创建版本信息
     public FileVersionInfo(UserFile file) {
         this.fileId = file.getId();
+        this.originFilename = file.getOriginFilename();
         this.docId = file.getDocId();
         this.versionNumber = file.getVersionNumber();
         this.notes = file.getNotes();

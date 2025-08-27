@@ -39,4 +39,6 @@ public interface FolderService {
     Collection<Long> getAllDescendantIds(Long excludeFolderId, List<Folder> allFolders);
 
     void moveBatch(Long userId, MoveRequest moveRequest, String libraryCode);
+
+    void deleteFolderWithFiles(Long userId, Long folderId, String libraryCode);
 }

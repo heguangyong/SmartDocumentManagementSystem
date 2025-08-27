@@ -348,25 +348,50 @@ public class FileController {
     @DeleteMapping("/delete")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @Operation(summary = "逻辑删除当前用户文件")
-    public ApiResponse<Void> deleteFiles(@AuthenticationPrincipal CustomerUserDetails userDetails,
-                                         @RequestBody List<String> filenames) {
+    public ApiResponse<Void> deleteFiles(@RequestBody List<Long> fileIds) {
         try {
-            for (String filename : filenames) {
-                // 查找文件
-                UserFile file = userFileService.getFileByName(filename, userDetails.getUserId(), userDetails.getLibraryCode());
-
-                // 校验文件权限：确保用户有删除权限
-                permissionChecker.checkFileAccess(userDetails.getUserId(), file.getId(), "DELETE");
-
-                // 删除文件逻辑
-                userFileService.softDeleteFile(file);
+            // 获取当前用户信息
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+                throw new ApiException(401, "用户未登录");
             }
+            CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+            Long userId = userDetails.getUserId();
+            String libraryCode = userDetails.getLibraryCode();
+
+            for (Long fileId : fileIds) {
+                // 查找文件
+                UserFile file = userFileService.getFileById(fileId);
+                if (file == null) {
+                    throw new ApiException(404, "文件不存在: " + fileId);
+                }
+
+                // 校验文件权限
+                permissionChecker.checkFileAccess(userId, file.getId(), "DELETE");
+
+                // 标记删除
+                file.setDeleteFlag(true);
+                userFileService.saveUserFile(file); // 或 softDeleteFile(file)
+
+                // 如果删除的是最新版本，更新同docId剩余版本的最新标识
+                if (Boolean.TRUE.equals(file.getIsLatest())) {
+                    UserFile latestRemaining = userFileService.getHighestVersionFile(file.getDocId(), userId, libraryCode);
+                    if (latestRemaining != null) {
+                        latestRemaining.setIsLatest(true);
+                        userFileService.saveUserFile(latestRemaining);
+                    }
+                }
+            }
+
             return ApiResponse.success("文件已删除", null);
+        } catch (ApiException ae) {
+            throw ae;
         } catch (Exception e) {
             log.error("删除文件失败", e);
             return ApiResponse.failure("删除失败: " + e.getMessage());
         }
     }
+
 
 
     @PostMapping("/restore")
@@ -599,25 +624,41 @@ public class FileController {
     @PostMapping("/rename")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "重命名文件")
-    public ApiResponse<Void> renameFile(@AuthenticationPrincipal CustomerUserDetails userDetails,
-                                        @RequestParam String oldName,
+    public ApiResponse<Void> renameFile(@RequestParam Long fileId,
                                         @RequestParam String newName) {
-        permissionChecker.checkAccess(userDetails.getUserId(), userDetails.getLibraryCode());
+        // 获取当前用户信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
 
-        List<UserFile> files = userFileService.listFilesByRole(userDetails);
-        UserFile file = files.stream()
-                .filter(f -> f.getName().equals(oldName))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("文件不存在"));
+        // 权限校验
+        permissionChecker.checkAccess(userId, libraryCode);
 
-        boolean exists = files.stream().anyMatch(f -> f.getName().equals(newName));
-        if (exists) throw new RuntimeException("新文件名已存在");
+        // 查询文件
+        UserFile file = userFileService.getFileById(fileId);
+        if (file == null) {
+            throw new RuntimeException("文件不存在");
+        }
 
-        file.setName(newName);
+        // 检查新文件名是否已存在
+        boolean exists = userFileService.listFilesByUser(userId, libraryCode).stream()
+                .anyMatch(f -> f.getOriginFilename().equals(newName));
+        if (exists) {
+            throw new RuntimeException("新文件名已存在");
+        }
+
+        // 更新文件名并保存
+        file.setOriginFilename(newName);
         userFileService.saveUserFile(file);
 
         return ApiResponse.success("文件已重命名", null);
     }
+
+
 
     @DeleteMapping("/purgeFile")
     @PreAuthorize("hasAnyRole('READER','LIBRARIAN', 'ADMIN')")

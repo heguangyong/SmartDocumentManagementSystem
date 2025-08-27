@@ -9,9 +9,12 @@ import com.github.sdms.model.UserFile;
 import com.github.sdms.repository.FolderRepository;
 import com.github.sdms.repository.UserFileRepository;
 import com.github.sdms.service.FolderService;
+import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CustomerUserDetails;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,8 +27,15 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class FolderServiceImpl implements FolderService {
 
-    private final FolderRepository folderRepository;
-    private final UserFileRepository fileRepository;
+    @Autowired
+    private FolderRepository folderRepository;
+
+    @Autowired
+    private UserFileRepository fileRepository;
+
+    @Autowired
+    @Lazy
+    private UserFileService userFileService;
 
     @Override
     public Page<FolderSummaryDTO> pageFolders(FolderPageRequest request, CustomerUserDetails userDetails) {
@@ -145,13 +155,13 @@ public class FolderServiceImpl implements FolderService {
         Folder newParent = folderRepository.findById(newParentId)
                 .orElseThrow(() -> new ApiException(404, "目标父目录不存在"));
 
-            if (!folder.getUserId().equals(userId) || !newParent.getUserId().equals(userId)) {
-                throw new ApiException(403, "无权限操作该目录");
-            }
+        if (!folder.getUserId().equals(userId) || !newParent.getUserId().equals(userId)) {
+            throw new ApiException(403, "无权限操作该目录");
+        }
 
-            if (isDescendant(folderId, newParentId)) {
-                throw new ApiException(400, "不能将目录移动到其子目录下");
-            }
+        if (isDescendant(folderId, newParentId)) {
+            throw new ApiException(400, "不能将目录移动到其子目录下");
+        }
 
         folder.setParentId(newParentId);
         folder.setUpdatedDate(new Date());
@@ -171,6 +181,7 @@ public class FolderServiceImpl implements FolderService {
 
     /**
      * 递归获取指定目录ID的所有子目录ID列表
+     *
      * @param folderId 目录ID
      * @return 子目录ID列表，不包含自身
      */
@@ -305,4 +316,29 @@ public class FolderServiceImpl implements FolderService {
             fileRepository.save(file);
         }
     }
+
+    @Transactional
+    public void deleteFolderWithFiles(Long userId, Long folderId, String libraryCode) {
+        // 获取文件夹下所有文件
+        List<UserFile> files = userFileService.listFilesByFolder(userId, folderId, libraryCode);
+        for (UserFile file : files) {
+            file.setDeleteFlag(true);
+            userFileService.saveUserFile(file);
+
+            // 如果删除的是最新版本，更新剩余版本
+            if (Boolean.TRUE.equals(file.getIsLatest())) {
+                UserFile latestRemaining = userFileService.getHighestVersionFile(file.getDocId(), userId, libraryCode);
+                if (latestRemaining != null) {
+                    latestRemaining.setIsLatest(true);
+                    userFileService.saveUserFile(latestRemaining);
+                }
+            }
+        }
+
+        // 删除文件夹
+        Folder folder = folderRepository.findByIdAndLibraryCode(folderId, libraryCode)
+                .orElseThrow(() -> new ApiException(404, "文件夹不存在"));
+        folderRepository.delete(folder);
+    }
+
 }

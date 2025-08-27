@@ -22,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -77,6 +78,7 @@ public class UserFileServiceImpl implements UserFileService {
     private FolderRepository folderRepository;
 
     @Autowired
+    @Lazy
     private FolderService folderService;
 
     @Autowired
@@ -197,6 +199,7 @@ public class UserFileServiceImpl implements UserFileService {
             List<FileVersionInfo> versionInfos = versions.stream().map(file -> {
                 FileVersionInfo versionInfo = new FileVersionInfo();
                 versionInfo.setFileId(file.getId());
+                versionInfo.setOriginFilename(file.getOriginFilename());
                 versionInfo.setDocId(file.getDocId());
                 versionInfo.setVersionNumber(file.getVersionNumber());
                 versionInfo.setNotes(file.getNotes());
@@ -229,6 +232,7 @@ public class UserFileServiceImpl implements UserFileService {
             // 单文件也需要版本信息
             FileVersionInfo versionInfo = new FileVersionInfo();
             versionInfo.setFileId(file.getId());
+            versionInfo.setOriginFilename(file.getOriginFilename());
             versionInfo.setDocId(null);
             versionInfo.setVersionNumber(file.getVersionNumber());
             versionInfo.setNotes(file.getNotes());
@@ -1198,5 +1202,25 @@ public class UserFileServiceImpl implements UserFileService {
     public List<UserFile> listRootFilesByBucket(Long userId, Long bucketId, String libraryCode) {
         return userFileRepository.findByUserIdAndBucketIdAndFolderIdIsNullAndLibraryCodeAndDeleteFlagFalse(
                 userId, bucketId, libraryCode);
+    }
+
+    /**
+     * 获取指定 docId 下未删除的最高版本文件
+     */
+    public UserFile getHighestVersionFile(Long docId, Long userId, String libraryCode) {
+        // 查询 docId 下未删除的最高 versionNumber 文件
+        Optional<UserFile> optional = userFileRepository.findByDocIdAndUserIdOrderByVersionNumberDesc(docId, userId)
+                .stream()
+                .filter(f -> Boolean.FALSE.equals(f.getDeleteFlag()))
+                .findFirst();
+
+        return optional.orElse(null);
+    }
+
+    /**
+     * 根据用户ID和库代码查询该用户未删除的所有文件
+     */
+    public List<UserFile> listFilesByUser(Long userId, String libraryCode) {
+        return userFileRepository.findByUserIdAndLibraryCodeAndDeleteFlagFalse(userId, libraryCode);
     }
 }

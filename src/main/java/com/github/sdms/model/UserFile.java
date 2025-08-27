@@ -1,5 +1,6 @@
 package com.github.sdms.model;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -72,7 +73,8 @@ public class UserFile {
 
     private Integer uperr = 0; // 上传错误标志位
 
-    @Column(length = 500)
+    @Schema(description = "来源ip")
+    @Column(name = "ip",length = 500)
     private String ip; // 上传来源 IP（可选）
 
     @Column(name = "folder_id")

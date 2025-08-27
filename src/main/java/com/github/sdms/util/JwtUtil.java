@@ -5,6 +5,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
@@ -418,4 +419,20 @@ public class JwtUtil {
         }
     }
 
+    public long getExpirationSecondsFromToken(String token) {
+        Date expiration = extractClaim(token, Claims::getExpiration);
+        if (expiration == null) {
+            return 0;
+        }
+        long remainingMillis = expiration.getTime() - System.currentTimeMillis();
+        return Math.max(0, remainingMillis / 1000);
+    }
+
+    public String extractTokenFromRequest(HttpServletRequest request) {
+        String header = request.getHeader("Authorization");
+        if (header != null && header.startsWith("Bearer ")) {
+            return header.substring(7);
+        }
+        return null;
+    }
 }

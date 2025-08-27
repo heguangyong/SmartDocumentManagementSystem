@@ -26,6 +26,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
@@ -154,7 +155,7 @@ public class UserController {
 
 
     @Operation(summary = "修改当前用户密码")
-    @PutMapping("/me/password")
+    @PostMapping("/me/password")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     public ResponseEntity<ApiResponse<String>> changePassword(
             @RequestBody ChangePasswordRequest req,
@@ -465,18 +466,55 @@ public class UserController {
     }
 
     @Operation(summary = "获取用户权限", description = "获取用户权限列表")
-    @GetMapping("/{id}/permissions")
-    @PreAuthorize("hasRole('ADMIN') or #id == authentication.principal.id")
-    public ResponseEntity<ApiResponse<List<UserResourcePermissionDTO>>> getUserPermissions(@PathVariable Long id) {
-        return ResponseEntity.ok(ApiResponse.success(userService.getUserPermissions(id)));
+    @GetMapping("/users/permissions")
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
+    public ResponseEntity<ApiResponse<List<UserResourcePermissionDTO>>> getUserPermissions(
+            @RequestParam(required = false) Long userId) {
+        // 如果userId为空，则默认获取当前用户权限
+        if (userId == null) {
+            userId = ((CustomerUserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal()).getUserId();
+        }
+        return ResponseEntity.ok(ApiResponse.success(userService.getUserPermissions(userId)));
     }
 
     @Operation(summary = "更新用户权限", description = "更新用户权限列表")
-    @PostMapping("/{id}/permissions")
+    @PostMapping("/users/permissions")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<String>> updateUserPermissions(@PathVariable Long id,
-                                                                     @RequestBody List<UserResourcePermissionDTO> permissions) {
-        userService.updateUserPermissions(id, permissions);
+    public ResponseEntity<ApiResponse<String>> updateUserPermissions(
+            @RequestParam Long userId,
+            @RequestBody List<UserResourcePermissionDTO> permissions) {
+        userService.updateUserPermissions(userId, permissions);
         return ResponseEntity.ok(ApiResponse.success("权限更新成功"));
+    }
+
+    @Operation(summary = "用户登出")
+    @PostMapping("/logout")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
+    public ResponseEntity<ApiResponse<String>> logout(HttpServletRequest request, Authentication authentication) {
+        // 从请求头中提取 JWT Token
+        String token = jwtUtil.extractTokenFromRequest(request);  // 假设 JwtUtil 中有 extractTokenFromRequest 方法实现
+
+        if (token != null) {
+            // 获取 Token 的剩余过期时间
+            long expirationSeconds = jwtUtil.getExpirationSecondsFromToken(token);  // 假设 JwtUtil 中有 getExpirationSecondsFromToken 方法，返回剩余秒数
+
+            // 将 Token 加入 Redis 黑名单，设置过期时间为 Token 剩余有效期
+            redisTemplate.opsForValue().set("blacklist:" + token, "invalid", expirationSeconds, TimeUnit.SECONDS);
+        }
+
+        // 获取当前用户信息
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+
+        // 记录登出审计日志
+        String ip = RequestUtils.getClientIp(request);
+        String userAgent = RequestUtils.getUserAgent(request);
+        userAuditLogService.log(user.getId(), user.getUsername(), user.getLibraryCode(), ip, userAgent, AuditActionType.LOGOUT, "用户登出");
+
+        // 删除登录时间记录
+        redisTemplate.delete(user.getUsername() + user.getLibraryCode() + "logintime");
+
+        // 返回登出成功响应（客户端需删除本地 Token）
+        return ResponseEntity.ok(ApiResponse.success("登出成功"));
     }
 }

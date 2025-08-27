@@ -1,9 +1,6 @@
 package com.github.sdms.controller;
 
-import com.github.sdms.dto.AlternativeFolderDTO;
-import com.github.sdms.dto.ApiResponse;
-import com.github.sdms.dto.FolderContentDTO;
-import com.github.sdms.dto.MoveRequest;
+import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.model.UserFile;
@@ -60,23 +57,65 @@ public class FolderController {
     }
 
 
-    @PutMapping("/rename")
+    @PostMapping("/rename")
     @Operation(summary = "重命名文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<Folder> renameFolder(@RequestParam Long userId, @RequestParam Long folderId, @RequestParam @NotBlank String newName, @RequestParam String libraryCode) {
+    public ApiResponse<FolderDTO> renameFolder(
+            @RequestParam Long folderId,
+            @RequestParam @NotBlank String newName) {
+
+        // 从 SecurityContext 获取当前用户信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
+
+        // 权限校验
         permissionChecker.checkAccess(userId, libraryCode);
+
+        // 执行重命名
         Folder folder = folderService.renameFolder(userId, folderId, newName, libraryCode);
-        return ApiResponse.success("重命名成功", folder);
+
+        // 转换为 FolderFTO
+        FolderDTO fto = new FolderDTO(folder);
+
+        return ApiResponse.success("重命名成功", fto);
     }
+
+
 
     @DeleteMapping("/delete")
     @Operation(summary = "删除文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<Void> deleteFolder(@RequestParam Long userId, @RequestParam Long folderId, @RequestParam String libraryCode) {
+    public ApiResponse<Void> deleteFolder(@RequestParam Long folderId) {
+        // 获取当前用户信息
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
+            throw new ApiException(401, "用户未登录");
+        }
+        CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
+        Long userId = userDetails.getUserId();
+        String libraryCode = userDetails.getLibraryCode();
+
+        // 权限校验
         permissionChecker.checkAccess(userId, libraryCode);
-        folderService.deleteFolder(userId, folderId, libraryCode);
+
+        // 查询文件夹下的文件
+        List<UserFile> filesInFolder = userFileService.listFilesByFolder(userId, folderId, libraryCode);
+        if (!filesInFolder.isEmpty()) {
+            // 返回提示，需要前端确认删除
+            return ApiResponse.failure("文件夹下包含 " + filesInFolder.size() + " 个文件，请确认是否删除");
+        }
+
+        // 删除文件夹（同步删除文件）
+        folderService.deleteFolderWithFiles(userId, folderId, libraryCode);
+
         return ApiResponse.success("删除成功", null);
     }
+
 
     @GetMapping("/list")
     @Operation(summary = "列出指定目录下子文件夹")

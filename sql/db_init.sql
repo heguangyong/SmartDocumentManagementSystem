@@ -273,3 +273,11 @@ ALTER TABLE user_audit_log
   MODIFY COLUMN signature TEXT,
   MODIFY COLUMN ip VARCHAR(512),
   MODIFY COLUMN user_agent TEXT;
+
+
+-- 1. 如果原来字段是 ip，需要重命名或删除
+ALTER TABLE `user` CHANGE COLUMN `ip` `privacycheck` VARCHAR(500) DEFAULT NULL;
+
+
+ALTER TABLE `user_file`
+ADD COLUMN `ip` VARCHAR(500) DEFAULT NULL COMMENT '来源ip';
