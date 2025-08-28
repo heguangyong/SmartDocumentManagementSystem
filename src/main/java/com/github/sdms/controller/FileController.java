@@ -345,7 +345,6 @@ public class FileController {
         return ApiResponse.success(files);
     }
 
-    // Controller 接口修改
     @PostMapping("/delete")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @Operation(summary = "逻辑删除当前用户文件")
@@ -354,27 +353,23 @@ public class FileController {
             // 获取当前用户信息
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
-                throw new ApiException(401, "用户未登录");
+                return ApiResponse.failure("用户未登录", 401);
             }
             CustomerUserDetails userDetails = (CustomerUserDetails) authentication.getPrincipal();
             Long userId = userDetails.getUserId();
             String libraryCode = userDetails.getLibraryCode();
 
             for (Long fileId : request.getFileIds()) {
-                // 查找文件
                 UserFile file = userFileService.getFileById(fileId);
                 if (file == null) {
-                    throw new ApiException(404, "文件不存在: " + fileId);
+                    return ApiResponse.failure("文件不存在: " + fileId, 404);
                 }
 
-                // 校验文件权限
                 permissionChecker.checkFileAccess(userId, file.getId(), "DELETE");
 
-                // 标记删除
                 file.setDeleteFlag(true);
-                userFileService.saveUserFile(file); // 或 softDeleteFile(file)
+                userFileService.saveUserFile(file);
 
-                // 如果删除的是最新版本，更新同docId剩余版本的最新标识
                 if (Boolean.TRUE.equals(file.getIsLatest())) {
                     UserFile latestRemaining = userFileService.getHighestVersionFile(file.getDocId(), userId, libraryCode);
                     if (latestRemaining != null) {
@@ -386,12 +381,14 @@ public class FileController {
 
             return ApiResponse.success("文件已删除", null);
         } catch (ApiException ae) {
-            throw ae;
+            // 已有业务异常，返回对应 code
+            return ApiResponse.failure(ae.getMessage(), ae.getCode());
         } catch (Exception e) {
             log.error("删除文件失败", e);
-            return ApiResponse.failure("删除失败: " + e.getMessage());
+            return ApiResponse.failure("删除失败: " + e.getMessage(), 500);
         }
     }
+
 
 
 
@@ -626,9 +623,10 @@ public class FileController {
     @PostMapping("/rename")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
     @Operation(summary = "重命名文件")
-    public ApiResponse<Void> renameFile(@RequestParam Long fileId,
-                                        @RequestParam String newName) {
-        // 获取当前用户信息
+    public ApiResponse<Void> renameFile(@RequestBody @Valid RenameFileRequest request) {
+        Long fileId = request.getFileId();
+        String newName = request.getNewName();
+
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
             throw new ApiException(401, "用户未登录");
@@ -637,28 +635,21 @@ public class FileController {
         Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
 
-        // 权限校验
         permissionChecker.checkAccess(userId, libraryCode);
 
-        // 查询文件
         UserFile file = userFileService.getFileById(fileId);
-        if (file == null) {
-            throw new RuntimeException("文件不存在");
-        }
+        if (file == null) throw new RuntimeException("文件不存在");
 
-        // 检查新文件名是否已存在
         boolean exists = userFileService.listFilesByUser(userId, libraryCode).stream()
                 .anyMatch(f -> f.getOriginFilename().equals(newName));
-        if (exists) {
-            throw new RuntimeException("新文件名已存在");
-        }
+        if (exists) throw new RuntimeException("新文件名已存在");
 
-        // 更新文件名并保存
         file.setOriginFilename(newName);
         userFileService.saveUserFile(file);
 
         return ApiResponse.success("文件已重命名", null);
     }
+
 
 
 

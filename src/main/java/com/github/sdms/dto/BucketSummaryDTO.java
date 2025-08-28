@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.Date;
+import java.util.List;
 
 @Data
 @Builder
@@ -19,6 +20,8 @@ public class BucketSummaryDTO {
     private Integer accessUserCount;
     private Long usedCapacity; // 单位：Byte
     private Long maxCapacity;  // 单位：Byte
+    /** 当前用户对该桶的最终权限 */
+    private List<String> userPermissions;
 }
 
 

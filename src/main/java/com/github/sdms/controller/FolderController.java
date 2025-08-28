@@ -11,7 +11,6 @@ import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -63,11 +62,11 @@ public class FolderController {
     @PostMapping("/rename")
     @Operation(summary = "重命名文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<FolderDTO> renameFolder(
-            @RequestParam Long folderId,
-            @RequestParam @NotBlank String newName) {
+    public ApiResponse<FolderDTO> renameFolder(@RequestBody @Valid RenameFolderRequest request) {
+        Long folderId = request.getFolderId();
+        String newName = request.getNewName();
 
-        // 从 SecurityContext 获取当前用户信息
+        // 获取当前用户信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
             throw new ApiException(401, "用户未登录");
@@ -82,11 +81,12 @@ public class FolderController {
         // 执行重命名
         Folder folder = folderService.renameFolder(userId, folderId, newName, libraryCode);
 
-        // 转换为 FolderFTO
+        // 转换为 DTO
         FolderDTO fto = new FolderDTO(folder);
 
         return ApiResponse.success("重命名成功", fto);
     }
+
 
 
 
@@ -113,7 +113,7 @@ public class FolderController {
         List<UserFile> filesInFolder = userFileService.listFilesByFolder(userId, folderId, libraryCode);
         if (!filesInFolder.isEmpty()) {
             // 返回提示，需要前端确认删除
-            return ApiResponse.failure("文件夹下包含 " + filesInFolder.size() + " 个文件，请确认是否删除");
+            return ApiResponse.failure("文件夹下包含 " + filesInFolder.size() + " 个文件，请确认是否删除",409);
         }
 
         // 删除文件夹（同步删除文件）

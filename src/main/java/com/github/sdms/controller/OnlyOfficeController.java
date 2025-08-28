@@ -58,7 +58,7 @@ public class OnlyOfficeController {
         Long userId = userDetails.getUserId();
 
         if (file == null) {
-            return ResponseEntity.status(403).body(ApiResponse.failure("无权限访问该文档"));
+            return ResponseEntity.status(403).body(ApiResponse.failure("无权限访问该文档",403));
         }
 
         // 生成长期有效的token（用于OnlyOffice下载文档）

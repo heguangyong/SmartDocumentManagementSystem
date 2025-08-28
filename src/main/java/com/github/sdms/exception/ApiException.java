@@ -7,14 +7,16 @@ import lombok.Getter;
  */
 @Getter
 public class ApiException extends RuntimeException {
-    private final int status;
+    /** 业务错误码，对应 ApiResponse.code */
+    private final int code;
 
     public ApiException(String message) {
         this(400, message);
     }
 
-    public ApiException(int status, String message) {
+    public ApiException(int code, String message) {
         super(message);
-        this.status = status;
+        this.code = code;
     }
 }
+

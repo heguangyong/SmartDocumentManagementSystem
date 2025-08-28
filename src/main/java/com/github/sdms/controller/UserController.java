@@ -94,17 +94,17 @@ public class UserController {
             // 验证图书馆代码
             boolean libraryExists = librarySiteRepository.existsByCodeAndStatusTrue(libraryCode);
             if (!libraryExists) {
-                return ResponseEntity.badRequest().body(ApiResponse.failure("无效的馆点代码"));
+                return ResponseEntity.badRequest().body(ApiResponse.failure("无效的馆点代码",400));
             }
 
             Optional<User> userOpt = userRepository.findByUsernameAndLibraryCode(username, libraryCode);
             if (userOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("用户未绑定该馆点或不存在"));
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("用户未绑定该馆点或不存在",401));
             }
             User user = userOpt.get();
 
             if (Boolean.TRUE.equals(redisTemplate.hasKey(lockKey))) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("账号已锁定，请稍后再试"));
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("账号已锁定，请稍后再试",403));
             }
 
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, loginRequest.getPassword()));
@@ -149,7 +149,7 @@ public class UserController {
             } else {
                 redisTemplate.expire(failedKey, LOCK_TIME_SECONDS, TimeUnit.SECONDS);
             }
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("登录失败：" + e.getMessage()));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("登录失败：" + e.getMessage(),401));
         }
     }
 
@@ -168,12 +168,12 @@ public class UserController {
 
         // 验证旧密码
         if (!passwordEncoder.matches(req.getOldPassword(), user.getPassword())) {
-            return ResponseEntity.badRequest().body(ApiResponse.failure("旧密码不正确"));
+            return ResponseEntity.badRequest().body(ApiResponse.failure("旧密码不正确",403));
         }
 
         // 验证新密码复杂度
         if (!PasswordUtil.isStrongPassword(req.getNewPassword())) {
-            return ResponseEntity.badRequest().body(ApiResponse.failure("新密码不符合复杂度要求;规则：至少8位，包含大小写字母、数字和特殊字符"));
+            return ResponseEntity.badRequest().body(ApiResponse.failure("新密码不符合复杂度要求;规则：至少8位，包含大小写字母、数字和特殊字符",400));
         }
 
         // 更新密码
@@ -199,18 +199,18 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<String>> register(@RequestBody RegisterRequest request) {
         if (userRepository.existsByUsernameAndLibraryCode(request.getUsername(), request.getLibraryCode())) {
-            return ResponseEntity.badRequest().body(ApiResponse.failure("Username already exists for this libraryCode"));
+            return ResponseEntity.badRequest().body(ApiResponse.failure("Username already exists for this libraryCode",400));
         }
 
         RoleType roleType;
         try {
             roleType = RoleType.valueOf(request.getRole().toUpperCase());
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.failure("Invalid role: " + request.getRole()));
+            return ResponseEntity.badRequest().body(ApiResponse.failure("Invalid role: " + request.getRole(),400));
         }
 
         if (!PasswordUtil.isStrongPassword(request.getPassword())) {
-            return ResponseEntity.badRequest().body(ApiResponse.failure("Password must be at least 8 characters and include uppercase, lowercase, number, and special character."));
+            return ResponseEntity.badRequest().body(ApiResponse.failure("Password must be at least 8 characters and include uppercase, lowercase, number, and special character.",400));
         }
 
         User user = User.builder().uid(UUID.randomUUID().toString()).username(request.getUsername()).email(request.getEmail()).password(passwordEncoder.encode(request.getPassword())).roleType(roleType).libraryCode(request.getLibraryCode()).build();
@@ -292,7 +292,7 @@ public class UserController {
             try {
                 roleType = RoleType.valueOf(role.toUpperCase());
             } catch (IllegalArgumentException e) {
-                return ResponseEntity.badRequest().body(ApiResponse.failure("无效的角色参数"));
+                return ResponseEntity.badRequest().body(ApiResponse.failure("无效的角色参数",400));
             }
         }
 
@@ -310,17 +310,17 @@ public class UserController {
     public ResponseEntity<ApiResponse<Object>> getUserDetailById(@PathVariable Long id, Authentication authentication, @RequestParam String libraryCode) {
         User currentUser = userRepository.findByUsernameAndLibraryCode(authentication.getName(), libraryCode).orElse(null);
         if (currentUser == null) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("无访问权限"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("无访问权限",403));
         }
 
         User targetUser = userRepository.findById(id).orElse(null);
         if (targetUser == null) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure("用户不存在"));
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure("用户不存在",404));
         }
 
         // 非管理员且非本人，拒绝访问
         if (!currentUser.getId().equals(id) && !jwtUtil.isAdmin()) {
-            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("无访问权限"));
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("无访问权限",403));
         }
 
         // 判断是否为第三方同步用户
@@ -333,7 +333,7 @@ public class UserController {
                 }
                 return ResponseEntity.ok(ApiResponse.success(userInfo));
             } catch (Exception e) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.failure("获取第三方用户信息失败：" + e.getMessage()));
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(ApiResponse.failure("获取第三方用户信息失败：" + e.getMessage(),500));
             }
         } else {
             // 非第三方用户，返回本地用户实体（或自定义DTO）
@@ -413,7 +413,7 @@ public class UserController {
             userRepository.save(user);
             return ResponseEntity.ok(ApiResponse.success("Username updated"));
         }
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure("User not found"));
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.failure("User not found",404));
     }
 
     @Operation(summary = "重置用户密码", description = "管理员重置指定用户的密码")

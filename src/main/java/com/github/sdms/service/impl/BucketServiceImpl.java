@@ -239,6 +239,7 @@ public class BucketServiceImpl implements BucketService {
 
         Long userId = JwtUtil.getCurrentUserIdOrThrow();
 
+        // 获取用户可访问桶ID列表
         List<Long> accessibleBucketIds = bucketPermissionService.getAccessibleBucketIds(userId);
         List<Long> ownBucketIds = bucketRepository.findByOwnerId(userId)
                 .stream().map(Bucket::getId).toList();
@@ -251,22 +252,17 @@ public class BucketServiceImpl implements BucketService {
             return Page.empty(pageable);
         }
 
-        // 关键字处理
-        String keyword = request.getKeyword();
-        if (!StringUtils.hasText(keyword)) {
-            keyword = ""; // Containing("") 等价于不加条件
-        }
+        String keyword = StringUtils.hasText(request.getKeyword()) ? request.getKeyword() : "";
 
-        // 推荐用 Containing（自动拼 %）
-        Page<Bucket> page = bucketRepository.findByNameContainingAndIdIn(
-                keyword,
-                allBucketIds,
-                pageable
-        );
+        Page<Bucket> page = bucketRepository.findByNameContainingAndIdIn(keyword, allBucketIds, pageable);
 
         List<BucketSummaryDTO> dtos = page.getContent().stream().map(bucket -> {
             int userCount = bucketPermissionRepository.countByBucketId(bucket.getId());
             long usedCapacity = minioService.calculateUsedCapacity(bucket.getName());
+
+            // 计算当前用户对该桶的最终权限
+            List<String> userPerms = this.getEffectiveBucketPermission(userId, bucket.getId());
+
             return BucketSummaryDTO.builder()
                     .id(bucket.getId())
                     .name(bucket.getName())
@@ -275,11 +271,13 @@ public class BucketServiceImpl implements BucketService {
                     .maxCapacity(bucket.getMaxCapacity())
                     .usedCapacity(usedCapacity)
                     .accessUserCount(userCount)
+                    .userPermissions(userPerms)
                     .build();
         }).toList();
 
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
+
 
 
     @Override

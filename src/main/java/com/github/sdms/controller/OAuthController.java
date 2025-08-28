@@ -7,7 +7,6 @@ import com.github.sdms.model.User;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.AuthService;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -128,7 +127,7 @@ public class OAuthController {
     public ResponseEntity<ApiResponse<UserProfileDto>> getProfile(Authentication authentication, @RequestParam String libraryCode) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(ApiResponse.failure("Unauthorized"));
+                    .body(ApiResponse.failure("Unauthorized",401));
         }
 
         String username = authentication.getName();
@@ -138,7 +137,7 @@ public class OAuthController {
 
         if (user == null) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(ApiResponse.failure("User not found"));
+                    .body(ApiResponse.failure("User not found",404));
         }
 
         UserProfileDto dto = UserProfileDto.builder()
