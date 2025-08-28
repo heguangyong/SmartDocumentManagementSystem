@@ -345,10 +345,11 @@ public class FileController {
         return ApiResponse.success(files);
     }
 
-    @DeleteMapping("/delete")
+    // Controller 接口修改
+    @PostMapping("/delete")
     @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @Operation(summary = "逻辑删除当前用户文件")
-    public ApiResponse<Void> deleteFiles(@RequestBody List<Long> fileIds) {
+    public ApiResponse<Void> deleteFiles(@RequestBody @Valid DeleteFilesRequest request) {
         try {
             // 获取当前用户信息
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -359,7 +360,7 @@ public class FileController {
             Long userId = userDetails.getUserId();
             String libraryCode = userDetails.getLibraryCode();
 
-            for (Long fileId : fileIds) {
+            for (Long fileId : request.getFileIds()) {
                 // 查找文件
                 UserFile file = userFileService.getFileById(fileId);
                 if (file == null) {
@@ -391,6 +392,7 @@ public class FileController {
             return ApiResponse.failure("删除失败: " + e.getMessage());
         }
     }
+
 
 
 
