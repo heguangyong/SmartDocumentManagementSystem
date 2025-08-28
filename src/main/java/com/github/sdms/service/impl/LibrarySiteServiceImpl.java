@@ -25,10 +25,13 @@ public class LibrarySiteServiceImpl implements LibrarySiteService {
     @Autowired
     private LibrarySiteRepository librarySiteRepository;
 
-    @Override
     public Page<LibrarySiteDTO> pageSites(LibrarySitePageRequest request) {
         int adjustedPage = request.getPage() <= 0 ? 0 : request.getPage() - 1; // 转换为0基
-        Pageable pageable = PageRequest.of(adjustedPage, request.getSize(), Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.desc("createTime")));
+        Pageable pageable = PageRequest.of(
+                adjustedPage,
+                request.getSize(),
+                Sort.by(Sort.Order.asc("sortOrder"), Sort.Order.desc("createTime"))
+        );
 
         Page<LibrarySite> page = librarySiteRepository.findAll((root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
@@ -58,6 +61,7 @@ public class LibrarySiteServiceImpl implements LibrarySiteService {
 
         return new PageImpl<>(content, pageable, page.getTotalElements());
     }
+
 
     public List<OptionDTO> getEnabledLibrarySiteOptions() {
         List<LibrarySite> enabledSites = librarySiteRepository.findAllByStatusTrue(Sort.by(Sort.Order.asc("sortOrder")));

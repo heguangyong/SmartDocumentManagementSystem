@@ -61,14 +61,14 @@ public class PermissionChecker {
             return; // 管理员默认拥有全部权限
         }
 
-        FilePermission filePermission = filePermissionRepository.findByUserAndFile(userDetails.getUser(), file);
-        if (filePermission == null) {
-            throw new ApiException(403, "用户没有访问该文件的权限");
-        }
+//        FilePermission filePermission = filePermissionRepository.findByUserAndFile(userDetails.getUser(), file);
+//        if (filePermission == null) {
+//            throw new ApiException(403, "用户没有访问该文件的权限");
+//        }
 
-        if (!filePermission.getPermission().equals(requiredPermission)) {
-            throw new ApiException(403, "权限不足，无法执行此操作");
-        }
+//        if (!filePermission.getPermission().equals(requiredPermission)) {
+//            throw new ApiException(403, "权限不足，无法执行此操作");
+//        }
     }
 
     public void checkAccess(Long targetUserId, String targetLibraryCode) {

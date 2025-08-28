@@ -4,7 +4,6 @@ import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.model.UserFile;
-import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.service.FolderService;
 import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CustomerUserDetails;
@@ -16,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
@@ -168,8 +168,11 @@ public class FolderController {
     @GetMapping("/content")
     @Operation(summary = "获取指定层级的文件夹和文件列表")
     @PreAuthorize("hasRole('ADMIN') or hasRole('LIBRARIAN') or hasRole('READER')")
-    public ApiResponse<List<FolderContentDTO>> getFolderContent(@RequestParam(required = false) Long bucketId, @RequestParam(required = false) Long folderId) {
-        // 从JWT token中获取用户信息
+    public ApiResponse<List<FolderContentDTO>> getFolderContent(
+            @RequestParam(required = false) Long bucketId,
+            @RequestParam(required = false) Long folderId,
+            @RequestParam(required = false) String keywords // 新增关键字查询
+    ) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
             throw new ApiException(401, "用户未登录");
@@ -178,7 +181,6 @@ public class FolderController {
         Long userId = userDetails.getUserId();
         String libraryCode = userDetails.getLibraryCode();
 
-        // 参数验证：bucketId 和 folderId 不能同时为空
         if (bucketId == null && folderId == null) {
             throw new ApiException(400, "bucketId 和 folderId 不能同时为空");
         }
@@ -186,70 +188,58 @@ public class FolderController {
         List<FolderContentDTO> result = new ArrayList<>();
 
         if (folderId != null) {
-            // 获取指定文件夹下的内容
-            // 权限检查
             permissionChecker.checkFolderAccess(userId, folderId, libraryCode);
-
-            // 获取子文件夹
             List<Folder> subFolders = folderService.listFoldersByParentId(userId, folderId, libraryCode);
+            // 按 keywords 过滤文件夹
+            if (StringUtils.hasText(keywords)) {
+                subFolders = subFolders.stream()
+                        .filter(f -> f.getName().contains(keywords))
+                        .toList();
+            }
             for (Folder folder : subFolders) {
                 result.add(new FolderContentDTO(folder));
             }
 
-            // 获取该文件夹下的文件并按docId分组
             List<UserFile> files = userFileService.listFilesByFolderId(userId, folderId, libraryCode);
-            Map<Long, List<UserFile>> fileGroups = groupFilesByDocId(files);
+            // 按 keywords 过滤文件
+            if (StringUtils.hasText(keywords)) {
+                files = files.stream()
+                        .filter(f -> f.getOriginFilename().contains(keywords))
+                        .toList();
+            }
 
-            // 为每个文档组创建FolderContentDTO
+            Map<Long, List<UserFile>> fileGroups = groupFilesByDocId(files);
             for (Map.Entry<Long, List<UserFile>> entry : fileGroups.entrySet()) {
                 List<UserFile> versionFiles = entry.getValue();
-                // 按版本号排序，最新版本在前
                 versionFiles.sort((a, b) -> Integer.compare(b.getVersionNumber(), a.getVersionNumber()));
-
-                UserFile latestFile = versionFiles.get(0); // 最新版本文件
-                result.add(new FolderContentDTO(latestFile, versionFiles));
+                result.add(new FolderContentDTO(versionFiles.get(0), versionFiles));
             }
 
         } else {
-            // 获取桶根目录下的内容（parentId 为 null 的文件夹和文件）
-            // 权限检查 - 检查读取权限
             permissionChecker.checkBucketReadPermission(userId, bucketId, libraryCode);
+            List<Folder> rootFolders = folderService.listRootFoldersByBucket(bucketId, libraryCode);
+            List<UserFile> rootFiles = userFileService.listRootFilesByBucket(bucketId, libraryCode);
 
-            List<Folder> rootFolders;
-            List<UserFile> rootFiles;
-
-            // 如果是桶的拥有者或者有桶的读取权限 → 查看整个桶
-            if (permissionChecker.isBucketOwner(userId, bucketId)
-                    || permissionChecker.hasReadAccess(userId, bucketId)) {
-                rootFolders = folderService.listRootFoldersByBucket(bucketId, libraryCode);
-                rootFiles = userFileService.listRootFilesByBucket(bucketId, libraryCode);
-            } else if (userDetails.getRoleType() == RoleType.LIBRARIAN) {
-                // 馆员用户拥有桶只读权限 → 查看整个桶
-                rootFolders = folderService.listRootFoldersByBucket(bucketId, libraryCode);
-                rootFiles = userFileService.listRootFilesByBucket(bucketId, libraryCode);
-            } else {
-                // fallback: 只看自己上传的（理论上不会走到这，保险起见保留）
-                rootFolders = folderService.listRootFoldersByBucket(userId, bucketId, libraryCode);
-                rootFiles = userFileService.listRootFilesByBucket(userId, bucketId, libraryCode);
+            if (StringUtils.hasText(keywords)) {
+                rootFolders = rootFolders.stream()
+                        .filter(f -> f.getName().contains(keywords))
+                        .toList();
+                rootFiles = rootFiles.stream()
+                        .filter(f -> f.getOriginFilename().contains(keywords))
+                        .toList();
             }
 
-// 转 DTO
             for (Folder folder : rootFolders) {
                 result.add(new FolderContentDTO(folder));
             }
-
             Map<Long, List<UserFile>> fileGroups = groupFilesByDocId(rootFiles);
-
             for (Map.Entry<Long, List<UserFile>> entry : fileGroups.entrySet()) {
                 List<UserFile> versionFiles = entry.getValue();
                 versionFiles.sort((a, b) -> Integer.compare(b.getVersionNumber(), a.getVersionNumber()));
-                UserFile latestFile = versionFiles.get(0);
-                result.add(new FolderContentDTO(latestFile, versionFiles));
+                result.add(new FolderContentDTO(versionFiles.get(0), versionFiles));
             }
-
         }
 
-        // 按名称排序，文件夹在前
         result.sort((a, b) -> {
             if (!a.getType().equals(b.getType())) {
                 return "folder".equals(a.getType()) ? -1 : 1;
@@ -259,6 +249,7 @@ public class FolderController {
 
         return ApiResponse.success("查询成功", result);
     }
+
 
     /**
      * 将文件列表按docId分组

@@ -24,5 +24,8 @@ public class LoginResponse {
 
     @Schema(description = "JWT 签发者（主角色），供 Kong JWT 插件使用", example = "ADMIN")
     private String iss;
+
+    @Schema(description = "登录用户名，用于界面显示", example = "heguangyong")
+    private String username;
 }
 

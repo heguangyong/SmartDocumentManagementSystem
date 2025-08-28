@@ -85,26 +85,30 @@ public class UserController {
 
         try {
 //            暂时屏蔽，方便测试
-//            String storedCode = redisTemplate.opsForValue().get("captcha:" + loginRequest.getCaptchaId());
-//            if (storedCode == null || !storedCode.equalsIgnoreCase(loginRequest.getCaptchaCode())) {
-//                return ResponseEntity.badRequest().body(ApiResponse.failure("验证码错误或已过期"));
-//            }
-//            redisTemplate.delete("captcha:" + loginRequest.getCaptchaId());
+            String storedCode = redisTemplate.opsForValue().get("captcha:" + loginRequest.getCaptchaId());
+            if (storedCode == null || !storedCode.equalsIgnoreCase(loginRequest.getCaptchaCode())) {
+                // ✅ 统一返回 HTTP 200，JSON code 表示业务状态码
+                return ResponseEntity.ok(ApiResponse.failure("验证码错误或已过期", 400));
+            }
+            redisTemplate.delete("captcha:" + loginRequest.getCaptchaId());
 
             // 验证图书馆代码
             boolean libraryExists = librarySiteRepository.existsByCodeAndStatusTrue(libraryCode);
             if (!libraryExists) {
-                return ResponseEntity.badRequest().body(ApiResponse.failure("无效的馆点代码",400));
+                // ✅ 统一返回 HTTP 200，JSON code 表示业务状态码
+                return ResponseEntity.ok(ApiResponse.failure("无效的馆点代码", 400));
             }
 
             Optional<User> userOpt = userRepository.findByUsernameAndLibraryCode(username, libraryCode);
             if (userOpt.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("用户未绑定该馆点或不存在",401));
+                // ✅ 统一返回 HTTP 200，JSON code 表示业务状态码
+                return ResponseEntity.ok(ApiResponse.failure("用户未绑定该馆点或不存在", 401));
             }
             User user = userOpt.get();
 
             if (Boolean.TRUE.equals(redisTemplate.hasKey(lockKey))) {
-                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(ApiResponse.failure("账号已锁定，请稍后再试",403));
+                // ✅ 统一返回 HTTP 200，JSON code 表示业务状态码
+                return ResponseEntity.ok(ApiResponse.failure("账号已锁定，请稍后再试", 403));
             }
 
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, loginRequest.getPassword()));
@@ -135,9 +139,9 @@ public class UserController {
 //            }
 
             redisTemplate.opsForValue().set(username + libraryCode + "logintime", String.valueOf(System.currentTimeMillis() / 1000));
-            return ResponseEntity.ok(ApiResponse.success(new LoginResponse(jwt, "Bearer", roles, mainRole)));
-
-
+            // 返回时附带用户名
+            LoginResponse loginResponse = new LoginResponse(jwt, "Bearer", roles, mainRole, username);
+            return ResponseEntity.ok(ApiResponse.success(loginResponse));
         } catch (Exception e) {
             // 登录失败审计日志
             userAuditLogService.log(null, username, loginRequest.getLibraryCode(), ip, userAgent, AuditActionType.LOGIN_FAIL, "登录失败：" + e.getMessage());
@@ -149,9 +153,62 @@ public class UserController {
             } else {
                 redisTemplate.expire(failedKey, LOCK_TIME_SECONDS, TimeUnit.SECONDS);
             }
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(ApiResponse.failure("登录失败：" + e.getMessage(),401));
+            // ✅ 统一返回 HTTP 200，JSON code 表示业务状态码
+            return ResponseEntity.ok(ApiResponse.failure("登录失败：" + e.getMessage(), 401));
         }
     }
+
+
+    @Operation(summary = "内部系统自动登录")
+    @PostMapping("/internal-login")
+    public ResponseEntity<ApiResponse<LoginResponse>> internalLogin(@RequestBody LoginRequest loginRequest) {
+        String username = loginRequest.getUsername();
+        String libraryCode = loginRequest.getLibraryCode();
+
+        try {
+            // 校验馆点是否存在且启用
+            boolean libraryExists = librarySiteRepository.existsByCodeAndStatusTrue(libraryCode);
+            if (!libraryExists) {
+                return ResponseEntity.badRequest().body(ApiResponse.failure("无效的馆点代码", 400));
+            }
+
+            // 查询用户
+            Optional<User> userOpt = userRepository.findByUsernameAndLibraryCode(username, libraryCode);
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(ApiResponse.failure("用户未绑定该馆点或不存在", 401));
+            }
+            User user = userOpt.get();
+
+            // 验证密码
+            authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(username, loginRequest.getPassword()));
+
+            // 加载用户详细信息
+            UserDetails userDetails = customUserDetailsServices.loadUserByUsernameAndLibraryCode(username, libraryCode);
+
+            // 生成 JWT
+            String jwt = jwtUtil.generateToken(userDetails, libraryCode, loginRequest.isRememberMe());
+            List<String> roles = userDetails.getAuthorities().stream()
+                    .map(auth -> auth.getAuthority())
+                    .toList();
+
+            // 计算 mainRole
+            String mainRole = roles.stream()
+                    .map(r -> r.replace("ROLE_", "").toLowerCase())
+                    .filter(r -> List.of("admin", "librarian", "reader").contains(r))
+                    .min(Comparator.comparingInt(r -> List.of("admin", "librarian", "reader").indexOf(r)))
+                    .orElse("reader");
+
+            // 返回 JWT 及用户名
+            LoginResponse loginResponse = new LoginResponse(jwt, "Bearer", roles, mainRole, username);
+            return ResponseEntity.ok(ApiResponse.success("登录成功", loginResponse));
+
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(ApiResponse.failure("登录失败：" + e.getMessage(), 401));
+        }
+    }
+
 
 
     @Operation(summary = "修改当前用户密码")
@@ -238,28 +295,46 @@ public class UserController {
     @Operation(summary = "创建用户", description = "创建新用户，仅管理员可执行。")
     @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/create")
-    public ResponseEntity<User> createUser(@RequestBody CreateUserRequest createUserRequest) {
+    public ApiResponse<Map<String, Object>> createUser(@RequestBody CreateUserRequest createUserRequest) {
 
         // 校验两次密码是否一致
         if (!createUserRequest.getPassword1().equals(createUserRequest.getPassword2())) {
-            return ResponseEntity.badRequest().body(null); // 返回错误响应，密码不一致
+            return ApiResponse.failure("两次密码不一致", 400);
         }
 
-        // 创建新的用户
+        // 判重：用户名+馆点唯一
+        boolean exists = userRepository.existsByUsernameAndLibraryCode(
+                createUserRequest.getUsername(),
+                createUserRequest.getLibraryCode()
+        );
+        if (exists) {
+            return ApiResponse.failure("该馆点下用户名已存在", 409);
+        }
+
+        // 创建新的用户实体
         User newUser = new User();
         newUser.setUsername(createUserRequest.getUsername());
         newUser.setNickname(createUserRequest.getNickname());
-        newUser.setPassword(passwordEncoder.encode(createUserRequest.getPassword1()));  // 对密码进行加密
+        newUser.setPassword(passwordEncoder.encode(createUserRequest.getPassword1()));
         newUser.setLibraryCode(createUserRequest.getLibraryCode());
-        newUser.setRoleType(createUserRequest.getRoleType());  // 设定角色
-
-        // 设置其他默认字段
+        newUser.setRoleType(createUserRequest.getRoleType());
         newUser.setCreatetime(System.currentTimeMillis());
         newUser.setUpdatetime(System.currentTimeMillis());
 
         // 保存用户到数据库
-        return ResponseEntity.ok(userRepository.save(newUser));
+        userRepository.save(newUser);
+
+        // 封装返回数据（可根据需要加 token 等信息）
+        Map<String, Object> data = new HashMap<>();
+        data.put("userId", newUser.getId());
+        data.put("username", newUser.getUsername());
+        data.put("libraryCode", newUser.getLibraryCode());
+        data.put("roleType", newUser.getRoleType());
+
+        return ApiResponse.success("创建成功", data);
     }
+
+
 
 
     @Operation(summary = "获取所有用户列表", description = "获取所有用户列表，仅管理员可执行。")
@@ -417,7 +492,7 @@ public class UserController {
     }
 
     @Operation(summary = "重置用户密码", description = "管理员重置指定用户的密码")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @PutMapping("/reset-password")
     public ResponseEntity<ApiResponse<String>> resetPassword(@RequestParam String username, @RequestParam String newPassword, @RequestParam String libraryCode) {
         // 根据 email 和 libraryCode 查找用户
@@ -437,7 +512,7 @@ public class UserController {
 
 
     @Operation(summary = "为用户分配角色", description = "管理员为用户分配角色")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @PostMapping("/{id}/role") // 路径参数改为 id
     public ResponseEntity<ApiResponse<String>> assignRoleToUser(@PathVariable Long id, @RequestBody String role) {
         // 根据 id 查找用户
@@ -467,7 +542,7 @@ public class UserController {
 
     @Operation(summary = "获取用户权限", description = "获取用户权限列表")
     @GetMapping("/users/permissions")
-    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     public ResponseEntity<ApiResponse<List<UserResourcePermissionDTO>>> getUserPermissions(
             @RequestParam(required = false) Long userId) {
         // 如果userId为空，则默认获取当前用户权限

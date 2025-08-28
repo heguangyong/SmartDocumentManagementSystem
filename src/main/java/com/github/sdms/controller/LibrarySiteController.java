@@ -1,5 +1,6 @@
 package com.github.sdms.controller;
 
+import com.github.sdms.dto.ApiResponse;
 import com.github.sdms.dto.LibrarySiteDTO;
 import com.github.sdms.dto.LibrarySitePageRequest;
 import com.github.sdms.dto.OptionDTO;
@@ -20,9 +21,10 @@ public class LibrarySiteController {
     @PreAuthorize("hasAnyRole('ADMIN')")
     @Operation(summary = "馆点列表", description = "支持分页查询图书馆点，可用于后台管理列表展示")
     @PostMapping("/library-sites/page")
-    public Page<LibrarySiteDTO> pageLibrarySites(@RequestBody LibrarySitePageRequest request) {
-        return librarySiteService.pageSites(request);
+    public ApiResponse<Page<LibrarySiteDTO>> pageLibrarySites(@RequestBody LibrarySitePageRequest request) {
+        return ApiResponse.success(librarySiteService.pageSites(request));
     }
+
 
 
     /**

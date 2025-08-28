@@ -142,47 +142,67 @@ public class UserServiceImpl implements UserService {
 
         List<UserResourcePermissionDTO> result = new ArrayList<>();
 
-        // 角色继承权限获取（示例空，按需补充）
-        List<UserResourcePermissionDTO> rolePermissions = fetchRoleInheritedPermissions(user);
-
-        // 个性化桶权限
+        // 1. 个性化桶权限
         List<BucketPermission> bucketPerms = bucketPermissionRepository.findByUserId(userId);
+        Map<Long, UserResourcePermissionDTO> customBucketMap = new HashMap<>();
         for (BucketPermission bp : bucketPerms) {
-            result.add(UserResourcePermissionDTO.builder()
+            UserResourcePermissionDTO dto = UserResourcePermissionDTO.builder()
                     .resourceId(bp.getBucketId())
                     .resourceType("BUCKET")
                     .resourceName(bp.getBucket().getName())
-                    .canRead(bp.getPermission().contains("read"))
-                    .canWrite(bp.getPermission().contains("write"))
-                    .canDelete(bp.getPermission().contains("delete"))
+                    .canRead(bp.getPermission().toLowerCase().contains("read"))
+                    .canWrite(bp.getPermission().toLowerCase().contains("write"))
+                    .canDelete(bp.getPermission().toLowerCase().contains("delete"))
                     .permissionSource("CUSTOM")
-                    .build());
+                    .build();
+            result.add(dto);
+            customBucketMap.put(bp.getBucketId(), dto);
         }
 
-        // 个性化文件权限
+        // 2. 个性化文件权限
         List<FilePermission> filePerms = filePermissionRepository.findByUser(user);
         for (FilePermission fp : filePerms) {
             result.add(UserResourcePermissionDTO.builder()
                     .resourceId(fp.getFile().getId())
                     .resourceType("FILE")
                     .resourceName(fp.getFile().getOriginFilename())
-                    .canRead(fp.getPermission().contains("read"))
-                    .canWrite(fp.getPermission().contains("write"))
-                    .canDelete(fp.getPermission().contains("delete"))
+                    .canRead(fp.getPermission().toLowerCase().contains("read"))
+                    .canWrite(fp.getPermission().toLowerCase().contains("write"))
+                    .canDelete(fp.getPermission().toLowerCase().contains("delete"))
                     .permissionSource("CUSTOM")
                     .build());
         }
 
-        // 合并角色权限和自定义权限，个性化覆盖角色权限
-        Map<String, UserResourcePermissionDTO> merged = new HashMap<>();
-        for (UserResourcePermissionDTO p : rolePermissions) {
-            merged.put(p.getResourceType() + ":" + p.getResourceId(), p);
+        // 3. 角色权限
+        List<UserResourcePermissionDTO> rolePermissions = fetchRoleInheritedPermissions(user);
+        for (UserResourcePermissionDTO roleDto : rolePermissions) {
+            if (!roleDto.getResourceType().equals("BUCKET")) continue;
+
+            // 非管理员用户只保留自己有自定义权限或自己创建的桶
+            if (user.getRoleType() != RoleType.ADMIN) {
+                if (!customBucketMap.containsKey(roleDto.getResourceId()) &&
+                        !isOwnBucket(userId, roleDto.getResourceId())) {
+                    continue;
+                }
+            }
+
+            // 如果已有自定义权限，覆盖角色权限
+            if (!customBucketMap.containsKey(roleDto.getResourceId())) {
+                result.add(roleDto);
+            }
         }
-        for (UserResourcePermissionDTO p : result) {
-            merged.put(p.getResourceType() + ":" + p.getResourceId(), p);
-        }
-        return new ArrayList<>(merged.values());
+
+        // 4. 返回结果
+        return result;
     }
+
+    private boolean isOwnBucket(Long userId, Long bucketId) {
+        return bucketRepository.findById(bucketId)
+                .map(bucket -> Objects.equals(bucket.getOwnerId(), userId))
+                .orElse(false);
+    }
+
+
 
     public List<UserResourcePermissionDTO> fetchRoleInheritedPermissions(User user) {
         List<UserResourcePermissionDTO> result = new ArrayList<>();

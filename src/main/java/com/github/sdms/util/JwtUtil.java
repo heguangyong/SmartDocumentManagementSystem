@@ -28,6 +28,8 @@ public class JwtUtil {
     @Value("${jwt.expiration:7200000}") // 2小时默认
     private long EXPIRATION_TIME;
 
+
+
     private SecretKey getSigningKey() {
         // 检查密钥长度，如果不够则生成安全密钥
         if (SECRET_KEY.getBytes().length < 64) {

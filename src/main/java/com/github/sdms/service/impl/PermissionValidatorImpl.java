@@ -12,6 +12,7 @@ import com.github.sdms.service.FilePermissionService;
 import com.github.sdms.service.PermissionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Arrays;
@@ -21,10 +22,13 @@ import java.util.Objects;
 @Service
 @RequiredArgsConstructor
 public class PermissionValidatorImpl implements PermissionValidator {
-
-    private final UserRepository userRepository;
-    private final FilePermissionService filePermissionService;
+    @Autowired
+    private  UserRepository userRepository;
+    @Autowired
+    private  FilePermissionService filePermissionService;
+    @Autowired
     private BucketPermissionRepository bucketPermissionRepository;
+    @Autowired
     private BucketRepository bucketRepository;
 
     @Override
@@ -56,21 +60,25 @@ public class PermissionValidatorImpl implements PermissionValidator {
         RoleType roleType = user.getRoleType();
 
         if (roleType == RoleType.ADMIN) return true;
+
         if (roleType == RoleType.LIBRARIAN) {
             Long bucketId = findBucketIdByName(bucketName);
-            if (bucketId == null) return false; // 存储桶不存在，无权限
+            if (bucketId == null) return false; // 桶不存在
             return bucketPermissionRepository.findByUserIdAndBucketId(userId, bucketId)
                     .map(permission -> {
                         String perms = permission.getPermission();
-                        return perms != null && Arrays.stream(perms.split(","))
+                        if (perms == null) return false;
+                        return Arrays.stream(perms.split(","))
                                 .map(String::trim)
                                 .map(String::toLowerCase)
                                 .anyMatch(p -> p.equals("write") || p.equals("admin"));
                     })
                     .orElse(false);
         }
+
         return isOwnBucket(userId, bucketName);
     }
+
 
     @Override
     public boolean canReadFile(Long userId, Long fileId) {
