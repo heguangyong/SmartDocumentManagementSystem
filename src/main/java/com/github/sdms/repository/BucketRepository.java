@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface BucketRepository extends JpaRepository<Bucket, Long> {
     boolean existsByName(String name);
@@ -25,4 +26,8 @@ public interface BucketRepository extends JpaRepository<Bucket, Long> {
 
 
     List<Bucket> findByLibraryCode(String libraryCode);
+
+    Page<Bucket> findByNameLikeAndIdIn(String keyword, Set<Long> allBucketIds, Pageable pageable);
+
+    Page<Bucket> findByNameContainingAndIdIn(String keyword, Set<Long> allBucketIds, Pageable pageable);
 }

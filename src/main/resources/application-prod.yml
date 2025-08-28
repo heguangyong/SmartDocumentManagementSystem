@@ -1,5 +1,6 @@
 # 应用服务 WEB 访问端口
 server:
+  address: 0.0.0.0
   port: 8090
 
 spring:
@@ -102,7 +103,7 @@ onlyoffice:
 
 # 本应用访问地址，提供给onlyoffice访问下载文件
 app:
-  external-base-url: http://172.24.88.90:8080
+  external-base-url: http://172.24.88.90:8090
 
 # 格尔加密验证相关配置
 third:

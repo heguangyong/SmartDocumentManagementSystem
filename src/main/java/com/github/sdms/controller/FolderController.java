@@ -4,12 +4,13 @@ import com.github.sdms.dto.*;
 import com.github.sdms.exception.ApiException;
 import com.github.sdms.model.Folder;
 import com.github.sdms.model.UserFile;
+import com.github.sdms.model.enums.RoleType;
 import com.github.sdms.service.FolderService;
 import com.github.sdms.service.UserFileService;
 import com.github.sdms.util.CustomerUserDetails;
 import com.github.sdms.util.PermissionChecker;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,10 +36,11 @@ public class FolderController {
     @Autowired
     private PermissionChecker permissionChecker;
 
+    // 2. 修改 Controller 接口
     @PostMapping("/create")
     @Operation(summary = "创建文件夹", description = "创建文件夹并绑定到指定存储桶")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<Folder> createFolder(@RequestParam @NotBlank @Parameter(description = "文件夹名称", required = true) String name, @RequestParam(required = false) @Parameter(description = "父文件夹ID，可为空表示根目录") Long parentId, @RequestParam @Parameter(description = "存储桶ID，用于绑定文件夹所属存储桶", required = true) Long bucketId) {
+    public ApiResponse<Folder> createFolder(@RequestBody @Valid CreateFolderRequest request) {
         // 从 SecurityContext 获取当前用户信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
@@ -52,9 +54,10 @@ public class FolderController {
         permissionChecker.checkAccess(userId, libraryCode);
 
         // 创建文件夹
-        Folder folder = folderService.createFolder(userId, name, parentId, bucketId, libraryCode);
+        Folder folder = folderService.createFolder(userId, request.getName(), request.getParentId(), request.getBucketId(), libraryCode);
         return ApiResponse.success("创建成功", folder);
     }
+
 
 
     @PostMapping("/rename")
@@ -87,10 +90,11 @@ public class FolderController {
 
 
 
-    @DeleteMapping("/delete")
+    // 2. 修改 Controller 接口
+    @PostMapping("/delete")
     @Operation(summary = "删除文件夹")
     @PreAuthorize("hasAnyRole('LIBRARIAN', 'ADMIN')")
-    public ApiResponse<Void> deleteFolder(@RequestParam Long folderId) {
+    public ApiResponse<Void> deleteFolder(@RequestBody @Valid DeleteFolderRequest request) {
         // 获取当前用户信息
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomerUserDetails)) {
@@ -102,6 +106,8 @@ public class FolderController {
 
         // 权限校验
         permissionChecker.checkAccess(userId, libraryCode);
+
+        Long folderId = request.getFolderId();
 
         // 查询文件夹下的文件
         List<UserFile> filesInFolder = userFileService.listFilesByFolder(userId, folderId, libraryCode);
@@ -115,6 +121,7 @@ public class FolderController {
 
         return ApiResponse.success("删除成功", null);
     }
+
 
 
     @GetMapping("/list")
@@ -204,29 +211,42 @@ public class FolderController {
             }
 
         } else {
-            // 获取桶根目录下的内容（parentId 为 null 的文件夹和 folderId 为 null 的文件）
+            // 获取桶根目录下的内容（parentId 为 null 的文件夹和文件）
             // 权限检查 - 检查读取权限
             permissionChecker.checkBucketReadPermission(userId, bucketId, libraryCode);
 
-            // 获取桶下的根级文件夹
-            List<Folder> rootFolders = folderService.listRootFoldersByBucket(userId, bucketId, libraryCode);
+            List<Folder> rootFolders;
+            List<UserFile> rootFiles;
+
+            // 如果是桶的拥有者或者有桶的读取权限 → 查看整个桶
+            if (permissionChecker.isBucketOwner(userId, bucketId)
+                    || permissionChecker.hasReadAccess(userId, bucketId)) {
+                rootFolders = folderService.listRootFoldersByBucket(bucketId, libraryCode);
+                rootFiles = userFileService.listRootFilesByBucket(bucketId, libraryCode);
+            } else if (userDetails.getRoleType() == RoleType.LIBRARIAN) {
+                // 馆员用户拥有桶只读权限 → 查看整个桶
+                rootFolders = folderService.listRootFoldersByBucket(bucketId, libraryCode);
+                rootFiles = userFileService.listRootFilesByBucket(bucketId, libraryCode);
+            } else {
+                // fallback: 只看自己上传的（理论上不会走到这，保险起见保留）
+                rootFolders = folderService.listRootFoldersByBucket(userId, bucketId, libraryCode);
+                rootFiles = userFileService.listRootFilesByBucket(userId, bucketId, libraryCode);
+            }
+
+// 转 DTO
             for (Folder folder : rootFolders) {
                 result.add(new FolderContentDTO(folder));
             }
 
-            // 获取桶下的根级文件（folderId 为 null）并按docId分组
-            List<UserFile> rootFiles = userFileService.listRootFilesByBucket(userId, bucketId, libraryCode);
             Map<Long, List<UserFile>> fileGroups = groupFilesByDocId(rootFiles);
 
-            // 为每个文档组创建FolderContentDTO
             for (Map.Entry<Long, List<UserFile>> entry : fileGroups.entrySet()) {
                 List<UserFile> versionFiles = entry.getValue();
-                // 按版本号排序，最新版本在前
                 versionFiles.sort((a, b) -> Integer.compare(b.getVersionNumber(), a.getVersionNumber()));
-
-                UserFile latestFile = versionFiles.get(0); // 最新版本文件
+                UserFile latestFile = versionFiles.get(0);
                 result.add(new FolderContentDTO(latestFile, versionFiles));
             }
+
         }
 
         // 按名称排序，文件夹在前

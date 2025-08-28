@@ -41,4 +41,12 @@ public interface FolderService {
     void moveBatch(Long userId, MoveRequest moveRequest, String libraryCode);
 
     void deleteFolderWithFiles(Long userId, Long folderId, String libraryCode);
+
+    // 不带 userId 过滤 —— 用于桶授权用户查看桶的所有内容
+    List<Folder> listFoldersByParentId2(Long parentId, Long bucketId, String libraryCode);
+
+    List<Folder> listRootFoldersByBucket(Long bucketId, String libraryCode);
+
+    List<Folder> listAllFoldersByBucket(Long bucketId, String libraryCode);
+
 }

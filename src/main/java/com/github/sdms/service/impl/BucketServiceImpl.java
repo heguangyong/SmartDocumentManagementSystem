@@ -10,6 +10,7 @@ import com.github.sdms.service.BucketPermissionService;
 import com.github.sdms.service.BucketService;
 import com.github.sdms.service.MinioService;
 import com.github.sdms.util.BucketUtil;
+import com.github.sdms.util.JwtUtil;
 import io.minio.BucketExistsArgs;
 import io.minio.MakeBucketArgs;
 import io.minio.MinioClient;
@@ -24,6 +25,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -235,11 +237,36 @@ public class BucketServiceImpl implements BucketService {
     public Page<BucketSummaryDTO> pageBuckets(BucketPageRequest request) {
         Pageable pageable = PageRequest.of(request.getPage() - 1, request.getSize());
 
-        Page<Bucket> page = bucketRepository.findByNameLike(request.getKeyword(), pageable);
+        Long userId = JwtUtil.getCurrentUserIdOrThrow();
+
+        List<Long> accessibleBucketIds = bucketPermissionService.getAccessibleBucketIds(userId);
+        List<Long> ownBucketIds = bucketRepository.findByOwnerId(userId)
+                .stream().map(Bucket::getId).toList();
+
+        Set<Long> allBucketIds = new HashSet<>();
+        allBucketIds.addAll(accessibleBucketIds);
+        allBucketIds.addAll(ownBucketIds);
+
+        if (allBucketIds.isEmpty()) {
+            return Page.empty(pageable);
+        }
+
+        // 关键字处理
+        String keyword = request.getKeyword();
+        if (!StringUtils.hasText(keyword)) {
+            keyword = ""; // Containing("") 等价于不加条件
+        }
+
+        // 推荐用 Containing（自动拼 %）
+        Page<Bucket> page = bucketRepository.findByNameContainingAndIdIn(
+                keyword,
+                allBucketIds,
+                pageable
+        );
 
         List<BucketSummaryDTO> dtos = page.getContent().stream().map(bucket -> {
             int userCount = bucketPermissionRepository.countByBucketId(bucket.getId());
-            long usedCapacity = minioService.calculateUsedCapacity(bucket.getName()); // 使用 MinioService 实现
+            long usedCapacity = minioService.calculateUsedCapacity(bucket.getName());
             return BucketSummaryDTO.builder()
                     .id(bucket.getId())
                     .name(bucket.getName())
@@ -249,10 +276,11 @@ public class BucketServiceImpl implements BucketService {
                     .usedCapacity(usedCapacity)
                     .accessUserCount(userCount)
                     .build();
-        }).collect(Collectors.toList());
+        }).toList();
 
         return new PageImpl<>(dtos, pageable, page.getTotalElements());
     }
+
 
     @Override
     @Transactional

@@ -9,7 +9,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -192,31 +195,35 @@ public class PermissionChecker {
      * 检查存储桶的特定权限（读取、写入、管理等）
      */
     public void checkBucketPermission(Long userId, Long bucketId, String libraryCode, String requiredPermission) {
-        // 管理员跳过校验
-        if (jwtUtil.isAdmin()) {
-            return;
-        }
+        if (jwtUtil.isAdmin()) return;
 
-        // 首先进行基本的访问权限检查
-        checkBucketAccess(userId, bucketId, libraryCode);
+        Bucket bucket = bucketRepository.findById(bucketId)
+                .orElseThrow(() -> new ApiException(404, "存储桶不存在"));
 
-        // 获取用户权限
-        BucketPermission permission = bucketPermissionRepository
-                .findByUserIdAndBucketId(userId, bucketId)
+        if (Objects.equals(bucket.getOwnerId(), userId)) return;
+
+        BucketPermission permission = bucketPermissionRepository.findByUserIdAndBucketId(userId, bucketId)
                 .orElseThrow(() -> new ApiException(403, "无权限访问该存储桶"));
 
-        String userPermissions = permission.getPermission();
-
-        // 检查是否有管理员权限（管理员权限包含所有权限）
-        if (userPermissions.contains("admin")) {
-            return;
+        String perms = permission.getPermission();
+        if (perms == null || perms.trim().isEmpty()) {
+            throw new ApiException(403, "无有效权限访问该存储桶");
         }
 
-        // 检查是否有所需的具体权限
-        if (!userPermissions.contains(requiredPermission)) {
+        // 忽略大小写，用逗号分割匹配
+        Set<String> permSet = Arrays.stream(perms.split(","))
+                .map(String::trim)
+                .map(String::toLowerCase)
+                .collect(Collectors.toSet());
+
+        if (permSet.contains("admin")) return;
+
+        if (!permSet.contains(requiredPermission.toLowerCase())) {
             throw new ApiException(403, "权限不足，需要 " + requiredPermission + " 权限");
         }
     }
+
+
 
     /**
      * 检查用户是否有存储桶的读取权限
@@ -238,4 +245,47 @@ public class PermissionChecker {
     public void checkBucketAdminPermission(Long userId, Long bucketId, String libraryCode) {
         checkBucketPermission(userId, bucketId, libraryCode, "admin");
     }
+
+    /**
+     * 判断用户是否拥有指定桶的读取权限（只读或更高权限）
+     */
+    public boolean hasReadAccess(Long userId, Long bucketId) {
+        if (jwtUtil.isAdmin()) {
+            return true; // 管理员默认拥有全部权限
+        }
+
+        // 判断桶是否存在
+        Bucket bucket = bucketRepository.findById(bucketId)
+                .orElseThrow(() -> new ApiException(404, "存储桶不存在"));
+
+        // 如果用户是桶拥有者
+        if (Objects.equals(bucket.getOwnerId(), userId)) {
+            return true;
+        }
+
+        // 查询用户对桶的权限
+        return bucketPermissionRepository.findByUserIdAndBucketId(userId, bucketId)
+                .map(permission -> {
+                    String perms = permission.getPermission();
+                    return perms != null && perms.contains("read"); // 包含 read 权限即可
+                })
+                .orElse(false);
+    }
+
+    /**
+     * 判断用户是否为桶拥有者
+     */
+    public boolean isBucketOwner(Long userId, Long bucketId) {
+        if (jwtUtil.isAdmin()) {
+            return true; // 管理员默认认为拥有桶
+        }
+
+        Bucket bucket = bucketRepository.findById(bucketId)
+                .orElseThrow(() -> new ApiException(404, "存储桶不存在"));
+
+        return Objects.equals(bucket.getOwnerId(), userId);
+    }
+
+
+
 }

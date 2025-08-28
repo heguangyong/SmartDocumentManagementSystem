@@ -98,7 +98,7 @@ onlyoffice:
 
 # 本应用访问地址，提供给onlyoffice访问下载文件
 app:
-  external-base-url: http://192.168.1.198:8080
+  external-base-url: http://192.168.1.198:8090
 
 # 格尔加密验证相关配置
 third:

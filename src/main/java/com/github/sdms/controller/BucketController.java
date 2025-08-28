@@ -31,7 +31,7 @@ public class BucketController {
 
     // ========================= 管理员操作 =========================
 
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('READER', 'LIBRARIAN', 'ADMIN')")
     @Operation(summary = "分页查询所有存储桶（含容量、人数等）")
     @PostMapping("/admin/page")
     public ApiResponse<Page<BucketSummaryDTO>> pageBuckets(@RequestBody BucketPageRequest request) {

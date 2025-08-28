@@ -15,7 +15,7 @@ public class SdmsBackendApplication {
 
 		// 从 Spring 环境获取实际端口
 		Environment env = context.getEnvironment();
-		String port = env.getProperty("server.port", "8080");
+		String port = env.getProperty("server.port", "8090");
 
 		System.out.println("🚀 SDMS Backend started successfully!");
 		System.out.println("📡 API available at: http://localhost:" + port);

@@ -358,9 +358,9 @@
 <script>
   const CONFIG = {
       fileId: "7213",
-      apiBaseUrl: "http://192.168.1.198:8080/api/onlyoffice",
-      loginUrl: "http://192.168.1.198:8080/api/user/login",
-      onlyOfficeUrl: "http://onlyoffice:80",
+      apiBaseUrl: "http://192.168.1.198:8090/api/onlyoffice",
+      loginUrl: "http://192.168.1.198:8090/api/user/login",
+      onlyOfficeUrl: "http://192.168.1.198:8081",
       fallbackUrls: []
   };
 
@@ -732,7 +732,7 @@
    async function start() {
        try {
            // 使用默认凭据登录
-           const token = await loginAndGetToken('admin', 'admin123', 'DEFAULT');
+           const token = await loginAndGetToken('admin', 'SHht1234@', 'DEFAULT');
            await startWithToken(token);
        } catch (err) {
            console.error('默认启动失败:', err);

@@ -104,4 +104,10 @@ public interface UserFileService {
     UserFile getHighestVersionFile(Long docId, Long userId, String libraryCode);
 
     List<UserFile> listFilesByUser(Long userId, String libraryCode);
+
+    // 获取桶根目录的文件（不按 userId 过滤）
+    List<UserFile> listRootFilesByBucket(Long bucketId, String libraryCode);
+
+    // 获取某个文件夹下的文件（不按 userId 过滤）
+    List<UserFile> listFilesByFolderId(Long folderId, String libraryCode);
 }

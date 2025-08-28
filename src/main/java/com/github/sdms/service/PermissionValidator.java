@@ -2,9 +2,9 @@ package com.github.sdms.service;
 
 public interface PermissionValidator {
 
-    boolean canReadBucket(Long userId, String bucketId);
+    boolean canReadBucket(Long userId, String bucketName);
 
-    boolean canWriteBucket(Long userId, String bucketId);
+    boolean canWriteBucket(Long userId, String bucketName);
 
     boolean canReadFile(Long userId, Long fileId);
 

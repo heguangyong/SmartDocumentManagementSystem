@@ -422,9 +422,9 @@ public class UserFileServiceImpl implements UserFileService {
                 .orElseThrow(() -> new ApiException(404, "指定的文件不存在或已被删除"));
 
         // 再做权限校验（包含 libraryCode 验证）
-        if (!permissionValidator.canReadFile(userId, fileId)) {
-            throw new ApiException(403, "无权限访问该文件");
-        }
+//        if (!permissionValidator.canReadFile(userId, fileId)) {
+//            throw new ApiException(403, "无权限访问该文件");
+//        }
 
         return file;
     }
@@ -1223,4 +1223,15 @@ public class UserFileServiceImpl implements UserFileService {
     public List<UserFile> listFilesByUser(Long userId, String libraryCode) {
         return userFileRepository.findByUserIdAndLibraryCodeAndDeleteFlagFalse(userId, libraryCode);
     }
+
+    @Override
+    public List<UserFile> listRootFilesByBucket(Long bucketId, String libraryCode) {
+        return userFileRepository.findByBucketIdAndFolderIdIsNullAndLibraryCodeAndDeleteFlagFalse(bucketId, libraryCode);
+    }
+
+    @Override
+    public List<UserFile> listFilesByFolderId(Long folderId, String libraryCode) {
+        return userFileRepository.findByFolderIdAndLibraryCodeAndDeleteFlagFalse(folderId, libraryCode);
+    }
+
 }

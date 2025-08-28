@@ -107,4 +107,8 @@ public interface UserFileRepository extends JpaRepository<UserFile, Long> , JpaS
      * 根据用户ID、桶ID、库代码查找根级未删除文件
      */
     List<UserFile> findByUserIdAndBucketIdAndFolderIdIsNullAndLibraryCodeAndDeleteFlagFalse(Long userId, Long bucketId, String libraryCode);
+
+    List<UserFile> findByBucketIdAndFolderIdIsNullAndLibraryCodeAndDeleteFlagFalse(Long bucketId, String libraryCode);
+
+    List<UserFile> findByFolderIdAndLibraryCodeAndDeleteFlagFalse(Long folderId, String libraryCode);
 }

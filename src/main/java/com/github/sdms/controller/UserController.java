@@ -127,12 +127,12 @@ public class UserController {
                     .min(Comparator.comparingInt(r -> List.of("admin", "librarian", "reader").indexOf(r)))
                     .orElse("reader");
 
-            if (Boolean.TRUE.equals(user.getNeedPasswordChange())) {
-                // 首次登录需改密码，返回403，附带token和角色信息
-                LoginResponse loginResponse = new LoginResponse(jwt, "Bearer", roles, mainRole);
-                return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(ApiResponse.failure("初次登录需修改密码", loginResponse));
-            }
+//            if (Boolean.TRUE.equals(user.getNeedPasswordChange())) {
+//                // 首次登录需改密码，返回403，附带token和角色信息
+//                LoginResponse loginResponse = new LoginResponse(jwt, "Bearer", roles, mainRole);
+//                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+//                        .body(ApiResponse.failure("初次登录需修改密码", loginResponse));
+//            }
 
             redisTemplate.opsForValue().set(username + libraryCode + "logintime", String.valueOf(System.currentTimeMillis() / 1000));
             return ResponseEntity.ok(ApiResponse.success(new LoginResponse(jwt, "Bearer", roles, mainRole)));

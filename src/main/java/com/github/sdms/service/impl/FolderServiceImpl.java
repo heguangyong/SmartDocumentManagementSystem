@@ -341,4 +341,20 @@ public class FolderServiceImpl implements FolderService {
         folderRepository.delete(folder);
     }
 
+
+    @Override
+    public List<Folder> listFoldersByParentId2(Long parentId, Long bucketId, String libraryCode) {
+        return folderRepository.findByBucketIdAndParentIdAndLibraryCode(bucketId, parentId, libraryCode);
+    }
+
+    @Override
+    public List<Folder> listRootFoldersByBucket(Long bucketId, String libraryCode) {
+        return folderRepository.findByBucketIdAndParentIdIsNullAndLibraryCode(bucketId, libraryCode);
+    }
+
+    @Override
+    public List<Folder> listAllFoldersByBucket(Long bucketId, String libraryCode) {
+        return folderRepository.findByBucketIdAndLibraryCode(bucketId, libraryCode);
+    }
+
 }

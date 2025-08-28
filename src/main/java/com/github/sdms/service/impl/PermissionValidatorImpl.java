@@ -1,15 +1,21 @@
 package com.github.sdms.service.impl;
 
 import com.github.sdms.exception.ApiException;
+import com.github.sdms.model.Bucket;
 import com.github.sdms.model.User;
 import com.github.sdms.model.enums.PermissionType;
 import com.github.sdms.model.enums.RoleType;
+import com.github.sdms.repository.BucketPermissionRepository;
+import com.github.sdms.repository.BucketRepository;
 import com.github.sdms.repository.UserRepository;
 import com.github.sdms.service.FilePermissionService;
 import com.github.sdms.service.PermissionValidator;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+
+import java.util.Arrays;
+import java.util.Objects;
 
 @Slf4j
 @Service
@@ -18,25 +24,52 @@ public class PermissionValidatorImpl implements PermissionValidator {
 
     private final UserRepository userRepository;
     private final FilePermissionService filePermissionService;
-
-
-
+    private BucketPermissionRepository bucketPermissionRepository;
+    private BucketRepository bucketRepository;
 
     @Override
-    public boolean canReadBucket(Long userId, String bucketId) {
+    public boolean canReadBucket(Long userId, String bucketName) {
         User user = findUserOrThrow(userId);
         RoleType roleType = user.getRoleType();
 
         if (roleType == RoleType.ADMIN) return true;
         if (roleType == RoleType.LIBRARIAN) {
-            return extractLibraryCode(bucketId).equalsIgnoreCase(user.getLibraryCode());
+            Long bucketId = findBucketIdByName(bucketName);
+            if (bucketId == null) return false; // 存储桶不存在，无权限
+            return bucketPermissionRepository.findByUserIdAndBucketId(userId, bucketId)
+                    .map(permission -> {
+                        String perms = permission.getPermission();
+                        return perms != null && Arrays.stream(perms.split(","))
+                                .map(String::trim)
+                                .map(String::toLowerCase)
+                                .anyMatch(p -> p.equals("read") || p.equals("admin"));
+                    })
+                    .orElse(false);
         }
-        return isOwnBucket(userId, bucketId);
+        return isOwnBucket(userId, bucketName);
     }
 
+
     @Override
-    public boolean canWriteBucket(Long userId, String bucketId) {
-        return canReadBucket(userId, bucketId);
+    public boolean canWriteBucket(Long userId, String bucketName) {
+        User user = findUserOrThrow(userId);
+        RoleType roleType = user.getRoleType();
+
+        if (roleType == RoleType.ADMIN) return true;
+        if (roleType == RoleType.LIBRARIAN) {
+            Long bucketId = findBucketIdByName(bucketName);
+            if (bucketId == null) return false; // 存储桶不存在，无权限
+            return bucketPermissionRepository.findByUserIdAndBucketId(userId, bucketId)
+                    .map(permission -> {
+                        String perms = permission.getPermission();
+                        return perms != null && Arrays.stream(perms.split(","))
+                                .map(String::trim)
+                                .map(String::toLowerCase)
+                                .anyMatch(p -> p.equals("write") || p.equals("admin"));
+                    })
+                    .orElse(false);
+        }
+        return isOwnBucket(userId, bucketName);
     }
 
     @Override
@@ -64,8 +97,10 @@ public class PermissionValidatorImpl implements PermissionValidator {
                 .orElseThrow(() -> new ApiException("找不到用户 ID: " + userId));
     }
 
-    private boolean isOwnBucket(Long userId, String bucketId) {
-        return bucketId.toLowerCase().contains(userId.toString());
+    private boolean isOwnBucket(Long userId, String bucketName) {
+        return bucketRepository.findByName(bucketName)
+                .map(bucket -> Objects.equals(bucket.getOwnerId(), userId))
+                .orElse(false);
     }
 
     private String extractLibraryCode(String bucketId) {
@@ -75,14 +110,30 @@ public class PermissionValidatorImpl implements PermissionValidator {
     }
 
     @Override
-    public boolean hasWritePermission(Long userId, String bucketId) {
+    public boolean hasWritePermission(Long userId, String bucketName) {
         User user = findUserOrThrow(userId);
         RoleType roleType = user.getRoleType();
 
         if (roleType == RoleType.ADMIN) return true;
         if (roleType == RoleType.LIBRARIAN) {
-            return extractLibraryCode(bucketId).equalsIgnoreCase(user.getLibraryCode());
+            Long bucketId = findBucketIdByName(bucketName);
+            if (bucketId == null) return false; // 存储桶不存在，无权限
+            return bucketPermissionRepository.findByUserIdAndBucketId(userId, bucketId)
+                    .map(permission -> {
+                        String perms = permission.getPermission();
+                        return perms != null && Arrays.stream(perms.split(","))
+                                .map(String::trim)
+                                .map(String::toLowerCase)
+                                .anyMatch(p -> p.equals("write") || p.equals("admin"));
+                    })
+                    .orElse(false);
         }
-        return isOwnBucket(userId, bucketId);
+        return isOwnBucket(userId, bucketName);
+    }
+
+    private Long findBucketIdByName(String bucketName) {
+        return bucketRepository.findByName(bucketName)
+                .map(Bucket::getId)
+                .orElse(null);
     }
 }
