@@ -97,7 +97,7 @@ public class OnlyOfficeController {
                 "callbackUrl", externalBaseUrl + "/api/onlyoffice/callback/" + fileId,
                 "user", Map.of(
                         "id", String.valueOf(userId),
-                        "name", userDetails.getUsername()
+                        "name", userDetails.getUser().getUsername()
                 ),
                 "lang", "zh-CN",
                 "mode", canEdit ? "edit" : "view"

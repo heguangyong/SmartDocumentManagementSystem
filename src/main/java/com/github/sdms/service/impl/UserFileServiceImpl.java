@@ -811,10 +811,6 @@ public class UserFileServiceImpl implements UserFileService {
     public UserFile getFileByDocIdAndUid(Long docId, Long userId, String libraryCode) {
         UserFile file = userFileRepository.findFirstByDocIdAndUserIdAndLibraryCodeAndIsLatestTrueAndDeleteFlagFalse(docId, userId, libraryCode)
                 .orElse(null);
-
-        if (file != null && !permissionValidator.canReadFile(userId, file.getId())) {
-            throw new ApiException(403, "无权限访问该文件");
-        }
         return file;
     }
 
@@ -1000,10 +996,6 @@ public class UserFileServiceImpl implements UserFileService {
         if (originFile == null) {
             throw new ApiException(403, "无权限上传该文档新版本");
         }
-        if (!permissionValidator.canWriteFile(userId, originFile.getId())) {
-            throw new ApiException(403, "无权限上传该文档新版本");
-        }
-
         if (!storageQuotaService.canUpload(userId, file.getSize(), libraryCode)) {
             throw new ApiException(403, "上传失败：存储配额不足");
         }

@@ -60,22 +60,22 @@ public class PermissionValidatorImpl implements PermissionValidator {
         RoleType roleType = user.getRoleType();
 
         if (roleType == RoleType.ADMIN) return true;
-
         if (roleType == RoleType.LIBRARIAN) {
             Long bucketId = findBucketIdByName(bucketName);
-            if (bucketId == null) return false; // 桶不存在
+            if (bucketId == null) return false; // 存储桶不存在，无权限
             return bucketPermissionRepository.findByUserIdAndBucketId(userId, bucketId)
                     .map(permission -> {
                         String perms = permission.getPermission();
                         if (perms == null) return false;
+
                         return Arrays.stream(perms.split(","))
                                 .map(String::trim)
                                 .map(String::toLowerCase)
-                                .anyMatch(p -> p.equals("write") || p.equals("admin"));
+                                .anyMatch(p -> p.contains("write") || p.contains("admin"));
                     })
                     .orElse(false);
-        }
 
+        }
         return isOwnBucket(userId, bucketName);
     }
 
@@ -129,12 +129,15 @@ public class PermissionValidatorImpl implements PermissionValidator {
             return bucketPermissionRepository.findByUserIdAndBucketId(userId, bucketId)
                     .map(permission -> {
                         String perms = permission.getPermission();
-                        return perms != null && Arrays.stream(perms.split(","))
+                        if (perms == null) return false;
+
+                        return Arrays.stream(perms.split(","))
                                 .map(String::trim)
                                 .map(String::toLowerCase)
-                                .anyMatch(p -> p.equals("write") || p.equals("admin"));
+                                .anyMatch(p -> p.contains("write") || p.contains("admin"));
                     })
                     .orElse(false);
+
         }
         return isOwnBucket(userId, bucketName);
     }
